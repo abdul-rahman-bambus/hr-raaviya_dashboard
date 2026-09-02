@@ -65,6 +65,50 @@ class BambusHrAttendanceSheet(models.Model):
      'Attendance sheet already exists for this date (per company).')
 ]
 
+    @api.model
+    def get_attendance_dashboard(self, selected_date=None):
+        """Read metrics from the existing daily sheet; never create or refresh it."""
+        day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
+        company = self.env.company
+        sheet = self.search([
+            ("date", "=", day),
+            ("company_id", "=", company.id),
+        ], limit=1)
+        lines = sheet.line_ids if sheet else self.env["bambus.hr.attendance.sheet.line"]
+        employee_ids = lines.employee_id.ids
+        upcoming_leaves = self.env["hr.leave"].search([
+            ("employee_id", "in", employee_ids),
+            ("state", "=", "validate"),
+            ("request_date_from", ">", day),
+        ])
+        present_lines = lines.filtered(lambda line: line.status == "present")
+        absent_lines = lines.filtered(lambda line: line.status == "absent")
+        halfday_lines = lines.filtered(lambda line: line.status == "halfday")
+        leave_lines = lines.filtered(lambda line: line.status == "leave")
+        return {
+            "date": fields.Date.to_string(day),
+            "company": company.display_name,
+            "has_sheet": bool(sheet),
+            "metrics": {
+                "total": len(lines),
+                "present": len(present_lines),
+                "absent": len(absent_lines),
+                "halfday": len(halfday_lines),
+                "leave": len(leave_lines),
+                "punched_in": len(lines.filtered("check_in")),
+                "punched_out": len(lines.filtered("check_out")),
+                "not_marked": len(absent_lines.filtered(lambda line: not line.check_in)),
+                "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
+                "overtime": round(sum(lines.mapped("overtime_hours")), 2),
+                "fine": round(sum(lines.mapped("fine_hours")), 2),
+                "fine_amount": round(sum(lines.mapped("fine_amount")), 2),
+                "on_duty": 0,
+                "upcoming_on_duty": 0,
+                "deactivated": len(lines.filtered(lambda line: not line.employee_id.active)),
+                "daily_work_entries": len(lines.filtered("attendance_id")),
+            },
+        }
+
 
     def _filtered_lines(self):
         self.ensure_one()
