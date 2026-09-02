@@ -44,6 +44,12 @@ rules for employees, attendances and time off; it does not use `sudo()`.
 - `static/src/css/attendance_dashboard.css`: responsive presentation.
 - `views/hr_attendance_sheet_views.xml`: dashboard/history actions and menus.
 
+`models/res_users.py` is an unrelated deployment compatibility shim for databases
+that still contain a legacy Users form referencing `saas_archived_at` after the
+former SaaS archiving add-on was removed. Remove the field only together with a
+database migration that removes the inherited view; otherwise Odoo cannot open
+the Users form.
+
 When adding a metric, add it to the model response first and then render it in the
 template. Keep the RPC read-only. Any new write operation should use a named model
 action so access rules, approval locking and audit behaviour remain server-side.
