@@ -61,6 +61,29 @@
             </div>
           </section>
           </div>
+          <section class="o_bad_daily_card">
+            <div class="o_bad_daily_header">
+              <div><i class="fa fa-id-card-o"/><strong>Daily Attendance View</strong></div>
+              <div class="o_bad_daily_tools">
+                <input class="form-control" type="search" placeholder="Search by name, department or schedule" t-model="state.query"/>
+                <select class="form-select" t-model="state.statusFilter">
+                  <option value="all">All Statuses</option><option value="present">Present</option><option value="not_marked">Not Marked</option><option value="halfday">Half Day</option><option value="leave">Leave</option>
+                </select>
+                <button class="btn btn-outline-primary" t-on-click="downloadDailyAttendance"><i class="fa fa-download"/> Download</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-hover o_bad_daily_table">
+                <thead><tr><th>Name</th><th>Department</th><th>Work Schedule</th><th>Attendance</th><th>In Time</th><th>Out Time</th><th>Fine</th></tr></thead>
+                <tbody>
+                  <tr t-foreach="dailyEmployees" t-as="employee" t-key="employee.id">
+                    <td class="fw-semibold" t-esc="employee.name"/><td t-esc="employee.department"/><td t-esc="employee.shift"/><td><span t-att-class="'o_bad_daily_status ' + employee.status" t-esc="employee.status_label"/></td><td t-esc="employee.check_in || '—'"/><td t-esc="employee.check_out || '—'"/><td t-esc="fineDisplay(employee.fine_hours)"/>
+                  </tr>
+                  <tr t-if="!dailyEmployees.length"><td colspan="7" class="text-muted text-center">No employees match the selected filters</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
       </t>
     </div>
   </t>

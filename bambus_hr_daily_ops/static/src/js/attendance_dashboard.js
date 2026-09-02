@@ -11,7 +11,13 @@ export class AttendanceDashboard extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
-        this.state = useState({ loading: true, data: null, error: "" });
+        this.state = useState({
+            loading: true,
+            data: null,
+            error: "",
+            query: "",
+            statusFilter: "all",
+        });
         this.loadSequence = 0;
         onWillStart(() => this.load());
     }
@@ -58,6 +64,37 @@ export class AttendanceDashboard extends Component {
     metricValue(metric) {
         const value = this.state.data.metrics[metric[0]];
         return metric[3] === "hours" ? `${this.formatHours(value)} h` : value;
+    }
+
+    get dailyEmployees() {
+        const query = this.state.query.trim().toLowerCase();
+        return (this.state.data?.daily_attendance || []).filter((employee) => {
+            const matchesStatus = this.state.statusFilter === "all" || employee.status === this.state.statusFilter;
+            const matchesQuery = !query || [employee.name, employee.department, employee.shift]
+                .some((value) => value.toLowerCase().includes(query));
+            return matchesStatus && matchesQuery;
+        });
+    }
+
+    fineDisplay(hours) {
+        return hours > 0 ? `${this.formatHours(hours)} h` : "—";
+    }
+
+    downloadDailyAttendance() {
+        const headers = ["Name", "Department", "Work Schedule", "Attendance", "In Time", "Out Time", "Fine Hours"];
+        const rows = this.dailyEmployees.map((employee) => [
+            employee.name, employee.department, employee.shift, employee.status_label,
+            employee.check_in, employee.check_out, this.fineDisplay(employee.fine_hours),
+        ]);
+        const csv = [headers, ...rows].map((row) => row.map((value) =>
+            `"${String(value ?? "").replaceAll('"', '""')}"`
+        ).join(",")).join("\n");
+        const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `daily-attendance-${this.state.data.date}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
     }
 
     async changeDate(ev) {

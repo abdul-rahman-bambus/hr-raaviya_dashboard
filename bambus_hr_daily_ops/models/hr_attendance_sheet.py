@@ -187,11 +187,59 @@ class BambusHrAttendanceSheet(models.Model):
                 "leave": len(group_employee_ids & leave_employee_ids),
             })
         shifts.sort(key=lambda shift: shift["name"].lower())
+
+        attendances_by_employee = {}
+        for attendance in attendances:
+            attendances_by_employee.setdefault(attendance.employee_id.id, []).append(attendance)
+
+        def format_time(value):
+            if not value:
+                return ""
+            local_value = fields.Datetime.context_timestamp(self, value)
+            return local_value.strftime("%I:%M %p").lstrip("0")
+
+        daily_attendance = []
+        for employee in employees.sorted(key=lambda item: (item.name or "").lower()):
+            employee_attendances = attendances_by_employee.get(employee.id, [])
+            check_ins = [attendance.check_in for attendance in employee_attendances if attendance.check_in]
+            check_outs = [attendance.check_out for attendance in employee_attendances if attendance.check_out]
+            if employee.id in leave_employee_ids:
+                status = "leave"
+                status_label = _("Leave")
+            elif employee.id in halfday_employee_ids:
+                status = "halfday"
+                status_label = _("Half Day")
+            elif employee.id in attendance_employee_ids:
+                status = "present"
+                status_label = _("Present")
+            else:
+                status = "not_marked"
+                status_label = _("Not Marked")
+            contract = contract_by_employee.get(employee.id)
+            calendar = contract.resource_calendar_id if contract else False
+            employee_fine_hours = 0.0
+            if "bambus_fine_hours" in attendances._fields:
+                employee_fine_hours = sum(
+                    attendance.bambus_fine_hours or 0.0
+                    for attendance in employee_attendances
+                )
+            daily_attendance.append({
+                "id": employee.id,
+                "name": employee.display_name,
+                "department": employee.department_id.display_name or _("No Department"),
+                "shift": calendar.display_name if calendar else _("No Work Schedule"),
+                "status": status,
+                "status_label": status_label,
+                "check_in": format_time(min(check_ins)) if check_ins else "",
+                "check_out": format_time(max(check_outs)) if check_outs else "",
+                "fine_hours": round(employee_fine_hours, 2),
+            })
         return {
             "date": fields.Date.to_string(day),
             "company": company.display_name,
             "departments": departments,
             "shifts": shifts,
+            "daily_attendance": daily_attendance,
             "metrics": {
                 "total": len(employees),
                 "present": len(present_employee_ids),

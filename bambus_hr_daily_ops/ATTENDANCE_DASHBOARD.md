@@ -29,6 +29,8 @@ entries. Attendance History remains available separately for record management.
    current department, so the department table always follows the selected date.
 6. Employees are also resolved to the contract active on the selected date and
    grouped by that contract's Work Schedule for the Shift Attendance table.
+7. The response includes one Daily Attendance row for every roster employee using
+   the same date, punch, leave, department, and historical contract resolution.
 
 Client requests are sequenced so a slow response for an earlier date cannot
 overwrite the latest selected date. The server uses normal access and company
@@ -75,6 +77,16 @@ Schedule. Employees without a matching contract or schedule appear under
 `No Work Schedule`. The shift columns use the same definitions and employee sets
 as Department Attendance, so changing the dashboard date refreshes both tables.
 
+## Daily attendance
+
+Daily Attendance lists every active roster employee for the selected date. It
+shows department, contract Work Schedule, attendance status, earliest punch-in,
+latest punch-out, and total fine hours from that day's attendance entries. Status
+precedence is full-day Leave, Half Day, Present, then Not Marked. Search and status
+filters run in the browser over the already loaded rows; Download exports the
+currently filtered rows as CSV. Changing the global dashboard date reloads the
+rows from the server and never creates attendance data.
+
 ## Manual acceptance checklist
 
 1. Open Attendance Dashboard and confirm today's date is selected.
@@ -85,5 +97,7 @@ as Department Attendance, so changing the dashboard date refreshes both tables.
 5. Confirm employees appear under the Work Schedule from the contract active on
    the selected date and that shift totals reconcile to the headline metrics.
 6. Confirm opening/changing dates does not create or modify any record.
-7. Open Attendance History and confirm old Kanban/list/form records remain usable.
-8. Switch active company and confirm that another company's entries are not shown.
+7. Search/filter Daily Attendance, compare punch times with source attendance, and
+   verify Download contains the currently visible rows.
+8. Open Attendance History and confirm old Kanban/list/form records remain usable.
+9. Switch active company and confirm that another company's entries are not shown.
