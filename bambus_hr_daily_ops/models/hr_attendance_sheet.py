@@ -150,10 +150,48 @@ class BambusHrAttendanceSheet(models.Model):
                 "leave": len(group_employee_ids & leave_employee_ids),
             })
         departments.sort(key=lambda department: department["name"].lower())
+
+        contracts = self.env["hr.contract"].search([
+            ("employee_id", "in", employees.ids),
+            ("state", "!=", "cancel"),
+            ("date_start", "<=", day),
+            "|",
+            ("date_end", "=", False),
+            ("date_end", ">=", day),
+        ], order="date_start desc, id desc")
+        contract_by_employee = {}
+        for contract in contracts:
+            contract_by_employee.setdefault(contract.employee_id.id, contract)
+        shift_groups = {}
+        for employee in employees:
+            contract = contract_by_employee.get(employee.id)
+            calendar = contract.resource_calendar_id if contract else False
+            key = calendar.id if calendar else 0
+            group = shift_groups.setdefault(key, {
+                "id": key,
+                "name": calendar.display_name if calendar else _("No Work Schedule"),
+                "employee_ids": set(),
+            })
+            group["employee_ids"].add(employee.id)
+        shifts = []
+        for group in shift_groups.values():
+            group_employee_ids = group.pop("employee_ids")
+            shifts.append({
+                **group,
+                "present": len(group_employee_ids & present_employee_ids),
+                "absent": len(group_employee_ids & unmarked_employee_ids),
+                "not_marked": len(group_employee_ids & unmarked_employee_ids),
+                "halfday": len(group_employee_ids & halfday_employee_ids),
+                "overtime": len(group_employee_ids & overtime_employee_ids),
+                "fine": len(group_employee_ids & fine_employee_ids),
+                "leave": len(group_employee_ids & leave_employee_ids),
+            })
+        shifts.sort(key=lambda shift: shift["name"].lower())
         return {
             "date": fields.Date.to_string(day),
             "company": company.display_name,
             "departments": departments,
+            "shifts": shifts,
             "metrics": {
                 "total": len(employees),
                 "present": len(present_employee_ids),

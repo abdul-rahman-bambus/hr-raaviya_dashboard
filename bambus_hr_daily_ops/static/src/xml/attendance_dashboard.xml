@@ -25,6 +25,7 @@
             </t>
           </div>
           <h3 class="o_bad_charts_title">Attendance Charts</h3>
+          <div class="o_bad_charts_grid">
           <section class="o_bad_department_card">
             <div class="o_bad_department_header">
               <div><i class="fa fa-building-o"/><strong>Department Attendance</strong></div>
@@ -42,6 +43,24 @@
               </table>
             </div>
           </section>
+          <section class="o_bad_department_card">
+            <div class="o_bad_department_header">
+              <div><i class="fa fa-clock-o"/><strong>Shift Attendance</strong></div>
+              <span><i class="fa fa-calendar"/><t t-esc="state.data.date"/></span>
+            </div>
+            <div class="table-responsive">
+              <table class="table o_bad_department_table">
+                <thead><tr><th>Work Schedule</th><th title="Present">P</th><th title="Absent">A</th><th title="Not Marked">NM</th><th title="Half Day">HD</th><th title="Overtime">OT</th><th title="Fine">F</th><th title="Leave">L</th></tr></thead>
+                <tbody>
+                  <tr t-foreach="state.data.shifts" t-as="shift" t-key="shift.id">
+                    <td t-esc="shift.name"/><td t-esc="shift.present"/><td t-esc="shift.absent"/><td t-esc="shift.not_marked"/><td t-esc="shift.halfday"/><td t-esc="shift.overtime"/><td t-esc="shift.fine"/><td t-esc="shift.leave"/>
+                  </tr>
+                  <tr t-if="!state.data.shifts.length"><td colspan="8" class="text-muted text-center">No work schedules found for this company</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          </div>
       </t>
     </div>
   </t>

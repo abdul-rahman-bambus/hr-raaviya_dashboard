@@ -27,6 +27,8 @@ entries. Attendance History remains available separately for record management.
    operation exists in the dashboard client action.
 5. The same response groups the calculated employee sets by each employee's
    current department, so the department table always follows the selected date.
+6. Employees are also resolved to the contract active on the selected date and
+   grouped by that contract's Work Schedule for the Shift Attendance table.
 
 Client requests are sequenced so a slow response for an earlier date cannot
 overwrite the latest selected date. The server uses normal access and company
@@ -64,6 +66,15 @@ Marked, Half Day, and Leave. `OT` and `F` count distinct employees having positi
 overtime or fine hours on attendance entries for the selected date. Employees
 without a department appear under `No Department`.
 
+## Shift attendance
+
+Shift means the Work Schedule (`resource_calendar_id`) on an employee contract.
+For a historical date, the dashboard selects the latest non-cancelled contract
+whose start/end dates cover the selected date, then groups employees by its Work
+Schedule. Employees without a matching contract or schedule appear under
+`No Work Schedule`. The shift columns use the same definitions and employee sets
+as Department Attendance, so changing the dashboard date refreshes both tables.
+
 ## Manual acceptance checklist
 
 1. Open Attendance Dashboard and confirm today's date is selected.
@@ -71,6 +82,8 @@ without a department appear under `No Department`.
 3. Visit a historical date and compare metrics with its attendance and leave data.
 4. Confirm every department row changes with the selected date and reconciles to
    the headline totals.
-5. Confirm opening/changing dates does not create or modify any record.
-6. Open Attendance History and confirm old Kanban/list/form records remain usable.
-7. Switch active company and confirm that another company's entries are not shown.
+5. Confirm employees appear under the Work Schedule from the contract active on
+   the selected date and that shift totals reconcile to the headline metrics.
+6. Confirm opening/changing dates does not create or modify any record.
+7. Open Attendance History and confirm old Kanban/list/form records remain usable.
+8. Switch active company and confirm that another company's entries are not shown.
