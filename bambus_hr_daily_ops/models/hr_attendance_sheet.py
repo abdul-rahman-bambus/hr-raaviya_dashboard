@@ -68,76 +68,45 @@ class BambusHrAttendanceSheet(models.Model):
 
     @api.model
     def get_attendance_dashboard(self, selected_date=None):
-        """Build daily metrics from source records without creating sheet data."""
+        """Read metrics from the existing daily sheet; never create or refresh it."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
         company = self.env.company
-        employee_model = self.env["hr.employee"].with_context(active_test=False)
-        all_employees = employee_model.search([("company_id", "=", company.id)])
-        employees = all_employees.filtered("active")
-
-        user_timezone = pytz.timezone(self.env.user.tz or "UTC")
-        local_start = user_timezone.localize(datetime.combine(day, time.min))
-        local_end = local_start + timedelta(days=1)
-        utc_start = local_start.astimezone(pytz.UTC).replace(tzinfo=None)
-        utc_end = local_end.astimezone(pytz.UTC).replace(tzinfo=None)
-
-        attendances = self.env["hr.attendance"].search([
-            ("employee_id", "in", employees.ids),
-            ("check_in", "<", fields.Datetime.to_string(utc_end)),
-            "|",
-            ("check_out", "=", False),
-            ("check_out", ">", fields.Datetime.to_string(utc_start)),
-        ])
-        leaves = self.env["hr.leave"].search([
-            ("employee_id", "in", employees.ids),
-            ("state", "=", "validate"),
-            ("request_date_from", "<=", day),
-            ("request_date_to", ">=", day),
-        ])
-        attendance_employee_ids = set(attendances.employee_id.ids)
-        full_leave_employee_ids = set()
-        halfday_employee_ids = set()
-        for leave in leaves:
-            if "request_unit_half" in leave._fields and leave.request_unit_half:
-                halfday_employee_ids.add(leave.employee_id.id)
-            else:
-                full_leave_employee_ids.add(leave.employee_id.id)
-        present_employee_ids = attendance_employee_ids - full_leave_employee_ids
-        unmarked_employee_ids = set(employees.ids) - attendance_employee_ids - full_leave_employee_ids - halfday_employee_ids
-
-        overtime_total = sum(attendances.mapped("overtime_hours"))
-        fine_hours_total = 0.0
-        fine_amount_total = 0.0
-        if "bambus_fine_hours" in attendances._fields:
-            fine_hours_total = sum(attendances.mapped("bambus_fine_hours"))
-        if "bambus_fine_amount" in attendances._fields:
-            fine_amount_total = sum(attendances.mapped("bambus_fine_amount"))
-
+        sheet = self.search([
+            ("date", "=", day),
+            ("company_id", "=", company.id),
+        ], limit=1)
+        lines = sheet.line_ids if sheet else self.env["bambus.hr.attendance.sheet.line"]
+        employee_ids = lines.employee_id.ids
         upcoming_leaves = self.env["hr.leave"].search([
-            ("employee_id", "in", employees.ids),
+            ("employee_id", "in", employee_ids),
             ("state", "=", "validate"),
             ("request_date_from", ">", day),
         ])
+        present_lines = lines.filtered(lambda line: line.status == "present")
+        absent_lines = lines.filtered(lambda line: line.status == "absent")
+        halfday_lines = lines.filtered(lambda line: line.status == "halfday")
+        leave_lines = lines.filtered(lambda line: line.status == "leave")
         return {
             "date": fields.Date.to_string(day),
             "company": company.display_name,
+            "has_sheet": bool(sheet),
             "metrics": {
-                "total": len(employees),
-                "present": len(present_employee_ids),
-                "absent": len(unmarked_employee_ids),
-                "halfday": len(halfday_employee_ids),
-                "leave": len(full_leave_employee_ids),
-                "punched_in": len(attendance_employee_ids),
-                "punched_out": len(set(attendances.filtered("check_out").employee_id.ids)),
-                "not_marked": len(unmarked_employee_ids),
+                "total": len(lines),
+                "present": len(present_lines),
+                "absent": len(absent_lines),
+                "halfday": len(halfday_lines),
+                "leave": len(leave_lines),
+                "punched_in": len(lines.filtered("check_in")),
+                "punched_out": len(lines.filtered("check_out")),
+                "not_marked": len(absent_lines.filtered(lambda line: not line.check_in)),
                 "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
-                "overtime": round(overtime_total, 2),
-                "fine": round(fine_hours_total, 2),
-                "fine_amount": round(fine_amount_total, 2),
+                "overtime": round(sum(lines.mapped("overtime_hours")), 2),
+                "fine": round(sum(lines.mapped("fine_hours")), 2),
+                "fine_amount": round(sum(lines.mapped("fine_amount")), 2),
                 "on_duty": 0,
                 "upcoming_on_duty": 0,
-                "deactivated": len(all_employees - employees),
-                "daily_work_entries": len(attendances),
+                "deactivated": len(lines.filtered(lambda line: not line.employee_id.active)),
+                "daily_work_entries": len(lines.filtered("attendance_id")),
             },
         }
 

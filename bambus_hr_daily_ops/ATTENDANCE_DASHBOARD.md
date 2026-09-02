@@ -11,8 +11,9 @@ It is the record-oriented audit and administration view; do not remove it when
 changing the dashboard.
 
 The dashboard does **not** create or populate attendance sheets. Metrics are read
-directly from existing employees, `hr.attendance` punches and approved `hr.leave`
-entries. Attendance History remains available separately for record management.
+from the existing `bambus.hr.attendance.sheet` and its existing line entries for
+the selected company/date. This intentionally produces the same totals as the
+original sheet header. Attendance History remains available for record management.
 
 ## Technical flow
 
@@ -20,9 +21,8 @@ entries. Attendance History remains available separately for record management.
 2. The component calls `bambus.hr.attendance.sheet.get_attendance_dashboard` with
    an ISO `YYYY-MM-DD` date. The model name is only the RPC host; the method does
    not read or write attendance-sheet lines.
-3. The model converts the selected local day to UTC boundaries, reads source
-   attendance/leave entries for active employees in the current company, and
-   returns JSON-safe metrics.
+3. The model finds the existing sheet for the selected company/date and aggregates
+   its existing lines. It does not call `action_generate_lines` or refresh lines.
 4. Changing the date repeats the same read-only calculation. No create/write
    operation exists in the dashboard client action.
 
@@ -41,19 +41,18 @@ action so access rules, approval locking and audit behaviour remain server-side.
 ## Intentional definitions
 
 - **Leave** counts full-day leave; half days have their own metric.
-- **Present** means an employee has at least one overlapping attendance entry and
-  is not on full-day approved leave.
-- **Absent / Not Marked** means an active employee has no attendance and no
-  approved full- or half-day leave. They intentionally match in this first phase.
-- **Punched In / Out** count distinct employees, not individual punch rows.
-- **Daily Work Entries** currently reports the number of existing attendance rows.
+- **All / Present / Absent / Half Day / Leave** use the statuses already stored on
+  the existing sheet lines, matching the original attendance-sheet counters.
+- **Not Marked** counts existing absent sheet lines without a punch-in.
+- **Punched In / Out** count sheet lines with an existing check-in/check-out.
+- **Daily Work Entries** counts sheet lines linked to an attendance entry.
 - **On Duty / Upcoming On Duty** remain zero until a source on-duty model is agreed.
 
 ## Manual acceptance checklist
 
 1. Open Attendance Dashboard and confirm today's date is selected.
 2. Navigate backward/forward and with the date picker; all sections must change.
-3. Visit a date without a sheet and confirm metrics still load from source entries.
+3. Visit a date with an existing sheet and compare every metric with its header.
 4. Confirm opening/changing dates does not create or modify any record.
 5. Open Attendance History and confirm old Kanban/list/form records remain usable.
 6. Switch active company and confirm that another company's entries are not shown.
