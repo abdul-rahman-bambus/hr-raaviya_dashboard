@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="bambus_hr_daily_ops.AttendanceDashboard">
+    <div class="o_bambus_attendance_dashboard">
+      <div class="o_bad_toolbar">
+        <div><h2>Attendance Dashboard</h2><span t-if="state.data" t-esc="state.data.company"/></div>
+        <div class="o_bad_actions" t-if="state.data">
+          <button class="btn btn-light" t-on-click="() => this.moveDate(-1)" title="Previous day"><i class="fa fa-chevron-left"/></button>
+          <input class="form-control" type="date" t-att-value="state.data.date" t-on-change="changeDate"/>
+          <button class="btn btn-light" t-on-click="() => this.moveDate(1)" title="Next day"><i class="fa fa-chevron-right"/></button>
+          <button class="btn btn-outline-secondary" t-on-click="openHistory">History</button>
+        </div>
+      </div>
+      <div t-if="state.loading" class="o_bad_loading"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>
+      <div t-elif="state.error" class="alert alert-danger o_bad_error" role="alert">
+        <strong>Attendance dashboard could not be loaded.</strong>
+        <div t-esc="state.error"/>
+        <button class="btn btn-outline-danger btn-sm mt-2" t-on-click="() => this.load()">Try Again</button>
+      </div>
+      <t t-elif="state.data">
+          <div class="o_bad_context"><i class="fa fa-users"/><strong>Attendance Metrics</strong><span>Loaded from existing employee, attendance and leave entries</span></div>
+          <div class="o_bad_metrics">
+            <t t-foreach="[['total','All Staff','fa-users'],['present','Present','fa-check-circle'],['absent','Absent','fa-times-circle'],['halfday','Half Day','fa-adjust'],['punched_in','Punched In','fa-sign-in'],['punched_out','Punched Out','fa-sign-out'],['not_marked','Not Marked','fa-question-circle'],['leave','On Leave','fa-plane'],['upcoming_leaves','Upcoming Leaves','fa-calendar'],['overtime','Overtime Hours','fa-clock-o','hours'],['fine','Fine Hours','fa-money','hours'],['on_duty','On Duty','fa-briefcase'],['upcoming_on_duty','Upcoming On Duty','fa-calendar-plus-o'],['deactivated','Deactivated','fa-user-times'],['daily_work_entries','Daily Work Entries','fa-list-alt']]" t-as="metric" t-key="metric[0]">
+              <div class="o_bad_metric"><i t-att-class="'fa ' + metric[2]"/><div><span t-esc="metric[1]"/><strong t-esc="metricValue(metric)"/></div></div>
+            </t>
+          </div>
+      </t>
+    </div>
+  </t>
+</templates>
