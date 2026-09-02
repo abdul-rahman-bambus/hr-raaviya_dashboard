@@ -25,6 +25,12 @@ The database constraint remains the authority for one sheet per company/date.
    loaded. Attendance modifications continue in the existing sheet form opened
    by **Manage Attendance**.
 
+During deployment, Odoo may serve the new asset bundle before its Python workers
+have been restarted. If the dashboard RPC is temporarily unavailable, the client
+uses standard `searchRead` calls to build the same snapshot. This compatibility
+path prevents a blank OWL lifecycle error, but workers should still be restarted
+after deploying Python changes.
+
 ## Files and extension points
 
 - `models/hr_attendance_sheet.py`: data contract and aggregation.

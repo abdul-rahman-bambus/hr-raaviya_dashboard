@@ -13,6 +13,11 @@
         </div>
       </div>
       <div t-if="state.loading" class="o_bad_loading"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>
+      <div t-elif="state.error" class="alert alert-danger o_bad_error" role="alert">
+        <strong>Attendance dashboard could not be loaded.</strong>
+        <div t-esc="state.error"/>
+        <button class="btn btn-outline-danger btn-sm mt-2" t-on-click="() => this.load()">Try Again</button>
+      </div>
       <t t-elif="state.data">
         <div t-if="!state.data.sheet_id" class="o_bad_empty">
           <i class="fa fa-calendar-o"/><h3>No attendance sheet for this date</h3>
