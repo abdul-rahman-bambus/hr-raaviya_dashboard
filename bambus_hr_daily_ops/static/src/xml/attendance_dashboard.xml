@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="bambus_hr_daily_ops.AttendanceDashboard">
+    <div class="o_bambus_attendance_dashboard">
+      <div class="o_bad_toolbar">
+        <div><h2>Attendance Dashboard</h2><span t-if="state.data" t-esc="state.data.company"/></div>
+        <div class="o_bad_actions" t-if="state.data">
+          <button class="btn btn-light" t-on-click="() => this.moveDate(-1)" title="Previous day"><i class="fa fa-chevron-left"/></button>
+          <input class="form-control" type="date" t-att-value="state.data.date" t-on-change="(ev) => this.changeDate(ev)"/>
+          <button class="btn btn-light" t-on-click="() => this.moveDate(1)" title="Next day"><i class="fa fa-chevron-right"/></button>
+          <button class="btn btn-outline-secondary" t-on-click="openHistory">History</button>
+        </div>
+      </div>
+      <div t-if="state.loading" class="o_bad_loading"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>
+      <div t-elif="state.error" class="alert alert-danger o_bad_error" role="alert">
+        <strong>Attendance dashboard could not be loaded.</strong>
+        <div t-esc="state.error"/>
+        <button class="btn btn-outline-danger btn-sm mt-2" t-on-click="() => this.load()">Try Again</button>
+      </div>
+      <t t-elif="state.data">
+          <div class="o_bad_context"><i class="fa fa-users"/><strong>Attendance Metrics</strong><span>Loaded from employees, attendance punches and approved time off</span></div>
+          <div class="o_bad_metrics">
+            <t t-foreach="[['total','All Staff','fa-users'],['present','Present','fa-check-circle'],['absent','Absent','fa-times-circle'],['halfday','Half Day','fa-adjust'],['punched_in','Punched In','fa-sign-in'],['punched_out','Punched Out','fa-sign-out'],['not_marked','Not Marked','fa-question-circle'],['leave','On Leave','fa-plane'],['upcoming_leaves','Upcoming Leaves','fa-calendar'],['overtime','Overtime Hours','fa-clock-o','hours'],['fine','Fine Hours','fa-money','hours'],['on_duty','On Duty','fa-briefcase'],['upcoming_on_duty','Upcoming On Duty','fa-calendar-plus-o'],['deactivated','Deactivated','fa-user-times'],['daily_work_entries','Daily Work Entries','fa-list-alt']]" t-as="metric" t-key="metric[0]">
+              <div class="o_bad_metric"><i t-att-class="'fa ' + metric[2]"/><div><span t-esc="metric[1]"/><strong t-esc="metricValue(metric)"/></div></div>
+            </t>
+          </div>
+          <h3 class="o_bad_charts_title">Attendance Charts</h3>
+          <div class="o_bad_charts_grid">
+          <section class="o_bad_department_card">
+            <div class="o_bad_department_header">
+              <div><i class="fa fa-building-o"/><strong>Department Attendance</strong></div>
+              <span><i class="fa fa-calendar"/><t t-esc="state.data.date"/></span>
+            </div>
+            <div class="table-responsive">
+              <table class="table o_bad_department_table">
+                <thead><tr><th>Department</th><th title="Present">P</th><th title="Absent">A</th><th title="Not Marked">NM</th><th title="Half Day">HD</th><th title="Overtime">OT</th><th title="Fine">F</th><th title="Leave">L</th></tr></thead>
+                <tbody>
+                  <tr t-foreach="state.data.departments" t-as="department" t-key="department.id">
+                    <td t-esc="department.name"/><td t-esc="department.present"/><td t-esc="department.absent"/><td t-esc="department.not_marked"/><td t-esc="department.halfday"/><td t-esc="department.overtime"/><td t-esc="department.fine"/><td t-esc="department.leave"/>
+                  </tr>
+                  <tr t-if="!state.data.departments.length"><td colspan="8" class="text-muted text-center">No employees found for this company</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section class="o_bad_department_card">
+            <div class="o_bad_department_header">
+              <div><i class="fa fa-clock-o"/><strong>Shift Attendance</strong></div>
+              <span><i class="fa fa-calendar"/><t t-esc="state.data.date"/></span>
+            </div>
+            <div class="table-responsive">
+              <table class="table o_bad_department_table">
+                <thead><tr><th>Work Schedule</th><th title="Present">P</th><th title="Absent">A</th><th title="Not Marked">NM</th><th title="Half Day">HD</th><th title="Overtime">OT</th><th title="Fine">F</th><th title="Leave">L</th></tr></thead>
+                <tbody>
+                  <tr t-foreach="state.data.shifts" t-as="shift" t-key="shift.id">
+                    <td t-esc="shift.name"/><td t-esc="shift.present"/><td t-esc="shift.absent"/><td t-esc="shift.not_marked"/><td t-esc="shift.halfday"/><td t-esc="shift.overtime"/><td t-esc="shift.fine"/><td t-esc="shift.leave"/>
+                  </tr>
+                  <tr t-if="!state.data.shifts.length"><td colspan="8" class="text-muted text-center">No work schedules found for this company</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+          </div>
+      </t>
+    </div>
+  </t>
+</templates>
