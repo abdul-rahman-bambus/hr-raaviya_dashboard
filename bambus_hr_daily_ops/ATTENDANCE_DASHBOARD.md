@@ -2,34 +2,29 @@
 
 ## Product behaviour
 
-`Attendance Dashboard` is the daily operational entry point. It opens on the
-current date and current Odoo company. Previous/next buttons and the date input
-reload every metric, grouping and employee row for the selected date.
+`Attendance Dashboard` is the daily operational entry point. Its first phase is
+the Attendance Metrics panel. It opens on the current date and current Odoo
+company. Previous/next buttons and the date input reload every metric.
 
 `Attendance History` intentionally retains the original Kanban/list/form action.
 It is the record-oriented audit and administration view; do not remove it when
 changing the dashboard.
 
-The dashboard does **not** create a sheet merely because a user visits a date.
-When no record exists, it shows an empty state and an explicit create button.
-The database constraint remains the authority for one sheet per company/date.
+The dashboard does **not** create or populate attendance sheets. Metrics are read
+directly from existing employees, `hr.attendance` punches and approved `hr.leave`
+entries. Attendance History remains available separately for record management.
 
 ## Technical flow
 
 1. The client action tag `bambus_attendance_dashboard` mounts the OWL component.
 2. The component calls `bambus.hr.attendance.sheet.get_attendance_dashboard` with
-   an ISO `YYYY-MM-DD` date.
-3. The model searches only the active company and selected date, then returns a
-   JSON-safe snapshot containing metrics, department/shift groups and employees.
-4. Search is client-side because all rows for the single daily sheet are already
-   loaded. Attendance modifications continue in the existing sheet form opened
-   by **Manage Attendance**.
-
-During deployment, Odoo may serve the new asset bundle before its Python workers
-have been restarted. If the dashboard RPC is temporarily unavailable, the client
-uses standard `searchRead` calls to build the same snapshot. This compatibility
-path prevents a blank OWL lifecycle error, but workers should still be restarted
-after deploying Python changes.
+   an ISO `YYYY-MM-DD` date. The model name is only the RPC host; the method does
+   not read or write attendance-sheet lines.
+3. The model converts the selected local day to UTC boundaries, reads source
+   attendance/leave entries for active employees in the current company, and
+   returns JSON-safe metrics.
+4. Changing the date repeats the same read-only calculation. No create/write
+   operation exists in the dashboard client action.
 
 ## Files and extension points
 
@@ -46,17 +41,19 @@ action so access rules, approval locking and audit behaviour remain server-side.
 ## Intentional definitions
 
 - **Leave** counts full-day leave; half days have their own metric.
-- **Not Marked** means absent with no punch-in.
-- **Shift** uses the line contract's working schedule (`resource_calendar_id`),
-  falling back to `No Shift`.
-- Times are formatted in the current user's timezone by the existing line helper.
+- **Present** means an employee has at least one overlapping attendance entry and
+  is not on full-day approved leave.
+- **Absent / Not Marked** means an active employee has no attendance and no
+  approved full- or half-day leave. They intentionally match in this first phase.
+- **Punched In / Out** count distinct employees, not individual punch rows.
+- **Daily Work Entries** currently reports the number of existing attendance rows.
+- **On Duty / Upcoming On Duty** remain zero until a source on-duty model is agreed.
 
 ## Manual acceptance checklist
 
 1. Open Attendance Dashboard and confirm today's date is selected.
 2. Navigate backward/forward and with the date picker; all sections must change.
-3. Visit a date without a sheet; no record should be silently created.
-4. Create the missing sheet, load staff, and return to confirm the data appears.
-5. Open Manage Attendance and confirm the existing workflow/actions still work.
-6. Open Attendance History and confirm old Kanban/list/form records remain usable.
-7. Switch active company and confirm that another company's sheet is not exposed.
+3. Visit a date without a sheet and confirm metrics still load from source entries.
+4. Confirm opening/changing dates does not create or modify any record.
+5. Open Attendance History and confirm old Kanban/list/form records remain usable.
+6. Switch active company and confirm that another company's entries are not shown.
