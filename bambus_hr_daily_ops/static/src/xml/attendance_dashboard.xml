@@ -18,7 +18,7 @@
         <button class="btn btn-outline-danger btn-sm mt-2" t-on-click="() => this.load()">Try Again</button>
       </div>
       <t t-elif="state.data">
-          <div class="o_bad_context"><i class="fa fa-users"/><strong>Attendance Metrics</strong><span t-if="state.data.has_sheet">Loaded from the existing attendance sheet entries</span><span t-else="" class="text-warning">No attendance sheet exists for this company and date</span></div>
+          <div class="o_bad_context"><i class="fa fa-users"/><strong>Attendance Metrics</strong><span>Loaded from employees, attendance punches and approved time off</span></div>
           <div class="o_bad_metrics">
             <t t-foreach="[['total','All Staff','fa-users'],['present','Present','fa-check-circle'],['absent','Absent','fa-times-circle'],['halfday','Half Day','fa-adjust'],['punched_in','Punched In','fa-sign-in'],['punched_out','Punched Out','fa-sign-out'],['not_marked','Not Marked','fa-question-circle'],['leave','On Leave','fa-plane'],['upcoming_leaves','Upcoming Leaves','fa-calendar'],['overtime','Overtime Hours','fa-clock-o','hours'],['fine','Fine Hours','fa-money','hours'],['on_duty','On Duty','fa-briefcase'],['upcoming_on_duty','Upcoming On Duty','fa-calendar-plus-o'],['deactivated','Deactivated','fa-user-times'],['daily_work_entries','Daily Work Entries','fa-list-alt']]" t-as="metric" t-key="metric[0]">
               <div class="o_bad_metric"><i t-att-class="'fa ' + metric[2]"/><div><span t-esc="metric[1]"/><strong t-esc="metricValue(metric)"/></div></div>
