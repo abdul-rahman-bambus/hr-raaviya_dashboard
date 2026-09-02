@@ -6,7 +6,7 @@
         <div><h2>Attendance Dashboard</h2><span t-if="state.data" t-esc="state.data.company"/></div>
         <div class="o_bad_actions" t-if="state.data">
           <button class="btn btn-light" t-on-click="() => this.moveDate(-1)" title="Previous day"><i class="fa fa-chevron-left"/></button>
-          <input class="form-control" type="date" t-att-value="state.data.date" t-on-change="changeDate"/>
+          <input class="form-control" type="date" t-att-value="state.data.date" t-on-change="(ev) => this.changeDate(ev)"/>
           <button class="btn btn-light" t-on-click="() => this.moveDate(1)" title="Next day"><i class="fa fa-chevron-right"/></button>
           <button class="btn btn-outline-secondary" t-on-click="openHistory">History</button>
         </div>

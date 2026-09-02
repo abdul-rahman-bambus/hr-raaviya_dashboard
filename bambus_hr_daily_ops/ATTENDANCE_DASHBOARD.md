@@ -26,6 +26,13 @@ original sheet header. Attendance History remains available for record managemen
 4. Changing the date repeats the same read-only calculation. No create/write
    operation exists in the dashboard client action.
 
+The parent sheet is first located with the current user's normal company and
+record rules. Its lines are then read with `sudo()` only through that authorized
+parent. This prevents unrelated global HR line rules from hiding valid historical
+lines while still preventing access to a sheet outside the user's companies.
+Client requests are sequenced so a slow response for an earlier date cannot
+overwrite the latest selected date.
+
 ## Files and extension points
 
 - `models/hr_attendance_sheet.py`: data contract and aggregation.

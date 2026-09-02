@@ -12,24 +12,35 @@ export class AttendanceDashboard extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.state = useState({ loading: true, data: null, error: "" });
+        this.loadSequence = 0;
         onWillStart(() => this.load());
     }
 
     async load(date) {
+        const sequence = ++this.loadSequence;
         this.state.loading = true;
         this.state.error = "";
         const selectedDate = date || this.state.data?.date || this.today();
         try {
-            this.state.data = await this.orm.call(
+            const data = await this.orm.call(
                 "bambus.hr.attendance.sheet",
                 "get_attendance_dashboard",
                 [],
                 { selected_date: selectedDate }
             );
+            // A slower response for the previous date must never overwrite the
+            // most recently selected date.
+            if (sequence === this.loadSequence) {
+                this.state.data = { ...data };
+            }
         } catch (error) {
-            this.state.error = error.cause?.message || error.message || "Unable to load attendance.";
+            if (sequence === this.loadSequence) {
+                this.state.error = error.cause?.message || error.message || "Unable to load attendance.";
+            }
         } finally {
-            this.state.loading = false;
+            if (sequence === this.loadSequence) {
+                this.state.loading = false;
+            }
         }
     }
 
@@ -49,8 +60,8 @@ export class AttendanceDashboard extends Component {
         return metric[3] === "hours" ? `${this.formatHours(value)} h` : value;
     }
 
-    changeDate(ev) {
-        this.load(ev.target.value);
+    async changeDate(ev) {
+        await this.load(ev.target.value);
     }
 
     moveDate(offset) {

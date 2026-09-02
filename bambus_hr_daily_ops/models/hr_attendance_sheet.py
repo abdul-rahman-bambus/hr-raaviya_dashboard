@@ -75,7 +75,11 @@ class BambusHrAttendanceSheet(models.Model):
             ("date", "=", day),
             ("company_id", "=", company.id),
         ], limit=1)
-        lines = sheet.line_ids if sheet else self.env["bambus.hr.attendance.sheet.line"]
+        # The sheet search above enforces the user's company/record rules.  Once
+        # that parent is authorized, read its lines in the parent context so a
+        # rule inherited from another HR add-on cannot silently hide every line
+        # and turn valid historical totals into zeroes.
+        lines = sheet.sudo().line_ids if sheet else self.env["bambus.hr.attendance.sheet.line"]
         employee_ids = lines.employee_id.ids
         upcoming_leaves = self.env["hr.leave"].search([
             ("employee_id", "in", employee_ids),
@@ -90,6 +94,8 @@ class BambusHrAttendanceSheet(models.Model):
             "date": fields.Date.to_string(day),
             "company": company.display_name,
             "has_sheet": bool(sheet),
+            "sheet_id": sheet.id or False,
+            "line_count": len(lines),
             "metrics": {
                 "total": len(lines),
                 "present": len(present_lines),
