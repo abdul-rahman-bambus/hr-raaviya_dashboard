@@ -116,9 +116,44 @@ class BambusHrAttendanceSheet(models.Model):
         )
         fine_hours = sum(attendances.mapped("bambus_fine_hours")) if "bambus_fine_hours" in attendances._fields else 0.0
         fine_amount = sum(attendances.mapped("bambus_fine_amount")) if "bambus_fine_amount" in attendances._fields else 0.0
+        overtime_employee_ids = set(
+            attendances.filtered(lambda attendance: attendance.overtime_hours > 0).employee_id.ids
+        )
+        fine_employee_ids = set()
+        if "bambus_fine_hours" in attendances._fields:
+            fine_employee_ids = set(
+                attendances.filtered(
+                    lambda attendance: attendance.bambus_fine_hours > 0
+                ).employee_id.ids
+            )
+        departments = []
+        department_groups = {}
+        for employee in employees:
+            department = employee.department_id
+            key = department.id or 0
+            group = department_groups.setdefault(key, {
+                "id": key,
+                "name": department.display_name or _("No Department"),
+                "employee_ids": set(),
+            })
+            group["employee_ids"].add(employee.id)
+        for group in department_groups.values():
+            group_employee_ids = group.pop("employee_ids")
+            departments.append({
+                **group,
+                "present": len(group_employee_ids & present_employee_ids),
+                "absent": len(group_employee_ids & unmarked_employee_ids),
+                "not_marked": len(group_employee_ids & unmarked_employee_ids),
+                "halfday": len(group_employee_ids & halfday_employee_ids),
+                "overtime": len(group_employee_ids & overtime_employee_ids),
+                "fine": len(group_employee_ids & fine_employee_ids),
+                "leave": len(group_employee_ids & leave_employee_ids),
+            })
+        departments.sort(key=lambda department: department["name"].lower())
         return {
             "date": fields.Date.to_string(day),
             "company": company.display_name,
+            "departments": departments,
             "metrics": {
                 "total": len(employees),
                 "present": len(present_employee_ids),

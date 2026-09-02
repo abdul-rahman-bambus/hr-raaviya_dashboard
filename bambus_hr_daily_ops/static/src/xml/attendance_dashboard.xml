@@ -24,6 +24,24 @@
               <div class="o_bad_metric"><i t-att-class="'fa ' + metric[2]"/><div><span t-esc="metric[1]"/><strong t-esc="metricValue(metric)"/></div></div>
             </t>
           </div>
+          <h3 class="o_bad_charts_title">Attendance Charts</h3>
+          <section class="o_bad_department_card">
+            <div class="o_bad_department_header">
+              <div><i class="fa fa-building-o"/><strong>Department Attendance</strong></div>
+              <span><i class="fa fa-calendar"/><t t-esc="state.data.date"/></span>
+            </div>
+            <div class="table-responsive">
+              <table class="table o_bad_department_table">
+                <thead><tr><th>Department</th><th title="Present">P</th><th title="Absent">A</th><th title="Not Marked">NM</th><th title="Half Day">HD</th><th title="Overtime">OT</th><th title="Fine">F</th><th title="Leave">L</th></tr></thead>
+                <tbody>
+                  <tr t-foreach="state.data.departments" t-as="department" t-key="department.id">
+                    <td t-esc="department.name"/><td t-esc="department.present"/><td t-esc="department.absent"/><td t-esc="department.not_marked"/><td t-esc="department.halfday"/><td t-esc="department.overtime"/><td t-esc="department.fine"/><td t-esc="department.leave"/>
+                  </tr>
+                  <tr t-if="!state.data.departments.length"><td colspan="8" class="text-muted text-center">No employees found for this company</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
       </t>
     </div>
   </t>

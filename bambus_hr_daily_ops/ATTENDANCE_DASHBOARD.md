@@ -25,6 +25,8 @@ entries. Attendance History remains available separately for record management.
    selected local day and approved time off covering that date.
 4. Changing the date repeats the same read-only calculation. No create/write
    operation exists in the dashboard client action.
+5. The same response groups the calculated employee sets by each employee's
+   current department, so the department table always follows the selected date.
 
 Client requests are sequenced so a slow response for an earlier date cannot
 overwrite the latest selected date. The server uses normal access and company
@@ -54,11 +56,21 @@ action so access rules, approval locking and audit behaviour remain server-side.
 - **Daily Work Entries** counts existing attendance rows for the selected day.
 - **On Duty / Upcoming On Duty** remain zero until a source on-duty model is agreed.
 
+## Department attendance
+
+The department table uses the same employee sets as the headline metrics. `P`,
+`A`, `NM`, `HD`, and `L` are distinct employee counts for Present, Absent, Not
+Marked, Half Day, and Leave. `OT` and `F` count distinct employees having positive
+overtime or fine hours on attendance entries for the selected date. Employees
+without a department appear under `No Department`.
+
 ## Manual acceptance checklist
 
 1. Open Attendance Dashboard and confirm today's date is selected.
 2. Navigate backward/forward and with the date picker; all sections must change.
 3. Visit a historical date and compare metrics with its attendance and leave data.
-4. Confirm opening/changing dates does not create or modify any record.
-5. Open Attendance History and confirm old Kanban/list/form records remain usable.
-6. Switch active company and confirm that another company's entries are not shown.
+4. Confirm every department row changes with the selected date and reconciles to
+   the headline totals.
+5. Confirm opening/changing dates does not create or modify any record.
+6. Open Attendance History and confirm old Kanban/list/form records remain usable.
+7. Switch active company and confirm that another company's entries are not shown.
