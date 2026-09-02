@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <data>
+
+    <record id="res_config_settings_view_form_bambus_ot_fine" model="ir.ui.view">
+      <field name="name">res.config.settings.bambus.ot.fine</field>
+      <field name="model">res.config.settings</field>
+      <field name="inherit_id" ref="hr_attendance.res_config_settings_view_form"/>
+      <field name="arch" type="xml">
+
+        <xpath expr="//app[@name='hr_attendance']" position="inside">
+          <block title="Overtime">
+            <setting string="Overtime Mode" help="Choose default overtime or Bambus custom daily rule.">
+              <field name="bambus_ot_mode" widget="radio"/>
+            </setting>
+          </block>
+
+        </xpath>
+
+      </field>
+    </record>
+
+  </data>
+</odoo>

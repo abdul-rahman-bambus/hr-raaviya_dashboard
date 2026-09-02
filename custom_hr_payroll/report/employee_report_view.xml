@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="employee_details_templates">
+        <t t-call="web.basic_layout">
+           <div class="page" style="font-size:14px;margin-left:10px;">
+    
+                <h3 style="text-align:center; margin-bottom:25px;background-color:#444f85;color:white;">
+                    Employee Information Report
+                </h3>
+
+                <div class="row">
+                    <div class="col-6">
+                        <!-- <div style="display:flex; justify-content:space-between; margin-bottom:8px;"> -->
+                            <div class="row">
+                                <div class="col-3"><strong>Name:</strong></div>
+                                <div class="col-9"><t t-esc="emp.name"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Job Title:</strong></div>
+                                <div class="col-9"><t t-esc="emp.job_title"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Manager:</strong></div>
+                                <div class="col-9"><t t-esc="emp.parent_id.name"/></div>
+                            </div>
+                        <!-- </div> -->
+                    </div>
+                    <div class="col-6">
+                        <!-- <div style="display:flex; justify-content:space-between; margin-bottom:8px;"> -->
+                            <div class="row">
+                                <div class="col-3"><strong>Employee ID:</strong></div>
+                                <div class="col-9"><t t-esc="emp.employee_number"/></div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-3"><strong>Department:</strong></div>
+                                <div class="col-9"><t t-esc="emp.department_id.name"/></div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-3"><strong>Shift:</strong></div>
+                                <div class="col-9"><t t-esc="emp.resource_calendar_id.name"/></div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-3"><strong>Join Date:</strong></div>
+                                <div class="col-9"><t t-esc="emp.first_contract_date" t-options='{"widget": "date"}'/></div>
+                            </div>
+                        <!-- </div> -->
+                    </div>
+                </div>
+                <div class="text-left">
+                    <h4 style="margin-top:25px;color:#444f85;">Personal Information</h4>
+                </div>
+                <div class="row" style="margin-bottom:10px;">
+                    <div class="col-6">
+                        <h5 style="margin-top:25px;">Address</h5>
+                        <!-- <div style="display:flex; justify-content:space-between; margin-bottom:8px;"> -->
+                            <div class="row">
+                                <div class="col-3"><strong>Street:</strong></div>
+                                <div class="col-9"><t t-esc="emp.private_street"/> <t t-esc="emp.private_street2"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>City:</strong></div>
+                                <div class="col-9"><t t-esc="emp.private_city"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>State:</strong></div>
+                                <div class="col-9"><t t-esc="emp.private_state_id.name"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Country:</strong></div>
+                                <div class="col-9"><t t-esc="emp.private_country_id.name"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Zip:</strong></div>
+                                <div class="col-9"><t t-esc="emp.private_zip"/></div>
+                            </div>
+                        <!-- </div> -->
+
+                    </div>
+                    <div class="col-6">
+                        <!-- <div style="display:flex; justify-content:space-between; margin-bottom:8px;"> -->
+                            <div class="row">
+                                <div class="col-3"><strong>Aadhar No.:</strong></div>
+                                <div class="col-9"><t t-esc="emp.identification_id"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>PAN No.:</strong></div>
+                                <div class="col-9"><t t-esc="emp.ssnid"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Gender:</strong></div>
+                                <div class="col-9"><t t-esc="emp.gender"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Blood Group:</strong></div>
+                                <div class="col-9"><t t-esc="emp.blood_group"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Birthday:</strong></div>
+                                <div class="col-9"><t t-esc="emp.birthday" t-options='{"widget": "date"}'/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Marital:</strong></div>
+                                <div class="col-9"><t t-esc="emp.marital"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Children:</strong></div>
+                                <div class="col-9"><t t-esc="emp.children"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Email:</strong></div>
+                                <div class="col-9"><t t-esc="emp.private_email"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Phone:</strong></div>
+                                <div class="col-9"><t t-esc="emp.private_phone"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Distance:</strong></div>
+                                <div class="col-9"><t t-esc="emp.distance_home_work"/> <t t-esc="emp.distance_home_work_unit"/></div>
+                            </div>
+                        <!-- </div> -->
+
+                    </div>
+                </div>
+
+                <!-- Section : Emergency Contact -->
+
+                <div class="text-left">
+                    <h4 style="margin-top:25px;color:#444f85;">Emergency Contact</h4>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <!-- <div style="display:flex; justify-content:space-between; margin-bottom:8px;"> -->
+                            <div class="row">
+                                <div class="col-3"><strong>Name:</strong></div>
+                                <div class="col-9"><t t-esc="emp.emergency_contact"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Phone:</strong></div>
+                                <div class="col-9"><t t-esc="emp.emergency_phone"/></div>
+                            </div>
+                        <!-- </div> -->
+                    </div>
+                </div>
+
+                <!-- Section : Family Details -->
+
+                <div class="text-left">
+                    <h4 style="margin-top:25px;color:#444f85;">Family Details</h4>
+                </div>
+                <table class="table table-sm" style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th class="text-center fw-bold" style="border: 1px solid #000; padding: 4px;">Relation</th>
+                            <th class="text-center fw-bold" style="border: 1px solid #000; padding: 4px;">Name</th>
+                            <th class="text-center fw-bold" style="border: 1px solid #000; padding: 4px;">Contact</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <t t-foreach="emp.family_info_ids" t-as="fam">
+                            <tr>
+                                <td class="text-center" style="border: 1px solid #000; padding: 4px;">
+                                    <strong><t t-esc="fam.relation_id.name" /></strong>
+                                </td>
+                                <td class="text-center" style="border: 1px solid #000; padding: 4px;">
+                                    <t t-esc="fam.member_name" />
+                                </td>
+                                <td class="text-center" style="border: 1px solid #000; padding: 4px;">
+                                    <t t-esc="fam.member_contact" />
+                                </td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+
+                            
+                <!-- Section : Education Information -->
+
+                <div class="text-left">
+                    <h4 style="margin-top:25px;color:#444f85;">Education Information</h4>
+                </div>
+                <div>
+                    <div class="row">
+                        <!-- <div style="display:flex; justify-content:space-between; margin-bottom:8px;"> -->
+                            <div class="row">
+                                <div class="col-3"><strong>Certificate:</strong></div>
+                                <div class="col-9"><t t-esc="emp.certificate"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>Field of Study:</strong></div>
+                                <div class="col-9"><t t-esc="emp.study_field"/></div>
+                            </div>
+                            <div class="row">
+                                <div class="col-3"><strong>School:</strong></div>
+                                <div class="col-9"><t t-esc="emp.study_school"/></div>
+                            </div>
+                        <!-- </div> -->
+                    </div>
+                </div>
+                
+
+                <!-- Notes -->
+                <t t-if="emp.notes">
+                    <h4 style="margin-top:25px;">Notes</h4>
+                    <div>
+                        <t t-esc="emp.notes"/>
+                    </div>
+                </t>
+
+                <div style="text-align: justify;">
+                    <br/><br/>
+                    <!-- Section : Declaration -->
+
+                    <div class="text-left" t-if="emp.company_id.declaration_content">
+                        <h4 style="color:#444f85;">Declaration</h4>
+                    </div>
+                    <t t-if="emp.company_id.declaration_content" t-esc="emp.company_id.declaration_content"/>
+                    <br/><br/>
+                    <div class="row" style="line-height: 20px;page-break-inside: avoid;">
+                        <div class="col-2">
+                            <p><strong>Employee Name:</strong></p>
+                            <p><strong>Signature:</strong></p>
+                            <p><strong>Date:</strong></p>
+                        </div>
+                        <div class="col-4">
+                            <p> __________________________________</p>
+                            <p> __________________________________</p>
+                            <p> __________________________________</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Header -->
+            <div class="header" id="layout-header_employee_details">
+                <div class="row">
+                    <div class="col-6">
+                        <!-- <div t-if="emp.company_id">
+                            <t t-if="emp.company_id.name" t-esc="emp.company_id.name" />
+                            <div>
+                                <t t-if="emp.company_id.street" t-esc="emp.company_id.street" />
+                                <t t-if="emp.company_id.street2" t-esc="emp.company_id.street2" />
+                                <t t-if="emp.company_id.city" t-esc="emp.company_id.city" />
+                                <t t-if="emp.company_id.state_id" t-esc="emp.company_id.state_id.name" />
+                                <t t-if="emp.company_id.country_id" t-esc="emp.company_id.country_id.name" />
+                                <t t-if="emp.company_id.zip" t-esc="emp.company_id.zip" />
+                            </div>
+                            <div><t t-if="emp.company_id.phone" t-esc="emp.company_id.phone" /></div>
+                            <div><t t-if="emp.company_id.mobile" t-esc="emp.company_id.mobile" /></div>
+                            <div><t t-if="emp.company_id.email" t-esc="emp.company_id.email" /></div>
+                            <div><t t-if="emp.company_id.website" t-esc="emp.company_id.website" /></div>
+                        </div> -->
+                    </div>
+                    <div class="col-6 text-right">
+                        <img t-if="emp.company_id.logo" t-att-src="image_data_uri(emp.company_id.logo)" style="width:300px;height:160px; margin:-10px -0px 0 0;float:right;" alt="Logo" />
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="employee_details_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="emp">
+                <t t-call="custom_hr_payroll.employee_details_templates" />
+            </t>
+        </t>
+    </template>
+
+    <record id="action_employee_details_report" model="ir.actions.report">
+        <field name="name">Employee Details</field>
+        <field name="model">hr.employee</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">custom_hr_payroll.employee_details_template</field>
+        <field name="report_file">custom_hr_payroll.employee_details_template</field>
+        <field name="print_report_name">'Employee Details - %s' % (object.name).replace('/', '')</field>
+        <field name="binding_model_id" ref="hr.model_hr_employee"/>
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>

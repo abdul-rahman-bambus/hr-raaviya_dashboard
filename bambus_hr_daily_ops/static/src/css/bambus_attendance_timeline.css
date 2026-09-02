@@ -1,0 +1,55 @@
+.bambus-face-wrap{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.bambus-face-thumb{
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid transparent;
+  display: block;
+}
+
+.bambus-face-pop{
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 12px);
+  transform: translateY(-50%);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+
+  background: #fff;
+  padding: 10px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0,0,0,.25);
+}
+
+.bambus-face-wrap:hover .bambus-face-pop{
+  opacity: 1;
+  visibility: visible;
+}
+
+.bambus-face-pop img{
+  width: 240px;
+  height: 240px;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+}
+
+/* checkout side: open popup to the LEFT so it won’t push/overflow */
+.bambus-pop-left .bambus-face-pop{
+  left: auto;
+  right: calc(100% + 12px);
+}
+
+/* ensure popup doesn’t get clipped */
+.bambus-timeline-row{
+  overflow: visible !important;
+}

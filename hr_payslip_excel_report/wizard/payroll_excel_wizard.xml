@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+
+    <!-- <record id="action_download_payslip_excel_report" model="ir.actions.act_url">
+        <field name="name">Download Excel</field>
+        <field name="type">ir.actions.act_url</field>
+        <field name="url">/my_excel/download?start_date=%(start_date)s-end_date=%(end_date)s</field>
+        <field name="target">new</field>
+    </record> -->
+    
+    <!--Payslip Employees form view-->
+    <record id="hr_payslip_employees_excel_report" model="ir.ui.view">
+        <field name="name">payslip.excel.report.wizard.form</field>
+        <field name="model">payslip.excel.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generate Payslips Excel">
+                <sheet>
+                    <group>
+                        <field name="duration_type" />
+                        <field name="start_date" invisible="duration_type != 'custom'" required="duration_type == 'custom'"/>
+                        <field name="end_date" invisible="duration_type != 'custom'" required="duration_type == 'custom'"/>
+                    </group>
+                    <footer>
+                        <button name="action_download_payslip_excel_report"
+                        string="Download Excel"
+                        type="object"
+                        class="btn-primary"/>
+                        <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!--Action Payslip Employees views-->
+    <record id="hr_payslip_excel_report_action" model="ir.actions.act_window">
+        <field name="name">Generate Payslips Report</field>
+        <field name="res_model">payslip.excel.wizard</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="hr_payslip_employees_excel_report"/>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem
+        id="menu_payroll_report"
+        name="Report"
+        parent="hr_payroll_community.menu_hr_payroll_community_root"
+    />
+
+    <menuitem
+        id="menu_payslip_excel_download"
+        name="Payslip Excel Report"
+        action="hr_payslip_excel_report_action"
+        parent="menu_payroll_report"
+    />
+
+</odoo>

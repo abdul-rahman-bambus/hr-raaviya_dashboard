@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <data>
+
+    <record id="view_hr_attendance_tree_inherit_bambus_ot_fine" model="ir.ui.view">
+      <field name="name">hr.attendance.tree.inherit.bambus.ot.fine</field>
+      <field name="model">hr.attendance</field>
+      <field name="inherit_id" ref="hr_attendance.view_attendance_tree"/>
+      <field name="arch" type="xml">
+        <xpath expr="//field[@name='overtime_status']" position="after">
+          <field name="bambus_overtime_amount" widget="monetary"/>
+          <field name="bambus_fine_hours" widget="float_time"/>
+          <field name="bambus_fine_amount" widget="monetary"/>
+        </xpath>
+      </field>
+    </record>
+
+    <!-- Form -->
+    <record id="view_hr_attendance_form_inherit_bambus_ot_fine" model="ir.ui.view">
+      <field name="name">hr.attendance.form.inherit.bambus.ot.fine</field>
+      <field name="model">hr.attendance</field>
+      <field name="inherit_id" ref="hr_attendance.hr_attendance_view_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//sheet" position="inside">
+          <group string="Bambus OT/Fine">
+            <group>
+              <field name="bambus_scheduled_hours" widget="float_time" readonly="1"/>
+              <field name="overtime_hours" widget="float_time" readonly="1"/>
+              <field name="bambus_overtime_amount" widget="monetary" readonly="1"/>
+            </group>
+            <group>
+              <field name="bambus_fine_hours" widget="float_time" readonly="1"/>
+              <field name="bambus_fine_amount" widget="monetary" readonly="1"/>
+              <field name="bambus_late_hhmm" string="Late (HH:MM)"/>
+              <field name="bambus_early_leave_hhmm" string="Early Leave (HH:MM)"/>
+              <field name="bambus_gap_hhmm" string="Gap (HH:MM)"/>
+              <field name="bambus_shortfall_hours" string="Shortfall vs Schedule" widget="float_time" readonly="1"/>
+            </group>
+          </group>
+        </xpath>
+      </field>
+    </record>
+
+    <record id="inherit_view_hr_payslip_form_ot" model="ir.ui.view">
+      <field name="name">hr.payslip.form</field>
+      <field name="model">hr.payslip</field>
+      <field name="inherit_id" ref="custom_hr_payroll.inherit_view_hr_payslip_form"/>
+      <field name="arch" type="xml">
+        <xpath expr="//field[@name='total_late_login_minutes']" position="before">
+          <field name="total_scheduled_hours" widget="float_time"/>
+          <field name="total_fine_hours" widget="float_time"/>
+          <field name="total_late_hours" widget="float_time"/>
+          <field name="total_early_leave_hours" widget="float_time"/>
+          <field name="total_gap_hours" widget="float_time"/>
+
+          <field name="total_fine_after_grace_hours" widget="float_time"/>
+        </xpath>
+        <xpath expr="//field[@name='total_late_login_minutes']" position="replace"/>
+        <xpath expr="//field[@name='total_late_after_grace']" position="replace"/>
+      </field>
+    </record>
+
+  </data>
+</odoo>

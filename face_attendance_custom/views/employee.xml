@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hr_employee_view_form_custom_inherit" model="ir.ui.view">
+        <field name="name">hr_employee_view_form_custom_inherit</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr_attendance.view_employee_form_inherit_hr_attendance" />
+        <field name="arch" type="xml">
+            <xpath expr='//field[@name="attendance_manager_id"]' position='after'>
+                <field name="is_enrolled" string="Is Enrolled"  />
+		<field name="last_photo_update_time" string="Last photo update time"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hr_employee_view_form_portal_user_inherit" model="ir.ui.view">
+        <field name="name">hr_employee_view_form_portal_user_inherit</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form" />
+        <field name="arch" type="xml">
+            <xpath expr='//page[@name="hr_settings"]//field[@name="user_id"]' position="attributes">
+                <attribute name="domain">['|', ('company_ids', '=', False), ('company_ids', 'in', company_id)]</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="res_users_view_form_portal_employee_inherit" model="ir.ui.view">
+        <field name="name">res_users_view_form_portal_employee_inherit</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="hr.res_users_view_form" />
+        <field name="arch" type="xml">
+            <xpath expr='//button[@name="action_create_employee"]' position="attributes">
+                <attribute name="invisible">not id or share or employee_id</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

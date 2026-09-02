@@ -1,0 +1,14 @@
+
+<odoo>
+    <menuitem id="menu_attendance_report_root" name="Attendance Report" parent="hr_attendance.menu_hr_attendance_root"/>
+
+    <record id="action_attendance_report_wizard" model="ir.actions.act_window">
+        <field name="name">Attendance Report</field>
+        <field name="res_model">attendance.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_attendance_report" parent="menu_attendance_report_root"
+              action="action_attendance_report_wizard" name="Generate Report"/>
+</odoo>

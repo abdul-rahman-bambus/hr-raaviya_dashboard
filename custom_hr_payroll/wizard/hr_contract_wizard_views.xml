@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_contract_wizard_form" model="ir.ui.view">
+        <field name="name">hr.contract.wizard.form</field>
+        <field name="model">hr.contract.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Create Contract">
+                <group>
+                    <group>
+                        <field name="employee_id" readonly="1"/>
+                        <field name="contract_name"/>
+                        <field name="wage_type"/>
+                        <field name="wage"/>
+                        <field name="resource_calendar_id" invisible="wage_type not in ['daily','monthly']" required="wage_type in ['daily','monthly']"/>
+                        <field name="structure_type_id" invisible="wage_type not in ['daily','monthly']" required="wage_type in ['daily','monthly']"/>
+                        <field name="struct_id" invisible="wage_type not in ['daily','monthly']" required="wage_type in ['daily','monthly']"/>
+                    </group>
+                    <group>
+                        <field name="date_start"/>
+                        <field name="date_end"/>
+                        <field name="job_id"/>
+                        <field name="department_id"/>
+                        <field name="contract_type_id"/>
+                    </group>
+                </group>
+                <group string="Settings">
+                    <group>
+                        <field name="is_overtime_allowed"/>
+                        <field name="is_latefine_applicable"/>
+                    </group>
+                    <group>
+                        <field name="public_holidays_working"/>
+                        <field name="weekend_special_working"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_create_contract" string="Create Contract" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_hr_contract_wizard" model="ir.actions.act_window">
+        <field name="name">Create Contract</field>
+        <field name="res_model">hr.contract.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

@@ -1,0 +1,79 @@
+
+<odoo>
+	<record id="view_hr_contract_form_hourly" model="ir.ui.view">
+		<field name="name">hr.contract.form.hourly</field>
+		<field name="model">hr.contract</field>
+		<field name="inherit_id" ref="hr_contract.hr_contract_view_form"/>
+		<field name="arch" type="xml">
+			<xpath expr="//group[@name='salary']" position="after">
+				<group>
+					<field name="hour_source"/>
+					<field name="wage_type"/>
+					<field name="hourly_wage_hour_limit" invisible="wage_type != 'hourly'"/>
+					<field name="daily_wage" invisible="wage_type != 'daily'" required="wage_type == 'daily'"/>
+					<field name="hourly_rate" invisible="wage_type != 'hourly'" required="wage_type == 'hourly'"/>
+					<field name="is_overtime_allowed" invisible="wage_type not in ['daily','monthly']"/>
+					<field name="overtime_rate"  required="is_overtime_allowed" invisible="is_overtime_allowed != True or wage_type not in ['daily','monthly']"/>
+					<field name="is_latefine_applicable" invisible="wage_type not in ['daily','monthly']"/>
+					<field name="apply_late_fine" required="is_latefine_applicable" invisible="wage_type not in ['daily','monthly'] or is_latefine_applicable != True"/>
+					<field name="late_fine_rate" required="apply_late_fine == 'fixed'" invisible="wage_type not in ['daily','monthly'] or is_latefine_applicable != True or apply_late_fine != 'fixed'" />
+				</group>
+				<group name="special_working_days" string="Weekend Days">
+						<field name="weekend_special_working"/>
+						<field name="weekend_wage_type" required="weekend_special_working" invisible="not weekend_special_working"/>
+						<field name="weekend_wage_rate" required="weekend_special_working" invisible="not weekend_special_working"/>
+				</group>
+				<group name="holidays_working_days" string="Public Holidays">
+						<field name="public_holidays_working"/>
+						<field name="public_holiday_wage_type" required="public_holidays_working" invisible="not public_holidays_working"/>
+						<field name="public_holiday_wage_rate" required="public_holidays_working" invisible="not public_holidays_working"/>
+				</group>
+
+			</xpath>
+		</field>
+	</record>
+
+	<record id="inherit_view_hr_payslip_form" model="ir.ui.view">
+		<field name="name">hr.payslip.form</field>
+		<field name="model">hr.payslip</field>
+		<field name="inherit_id" ref="hr_payroll_community.hr_payslip_view_form"/>
+		<field name="arch" type="xml">
+			<xpath expr="//notebook/page[1]" position="before">
+				<page name="worked_details" string="Attendance Details">
+					<field name="employee_type" invisible="1"/>
+					<group string="Workers" invisible="employee_type != 'worker'">
+						<group>
+							<field name="total_worker_days"/>
+						</group>
+						<group>
+							<field name="total_worker_hours" widget="float_time"/>
+						</group>
+					</group>
+					<group string="Employees" invisible="employee_type != 'employee'">
+						<group string="Working Days">
+						    <field name="days_excl_weekend_holidays"/>
+						    <field name="holiday_days"/>
+						    <field name="weekend_days"/>
+						</group>
+						<group string="Worked Days">
+						    <field name="total_working_days"/>
+						    <field name="holiday_worked"/>
+						    <field name="weekend_worked"/>
+						</group>
+						<group string="Worked Hours">
+						    <field name="total_worked_hours_excl_ot" widget="float_time"/>
+							<field name="total_worker_hours" widget="float_time"/>
+						    <field name="weekend_hours" widget="float_time"/>
+						    <field name="holiday_hours" widget="float_time"/>
+						    <field name="total_validated_overtime" widget="float_time"/>
+						</group>
+						<group string="Deductables">
+						    <field name="total_late_login_minutes" widget="float_time"/>
+						    <field name="total_late_after_grace" widget="float_time"/>
+						</group>
+					</group>
+				</page>
+			</xpath>
+		</field>
+	</record>
+</odoo>

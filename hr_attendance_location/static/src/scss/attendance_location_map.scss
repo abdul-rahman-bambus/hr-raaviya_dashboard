@@ -1,0 +1,119 @@
+.o_bambus_attendance_location_map_action {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding: 16px;
+    gap: 12px;
+    overflow: auto;
+
+    .o_bambus_attendance_location_toolbar {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(160px, 1fr)) auto;
+        align-items: end;
+        gap: 12px;
+    }
+
+    .o_bambus_attendance_location_filter {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .o_bambus_attendance_location_buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .o_bambus_attendance_location_body {
+        display: flex;
+        flex: 1 0 520px;
+        min-height: 520px;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .o_bambus_attendance_location_sidebar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        min-height: 32px;
+    }
+
+    .o_bambus_attendance_location_sidebar_header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+    }
+
+    .o_bambus_attendance_location_item {
+        display: inline-flex;
+        flex-direction: column;
+        max-width: 290px;
+        padding: 5px 8px;
+        border: 1px solid var(--border-color, #adb5bd);
+        border-radius: 4px;
+        background: var(--body-bg, #fff);
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .o_bambus_attendance_location_item:hover {
+        border-color: var(--o-brand-primary, #714b67);
+        background: rgba(113, 75, 103, 0.06);
+    }
+
+    .o_bambus_attendance_location_employee {
+        font-weight: 600;
+    }
+
+    .o_bambus_attendance_location_meta,
+    .o_bambus_attendance_location_coords {
+        font-size: 0.8rem;
+    }
+
+    .o_bambus_attendance_location_map {
+        position: relative;
+        flex: 1;
+        min-height: 440px;
+        border: 1px solid var(--border-color, #adb5bd);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .o_bambus_attendance_location_empty {
+        display: grid;
+        place-items: center;
+        height: 100%;
+        min-height: 100px;
+        color: var(--secondary, #6c757d);
+    }
+
+    @media (max-width: 992px) {
+        .o_bambus_attendance_location_toolbar {
+            grid-template-columns: repeat(2, minmax(160px, 1fr));
+        }
+    }
+}
+
+.o_bambus_attendance_map_popup {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 260px;
+}
+
+.o_bambus_attendance_map_popup_details {
+    flex: 1;
+}
+
+.o_bambus_attendance_map_popup_photo {
+    width: 80px;
+    height: 80px;
+    flex: 0 0 80px;
+    object-fit: cover;
+    border-radius: 4px;
+}

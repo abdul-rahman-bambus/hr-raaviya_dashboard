@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="bambus_hr_attendance_ot_fine.AttendanceLocationMapAction">
+        <div class="o_bambus_attendance_location_map_action">
+            <div class="o_bambus_attendance_location_toolbar">
+                <div class="o_bambus_attendance_location_filter">
+                    <label><strong>Employee</strong></label>
+                    <select class="form-select" t-model="state.employeeId">
+                        <option value="">All Employees</option>
+                        <option t-foreach="state.employees" t-as="employee" t-key="employee.id" t-att-value="employee.id">
+                            <t t-esc="employee.name"/>
+                        </option>
+                    </select>
+                </div>
+                <div class="o_bambus_attendance_location_filter">
+                    <label><strong>From</strong></label>
+                    <input class="form-control" type="date" t-model="state.dateFrom"/>
+                </div>
+                <div class="o_bambus_attendance_location_filter">
+                    <label><strong>To</strong></label>
+                    <input class="form-control" type="date" t-model="state.dateTo"/>
+                </div>
+                <div class="o_bambus_attendance_location_filter">
+                    <label><strong>Type</strong></label>
+                    <select class="form-select" t-model="state.locationType">
+                        <option value="">Check In and Out</option>
+                        <option value="check_in">Check In</option>
+                        <option value="check_out">Check Out</option>
+                    </select>
+                </div>
+                <div class="o_bambus_attendance_location_buttons">
+                    <button class="btn btn-primary" type="button" t-on-click="applyFilters">
+                        Apply
+                    </button>
+                    <button class="btn btn-secondary" type="button" t-on-click="clearFilters">
+                        Reset
+                    </button>
+                </div>
+            </div>
+
+            <div class="o_bambus_attendance_location_body">
+                <div class="o_bambus_attendance_location_map" t-ref="map">
+                    <div t-if="!state.mapReady" class="o_bambus_attendance_location_empty">
+                        Loading map...
+                    </div>
+                </div>
+                <div class="o_bambus_attendance_location_sidebar_header">
+                    <span>Locations</span>
+                    <span class="badge text-bg-secondary" t-esc="state.records.length"/>
+                </div>
+                <div t-if="state.loading" class="o_bambus_attendance_location_empty">
+                    Loading locations...
+                </div>
+                <div t-elif="!state.records.length" class="o_bambus_attendance_location_empty">
+                    No locations found for this filter.
+                </div>
+                <aside class="o_bambus_attendance_location_sidebar">
+                    <button
+                        t-foreach="state.records"
+                        t-as="record"
+                        t-key="record.id"
+                        type="button"
+                        class="o_bambus_attendance_location_item"
+                        t-on-click="() => this.focusLocation(record)">
+                        <span class="o_bambus_attendance_location_employee" t-esc="getEmployeeName(record)"/>
+                        <span class="o_bambus_attendance_location_meta">
+                            ID: <t t-esc="getEmployeeId(record)"/> ·
+                            <t t-esc="getLocationType(record)"/>
+                            <t t-if="record.attendance_datetime"> - <t t-esc="record.attendance_datetime"/></t>
+                        </span>
+                        <span class="o_bambus_attendance_location_coords">
+                            <t t-esc="record.latitude"/>, <t t-esc="record.longitude"/>
+                        </span>
+                    </button>
+                </aside>
+            </div>
+        </div>
+    </t>
+</templates>

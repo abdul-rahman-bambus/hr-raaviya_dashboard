@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <data>
+   <record id="view_hr_attendance_location_list" model="ir.ui.view">
+      <field name="name">hr.attendance.location.list</field>
+      <field name="model">hr.attendance.location</field>
+      <field name="arch" type="xml">
+        <list string="Attendance Locations" create="0" edit="0" delete="0">
+          <field name="employee_id" widget="many2one_avatar_user"/>
+          <field name="location_type"/>
+          <field name="attendance_datetime"/>
+          <field name="check_in"/>
+          <field name="check_out"/>
+          <field name="latitude"/>
+          <field name="longitude"/>
+          <field name="attendance_id"/>
+        </list>
+      </field>
+    </record>
+
+    <record id="view_hr_attendance_location_form" model="ir.ui.view">
+      <field name="name">hr.attendance.location.form</field>
+      <field name="model">hr.attendance.location</field>
+      <field name="arch" type="xml">
+        <form string="Attendance Location" create="0" edit="0" delete="0">
+          <sheet>
+            <group>
+              <group>
+                <field name="employee_id"/>
+                <field name="location_type"/>
+                <field name="attendance_datetime"/>
+                <field name="attendance_id"/>
+              </group>
+              <group>
+                <field name="latitude"/>
+                <field name="longitude"/>
+                <field name="check_in"/>
+                <field name="check_out"/>
+              </group>
+            </group>
+          </sheet>
+        </form>
+      </field>
+    </record>
+
+    <record id="view_hr_attendance_location_search" model="ir.ui.view">
+      <field name="name">hr.attendance.location.search</field>
+      <field name="model">hr.attendance.location</field>
+      <field name="arch" type="xml">
+        <search string="Attendance Locations">
+          <field name="employee_id"/>
+          <field name="attendance_datetime"/>
+          <field name="location_type"/>
+          <filter string="Check In" name="check_in_location" domain="[('location_type', '=', 'check_in')]"/>
+          <filter string="Check Out" name="check_out_location" domain="[('location_type', '=', 'check_out')]"/>
+          <separator/>
+          <filter string="Today" name="today" domain="[('attendance_datetime', '&gt;=', context_today().strftime('%Y-%m-%d 00:00:00')), ('attendance_datetime', '&lt;=', context_today().strftime('%Y-%m-%d 23:59:59'))]"/>
+          <group string="Group By">
+            <filter string="Employee" name="group_employee" context="{'group_by': 'employee_id'}"/>
+            <filter string="Type" name="group_type" context="{'group_by': 'location_type'}"/>
+            <filter string="Date" name="group_date" context="{'group_by': 'attendance_datetime:day'}"/>
+          </group>
+        </search>
+      </field>
+    </record>
+
+    <record id="action_hr_attendance_location_records" model="ir.actions.act_window">
+      <field name="name">Attendance Location Records</field>
+      <field name="res_model">hr.attendance.location</field>
+      <field name="view_mode">list,form</field>
+      <field name="search_view_id" ref="view_hr_attendance_location_search"/>
+      <field name="context">{'search_default_today': 1}</field>
+    </record>
+
+    <record id="action_hr_attendance_locations_map" model="ir.actions.client">
+      <field name="name">Attendance Locations</field>
+      <field name="tag">bambus_hr_attendance_locations_map</field>
+    </record>
+
+    <menuitem id="menu_hr_attendance_locations"
+              name="Map View"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="action_hr_attendance_locations_map"
+              sequence="7"
+              groups="hr_attendance.group_hr_attendance_officer"/>
+ </data>
+</odoo>

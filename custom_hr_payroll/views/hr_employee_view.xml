@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_employee_form_inherit_contract_wizard" model="ir.ui.view">
+        <field name="name">hr.employee.form.inherit.contract.wizard</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+            <header position="inside">
+                <field name="contracts_count" invisible="1"/>
+                <button name="%(custom_hr_payroll.action_hr_contract_wizard)d" 
+                        string="Create Contract" 
+                        type="action" 
+                        class="oe_highlight"
+                        groups="hr.group_hr_manager"
+                        invisible="contracts_count > 0"/>
+            </header>
+            <xpath expr="//field[@name='department_id']" position="before">
+                <field name="employee_number" />
+            </xpath>
+            <xpath expr="//field[@name='identification_id']" position="attributes">
+                <attribute name="string">Aadhar No.</attribute>
+            </xpath>
+            <xpath expr="//field[@name='ssnid']" position="attributes">
+                <attribute name="string">PAN No.</attribute>
+            </xpath>
+            <xpath expr="//field[@name='identification_id']" position="after">
+                <xpath expr="//field[@name='ssnid']" position="move"/>
+            </xpath>
+
+            <xpath expr="//field[@name='gender']" position="after">
+                <field name="blood_group" />
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <data>
+
+    <!-- Kanban for sheets -->
+    <record id="view_bambus_hr_attendance_sheet_kanban" model="ir.ui.view">
+      <field name="name">bambus.hr.attendance.sheet.kanban</field>
+      <field name="model">bambus.hr.attendance.sheet</field>
+      <field name="arch" type="xml">
+        <kanban default_group_by="date">
+          <field name="date"/>
+          <field name="department_id"/>
+          <templates>
+            <t t-name="card">
+              <div class="oe_kanban_global_click o_kanban_card">
+                <strong><field name="date"/></strong>
+                <div class="text-muted">
+                  <t t-if="record.department_id.raw_value"><field name="department_id"/></t>
+                  <t t-else="">All Departments</t>
+                </div>
+                <div class="mt8 text-muted">Open to manage punches, leaves, OT and fines</div>
+              </div>
+            </t>
+          </templates>
+        </kanban>
+      </field>
+    </record>
+
+    <!-- Form (this mimics your screenshot layout) -->
+    <record id="view_bambus_hr_attendance_sheet_form" model="ir.ui.view">
+      <field name="name">bambus.hr.attendance.sheet.form</field>
+      <field name="model">bambus.hr.attendance.sheet</field>
+      <field name="arch" type="xml">
+        <form string="Attendance Summary">
+          <header>
+            <field name="state" widget="statusbar" statusbar_visible="draft,submitted,approved"/>
+            <button name="action_generate_lines" type="object" class="btn-primary" string="Load Staff / Refresh"/>
+            <button name="action_submit" type="object" string="Submit"
+                    class="btn-primary" invisible="state != 'draft'"/>
+
+            <button name="action_approve" type="object" string="Approve"
+                    class="btn-success" invisible="state != 'submitted'"/>
+            
+          </header>
+
+          <sheet>
+
+            <!-- Date + Filters -->
+            <group>
+              <group>
+                <field name="date"/>
+                  <field name="employee_search" placeholder="Type employee name..." />
+                  <button name="action_clear_employee_search" type="object" string="Clear" class="btn-secondary"
+                          invisible="employee_search == False"/>
+              </group>
+              <group>
+                <field name="department_id"/>
+                <field name="kpi_filter" invisible="1"/>
+              </group>
+            </group>
+
+            <!-- KPI row like your top summary -->
+            <div class="oe_button_box" name="button_box">
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-users"
+                      context="{'kpi':'all'}">
+                <field name="total_staff" widget="statinfo" string="All"/>
+              </button>
+
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-check-circle"
+                      context="{'kpi':'present'}">
+                <field name="present_count" widget="statinfo" string="Present"/>
+              </button>
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-times-circle"
+                      context="{'kpi':'absent'}">
+                <field name="absent_count" widget="statinfo" string="Absent"/>
+              </button>
+
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-adjust"
+                      context="{'kpi':'halfday'}">
+                <field name="halfday_count" widget="statinfo" string="Half-Day"/>
+              </button>
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-plane"
+                      context="{'kpi':'leave'}">
+                <field name="leave_count" widget="statinfo" string="Leave"/>
+              </button>
+
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-sign-in"
+                      context="{'kpi':'punched_in'}">
+                <field name="punched_in_count" widget="statinfo" string="Punch-In"/>
+              </button>
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-sign-out"
+                      context="{'kpi':'punched_out'}">
+                <field name="punched_out_count" widget="statinfo" string="Punch-Out"/>
+              </button>
+
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-clock-o"
+                      context="{'kpi':'ot'}">
+                <field name="overtime_hours_total" widget="statinfo" string="OT"/>
+              </button>
+
+              <button type="object" name="action_set_kpi_filter" class="oe_stat_button" icon="fa-money"
+                      context="{'kpi':'fine'}">
+                <field name="fine_hours_total" widget="statinfo" string="Fine"/>
+              </button>
+
+              <button type="object" name="action_clear_kpi_filter" string="Clear Filter" class="btn-secondary"
+                invisible="kpi_filter == 'all'"/>
+
+            </div>
+
+
+            <separator string="Staff"/>
+
+            <notebook>
+              <!-- TAB 1: Cards (Kanban) -->
+              <page string="Cards">
+                <field name="line_ids_view" mode="kanban" context="{'default_date': date}">
+
+                  <kanban default_group_by="wage_type_display" class="o_kanban_small_column" create="false" quick_create="false" can_open="false">
+                    <field name="employee_id"/>
+                    <field name="wage_type_display"/>
+                    <field name="status"/>
+                    <field name="status_short"/>
+                    <field name="punch_in_display"/>
+                    <field name="punch_out_display"/>
+                    <field name="ot_display"/>
+                    <field name="fine_display"/>
+                    <field name="worked_hours"/>
+                    <field name="overtime_amount"/>
+                    <field name="fine_amount"/>
+
+                    <templates>
+                      <t t-name="card">
+                        <div class="o_kanban_record o_kanban_card">
+                          <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                              <div class="fw-semibold"><field name="employee_id"/></div>
+                              <div class="text-muted small">
+                                <t t-esc="record.wage_type_display.value or ''"/>
+                              </div>
+                            </div>
+
+                            <span class="badge rounded-pill"
+                                  t-att-class="record.status.raw_value == 'present' and 'bg-success' or
+                                               (record.status.raw_value == 'absent' and 'bg-danger' or
+                                               (record.status.raw_value == 'leave' and 'bg-warning text-dark' or 'bg-info text-dark'))">
+                              <t t-esc="record.status_short.value"/>
+                            </span>
+                          </div>
+
+                          <!-- PI / PO chips -->
+                          <div class="mt-2 d-flex flex-wrap gap-2">
+                            <t t-if="record.punch_in_display.value">
+                              <span class="badge bg-success"><t t-esc="record.punch_in_display.value"/></span>
+                            </t>
+                            <t t-if="record.punch_out_display.value">
+                              <span class="badge bg-success"><t t-esc="record.punch_out_display.value"/></span>
+                            </t>
+                          </div>
+
+                          <div class="mt-2 d-flex flex-wrap gap-1">
+                              <t t-if="record.worked_hours.raw_value">
+                                <span class="badge bg-info text-white d-inline-flex align-items-center gap-1 bambus_time_badge">
+                                    <span>WH</span>
+                                    <field name="worked_hours" widget="float_time"/>
+                                    <span>h</span>
+                                </span>
+                              </t>
+                          </div>
+
+                          <div class="mt-2 d-flex flex-wrap gap-1">
+                            <t t-if="record.ot_display.value">
+                              <span class="badge bg-warning"><t t-esc="record.ot_display.value"/></span>
+                            </t>
+                            <t t-if="record.overtime_amount.raw_value and record.overtime_amount.raw_value &gt; 0">
+                                <span class="badge rounded-pill bg-warning text-dark">
+                                  OT ₹ <field name="overtime_amount" widget="monetary" options="{'currency_field':'currency_id'}"/>
+                                </span>
+                              </t>
+                          </div>
+
+
+                          <div class="mt-2 d-flex flex-wrap gap-1">
+                            <t t-if="record.fine_display.value">
+                              <span class="badge bg-danger text-white"><t t-esc="record.fine_display.value"/></span>
+                            </t>
+                            <t t-if="record.fine_amount.raw_value and record.fine_amount.raw_value &gt; 0">
+                                <span class="badge rounded-pill bg-danger text-white">
+                                  Fine ₹ <field name="fine_amount" widget="monetary" options="{'currency_field':'currency_id'}"/>
+                                </span>
+                              </t>
+                          </div>
+
+                          <!-- Quick actions -->
+                          <div class="mt-3 d-flex flex-wrap gap-1">
+                            <button name="action_edit_attendance" type="object" class="btn btn-sm btn-outline-primary">Punch</button>
+                            <button name="action_mark_halfday_leave" type="object" class="btn btn-sm btn-outline-secondary">Half</button>
+                            <button name="action_mark_full_leave" type="object" class="btn btn-sm btn-outline-secondary">Leave</button>
+                            <button name="action_edit_overtime" type="object" class="btn btn-sm btn-outline-success">OT</button>
+                            <button name="action_edit_fine" type="object" class="btn btn-sm btn-outline-danger">Fine</button>
+                          </div>
+                        </div>
+                      </t>
+                    </templates>
+                  </kanban>
+                </field>
+              </page>
+
+              <!-- TAB 2: List -->
+              <page string="List">
+                <field name="line_ids_view" mode="list" context="{'default_date': date}">
+                  <list create="false"
+                        decoration-success="status == 'present'"
+                        decoration-danger="status == 'absent'"
+                        decoration-warning="status == 'leave'"
+                        decoration-info="status == 'halfday'">
+
+                    <field name="employee_id"/>
+                    <field name="wage_type_display" readonly="1"/>
+                    <field name="status" widget="badge"/>
+                    <field name="check_in"/>
+                    <field name="check_out"/>
+                    <field name="worked_hours"/>
+
+                    <field name="overtime_hours"/>
+                    <field name="overtime_amount" widget="monetary" options="{'currency_field':'currency_id'}"/>
+                    <field name="overtime_state" widget="badge"/>
+
+                    <field name="fine_hours"/>
+                    <field name="fine_amount" widget="monetary" options="{'currency_field':'currency_id'}"/>
+                    <field name="fine_state" widget="badge"/>
+
+                    <button name="action_edit_attendance" type="object" string="Punch" class="btn-link"/>
+                    <button name="action_mark_halfday_leave" type="object" string="Half Day" class="btn-link"/>
+                    <button name="action_mark_full_leave" type="object" string="Leave" class="btn-link"/>
+                    <button name="action_edit_overtime" type="object" string="OT" class="btn-link"/>
+                    <button name="action_edit_fine" type="object" string="Fine" class="btn-link"/>
+                    <button name="action_force_absent" type="object" string="Absent" class="btn-link"/>
+                    <button name="action_refresh" type="object" string="Refresh" class="btn-link"/>
+                  </list>
+                </field>
+              </page>
+            </notebook>
+
+
+
+          </sheet>
+        </form>
+      </field>
+    </record>
+
+    <record id="view_bambus_hr_attendance_sheet_line_list" model="ir.ui.view">
+      <field name="name">bambus.hr.attendance.sheet.line.list</field>
+      <field name="model">bambus.hr.attendance.sheet.line</field>
+      <field name="arch" type="xml">
+        <list create="false">
+          <field name="employee_id"/>
+          <field name="wage_type_display" readonly="1"/>
+          <field name="status" widget="badge"/>
+          <field name="check_in"/>
+          <field name="check_out"/>
+          <field name="worked_hours"/>
+
+          <field name="overtime_hours"/>
+          <field name="overtime_amount" widget="monetary" options="{'currency_field':'currency_id'}"/>
+          <field name="overtime_state" widget="badge"/>
+
+          <field name="fine_hours"/>
+          <field name="fine_amount" widget="monetary" options="{'currency_field':'currency_id'}"/>
+          <field name="fine_state" widget="badge"/>
+
+          <button name="action_edit_attendance" type="object" string="Punch" class="btn-link"/>
+          <button name="action_mark_halfday_leave" type="object" string="Half Day" class="btn-link"/>
+          <button name="action_mark_full_leave" type="object" string="Leave" class="btn-link"/>
+          <button name="action_edit_overtime" type="object" string="OT" class="btn-link"/>
+          <button name="action_edit_fine" type="object" string="Fine" class="btn-link"/>
+          <button name="action_refresh" type="object" string="Refresh" class="btn-link"/>
+        </list>
+      </field>
+    </record>
+
+    <!-- Wizard views -->
+
+   <record id="view_bambus_hr_attendance_multi_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.attendance.multi.wizard.form</field>
+      <field name="model">bambus.hr.attendance.multi.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Punches">
+          <group>
+            <field name="line_id" invisible="1"/>
+            <field name="employee_id" readonly="1"/>
+            <field name="date" readonly="1"/>
+            <field name="delete_removed"/>
+          </group>
+
+     <!--      <group>
+            <field name="timeline_html" widget="html" readonly="1" nolabel="1"/>
+          </group> -->
+
+          <separator string="Punch Records"/>
+
+          <field name="line_ids" mode="list,form" create="0" delete="0">
+            <list>
+                <field name="attendance_id" invisible="1" force_save="1"/>
+                <field name="recognized_face_checkin" widget="image"/>
+                <field name="check_in"/>
+                <field name="recognized_face_checkout" widget="image"/>
+                <field name="check_out"/>
+            </list>
+
+            <form>
+                <group>
+                    <field name="attendance_id" invisible="1" force_save="1"/>
+                    <group string="Punch In">
+                        <field name="recognized_face_checkin" widget="image"/>
+                        <field name="check_in"/>
+                    </group>
+                    <group string="Punch Out">
+                        <field name="recognized_face_checkout" widget="image"/>
+                        <field name="check_out"/>
+                    </group>
+                </group>
+            </form>
+        </field>
+
+
+
+          <footer>
+            <button name="action_apply" type="object" class="btn-primary" string="Apply"/>
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+
+
+
+    <record id="view_bambus_hr_overtime_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.overtime.wizard.form</field>
+      <field name="model">bambus.hr.overtime.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Edit Overtime">
+          <group>
+            <field name="employee_id" readonly="1"/>
+            <field name="date" readonly="1"/>
+            <field name="overtime_hours" widget="float_time" readonly="1"/>
+            <field name="overtime_amount" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
+            <!-- <field name="note"/> -->
+            <field name="line_id" invisible="1"/>
+
+          </group>
+          <footer>
+            <!-- <button name="action_apply" type="object" class="btn-primary" string="Apply Overtime"/> -->
+            <button name="action_approve" type="object" class="btn-secondary" string="Approve (Manager)"/>
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+    <record id="view_bambus_hr_fine_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.fine.wizard.form</field>
+      <field name="model">bambus.hr.fine.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Fine">
+          <group>
+            <field name="employee_id" readonly="1"/>
+            <field name="date" readonly="1"/>
+            <field name="fine_hours" widget="float_time" readonly="1"/>
+            <field name="fine_amount" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
+            <!-- <field name="reason"/> -->
+            <!-- <field name="send_sms"/> -->
+            <field name="line_id" invisible="1"/>
+
+          </group>
+          <footer>
+            <!-- <button name="action_apply" type="object" class="btn-primary" string="Apply Fine"/> -->
+            <button name="action_approve" type="object" class="btn-secondary" string="Approve (Manager)"/>
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+    <record id="view_bambus_hr_leave_quick_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.leave.quick.wizard.form</field>
+      <field name="model">bambus.hr.leave.quick.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Quick Leave">
+          <sheet>
+            <group>
+              <group>
+                <field name="line_id" invisible="1"/>
+                <field name="leave_id" readonly="1"/>
+
+                <field name="employee_id" readonly="1"/>
+                <field name="leave_type_id" required="1"/>
+              </group>
+
+              <group>
+                <field name="request_date_from" required="1" readonly="1"/>
+                <field name="request_date_to" required="1" readonly="1"/>
+
+                <field name="leave_unit" required="1" readonly="1"/>
+                <field name="leave_period" invisible="leave_unit != 'half'"/>
+                <field name="description"/>
+              </group>
+            </group>
+          </sheet>
+
+          <footer>
+            <button name="action_apply" type="object" class="btn-primary" string="Apply Leave"/>
+
+            <!-- safer invisibility expression -->
+            <button name="action_delete" type="object" class="btn-danger" string="Delete Leave"
+                    invisible="leave_id == False"/>
+
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+
+        <!-- Action -->
+    <record id="action_bambus_hr_attendance_sheet" model="ir.actions.act_window">
+      <field name="name">Attendance Summary</field>
+      <field name="res_model">bambus.hr.attendance.sheet</field>
+      <field name="view_mode">kanban,list,form</field>
+      <field name="view_id" ref="view_bambus_hr_attendance_sheet_kanban"/>
+      <field name="context">{'default_date': context_today()}</field>
+    </record>
+
+
+    <!-- Menu under Payroll -->
+    <menuitem id="menu_bambus_hr_attendance_sheet"
+              name="Attendance Summary"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="action_bambus_hr_attendance_sheet"
+              sequence="1"/>
+
+  </data>
+</odoo>

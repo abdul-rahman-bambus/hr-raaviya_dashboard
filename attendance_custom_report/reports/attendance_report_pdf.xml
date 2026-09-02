@@ -1,0 +1,70 @@
+<odoo>
+    <!-- PDF Report Action -->
+
+    <record id="action_attendance_xlsx" model="ir.actions.report">
+            <field name="name">Attendance XLSX</field>
+            <field name="model">attendance.report.wizard</field>
+            <field name="report_type">xlsx</field>
+            <field name="report_name">attendance_custom_report.attendance_xlsx</field>
+            <field name="report_file">attendance_custom_report.attendance_xlsx</field>
+            <field name="attachment_use">False</field>
+            <field name="binding_type">report</field>
+        </record>
+
+
+    <record id="action_attendance_pdf" model="ir.actions.report">
+            <field name="name">Attendance PDF</field>
+            <field name="model">attendance.report.wizard</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">attendance_custom_report.attendance_report_pdf_template</field>
+            <field name="report_file">attendance_custom_report.attendance_report_pdf_template</field>
+            <field name="attachment_use">False</field>
+            <field name="binding_type">report</field>
+        </record>
+
+
+
+
+
+    <template id="attendance_report_pdf_template">
+    <t t-name="attendance_custom_report.attendance_report_pdf_template">
+        <t t-call="web.html_container">
+
+            <h3>Attendance Report</h3>
+
+            <table class="table table-sm table-bordered">
+                <thead>
+                    <tr>
+                        <th>S.No</th>
+                        <th>Staff Name</th>
+                        <th>Total Worked Hours</th>
+                        <th t-if="docs.type == 'employee'">Extra Hours</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <t t-set="employees" t-value="docs._get_employees()"/>
+
+                    <t t-foreach="employees" t-as="e" t-key="e.id">
+                        <tr>
+                            <td><t t-esc="loop.index"/></td>
+                            <td><t t-esc="e.name"/></td>
+
+                            <td>
+                                <t t-set="attends" t-value="request.env['hr.attendance'].search([('employee_id','=',e.id),('check_in','>=',docs.date_start),('check_in','=',docs.date_end)])"/>
+                                <t t-esc="sum(a.worked_hours for a in attends)"/>
+                            </td>
+
+                            <td t-if="docs.type == 'employee'">
+                                <t t-esc="sum(a.validated_overtime_hours for a in attends)"/>
+                            </td>
+                        </tr>
+                    </t>
+                </tbody>
+            </table>
+
+        </t>
+    </t>
+</template>
+
+</odoo>

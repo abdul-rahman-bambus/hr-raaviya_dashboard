@@ -1,0 +1,26 @@
+{
+    'name': 'HR Payroll Custom Enhancements',
+    'version': '18.0.4.2.0',
+    'summary': 'Custom payroll with attendance logic, late penalties, weekend config, hourly & monthly logic.',
+    'author': 'Bambus Technologies',
+    'license': 'LGPL-3',
+    'category': 'Human Resources/Payroll',
+    'depends': [
+        'hr_payroll_community',
+        'hr_attendance',
+        'hr_contract',
+    ],
+    'data': [
+        'security/ir.model.access.csv',
+        # 'data/hr_salary_rules.xml',
+        'report/employee_report_view.xml',
+        'views/res_config_settings_view.xml',
+        'views/hr_contract_view.xml',
+        'wizard/hr_contract_wizard_views.xml',
+        'views/hr_employee_view.xml',
+    ],
+    'demo': [],
+    'installable': True,
+    'application': False,
+    'auto_install': False,
+}

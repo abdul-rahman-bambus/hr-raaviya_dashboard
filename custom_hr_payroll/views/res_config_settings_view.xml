@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+	<record id="view_res_config_settings_inherit_overtime" model="ir.ui.view">
+		<field name="name">res.config.settings.inherit.overtime</field>
+		<field name="model">res.config.settings</field>
+		<field name="inherit_id" ref="hr_attendance.res_config_settings_view_form" />
+		<field name="arch" type="xml">
+
+			<!-- Place after Extra Hours section -->
+			<xpath expr="//block[@name='overtime_settings']" position="after">
+				<block title="Day Allocations" name="day_allocation_settings">
+					<setting class="mt16">
+						<label for="late_login_grace_minutes" class="o_form_label"></label>
+						<field name="late_login_grace_minutes" class="text-center"
+							style="width: 5ch;" />
+						<span class="ms-2">Minutes</span>
+						<br />
+					</setting>
+				</block>
+				<block title="Work Hour Rules">
+				    <setting class="mt16">
+				        <label for="half_day_hours"/>
+				        <field name="half_day_hours" class="text-center" style="width:5ch;"/>
+				        <span class="ms-2">Hours</span>
+				    </setting>
+
+				    <setting class="mt16">
+				        <label for="full_day_hours"/>
+				        <field name="full_day_hours" class="text-center" style="width:5ch;"/>
+				        <span class="ms-2">Hours</span>
+				    </setting>
+					
+					<setting class="mt16">
+				        <label for="hourly_wage_hour_limit"/>
+				        <field name="hourly_wage_hour_limit" class="text-center" style="width:5ch;"/>
+				        <span class="ms-2">Hours</span>
+				    </setting>
+
+					<setting string="OT for weekend and festivals" >
+                            <field name="ot_for_weekend_and_festival"/>
+                    </setting>
+
+				</block>
+				<block title="Weekend Configuration" name="weekend_config">
+			        <setting>
+			        	<div class="d-flex flex-column">
+				            <div>
+				            	<field name="is_monday_weekend"/>
+				            	<label for="is_monday_weekend" class="o_form_label"></label>
+						        
+						    </div>
+						    <div>
+						    	<field name="is_tuesday_weekend"/>
+				            	<label for="is_tuesday_weekend" class="o_form_label"></label>
+						        
+						    </div>
+						    <div>
+						    	<field name="is_wednesday_weekend"/>
+				            	<label for="is_wednesday_weekend" class="o_form_label"></label>
+						        
+						    </div>
+						    <div>
+						    	<field name="is_thursday_weekend"/>
+				            	<label for="is_thursday_weekend" class="o_form_label"></label>
+						        
+						    </div>
+						    <div>
+						    	<field name="is_friday_weekend"/>
+				            	<label for="is_friday_weekend" class="o_form_label"></label>
+						        
+						    </div>
+						    <div>
+						    	<field name="is_saturday_weekend"/>
+				            	<label for="is_saturday_weekend" class="o_form_label"></label>
+						        
+						    </div>
+						    <div>
+						    	<field name="is_sunday_weekend"/>
+				            	<label for="is_sunday_weekend" class="o_form_label"></label>
+						        
+						    </div>
+						</div>
+			        </setting>
+                </block>
+			</xpath>
+		</field>
+	</record>
+
+    <record id="res_config_settings_view_form_inherit_hr" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.hr.declaration</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="hr.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='employee_rights_setting_container']" position="after">
+                <block title="Declaration" name="declaration_settings">
+                    <setting class="col-12 col-lg-12">
+                        <div class="content-group">
+                            <div class="mt16">
+                                <label for="declaration_content" string="Employee Profile Declaration Content" class="o_form_label"/>
+                                <field name="declaration_content" widget="html" style="width: 100%; display: block;"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>
