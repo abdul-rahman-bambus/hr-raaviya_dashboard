@@ -87,10 +87,8 @@ class BambusHrAttendanceSheet(models.Model):
         utc_end = local_end.astimezone(pytz.UTC).replace(tzinfo=None)
         attendances = self.env["hr.attendance"].search([
             ("employee_id", "in", employees.ids),
+            ("check_in", ">=", fields.Datetime.to_string(utc_start)),
             ("check_in", "<", fields.Datetime.to_string(utc_end)),
-            "|",
-            ("check_out", "=", False),
-            ("check_out", ">", fields.Datetime.to_string(utc_start)),
         ])
         leaves = self.env["hr.leave"].search([
             ("employee_id", "in", employees.ids),

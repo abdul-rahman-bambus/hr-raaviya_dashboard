@@ -21,8 +21,8 @@ entries. Attendance History remains available separately for record management.
    an ISO `YYYY-MM-DD` date. The model is only the RPC host; the method does not
    read or write attendance-sheet lines.
 3. The model loads active employees assigned to the current company plus shared
-   employees whose company is unset, then reads attendance punches overlapping the
-   selected local day and approved time off covering that date.
+   employees whose company is unset, then reads attendance entries whose check-in
+   falls within the selected local day and approved time off covering that date.
 4. Changing the date repeats the same read-only calculation. No create/write
    operation exists in the dashboard client action.
 5. The same response groups the calculated employee sets by each employee's
@@ -65,6 +65,11 @@ action so access rules, approval locking and audit behaviour remain server-side.
 - **Punched In / Out** count distinct employees, not individual attendance rows.
 - **Daily Work Entries** counts existing attendance rows for the selected day.
 - **On Duty / Upcoming On Duty** remain zero until a source on-duty model is agreed.
+
+Open attendance entries are associated only with their check-in date. They are
+not carried into every later date merely because `check_out` is still empty. This
+ensures a date with no new attendance entries shows zero Present, Punched In,
+Punched Out, overtime, fine, and daily work entries.
 
 ## Department attendance
 
