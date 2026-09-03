@@ -2,6 +2,7 @@
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 from datetime import datetime, time, timedelta
+import pytz
 
 
 class BambusHrAttendanceSheet(models.Model):
@@ -64,6 +65,198 @@ class BambusHrAttendanceSheet(models.Model):
      'unique(company_id, date)',
      'Attendance sheet already exists for this date (per company).')
 ]
+
+    @api.model
+    def get_attendance_dashboard(self, selected_date=None):
+        """Read one day's metrics from employees, attendances and time off."""
+        day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
+        company = self.env.company
+        employee_model = self.env["hr.employee"].with_context(active_test=False)
+        # Unassigned employees are visible in standard Odoo multi-company HR and
+        # belong to the shared roster. Excluding company_id=False was the reason
+        # valid historical dates previously returned an empty employee total.
+        all_employees = employee_model.search([
+            ("company_id", "in", [False, company.id]),
+        ])
+        employees = all_employees.filtered("active")
+
+        timezone = pytz.timezone(self.env.user.tz or "UTC")
+        local_start = timezone.localize(datetime.combine(day, time.min))
+        local_end = timezone.localize(datetime.combine(day + timedelta(days=1), time.min))
+        utc_start = local_start.astimezone(pytz.UTC).replace(tzinfo=None)
+        utc_end = local_end.astimezone(pytz.UTC).replace(tzinfo=None)
+        attendances = self.env["hr.attendance"].search([
+            ("employee_id", "in", employees.ids),
+            ("check_in", ">=", fields.Datetime.to_string(utc_start)),
+            ("check_in", "<", fields.Datetime.to_string(utc_end)),
+        ])
+        leaves = self.env["hr.leave"].search([
+            ("employee_id", "in", employees.ids),
+            ("state", "=", "validate"),
+            ("request_date_from", "<=", day),
+            ("request_date_to", ">=", day),
+        ])
+        upcoming_leaves = self.env["hr.leave"].search([
+            ("employee_id", "in", employees.ids),
+            ("state", "=", "validate"),
+            ("request_date_from", ">", day),
+        ])
+        attendance_employee_ids = set(attendances.employee_id.ids)
+        halfday_employee_ids = {
+            leave.employee_id.id for leave in leaves
+            if "request_unit_half" in leave._fields and leave.request_unit_half
+        }
+        leave_employee_ids = set(leaves.employee_id.ids) - halfday_employee_ids
+        present_employee_ids = attendance_employee_ids - leave_employee_ids
+        unmarked_employee_ids = (
+            set(employees.ids) - attendance_employee_ids
+            - leave_employee_ids - halfday_employee_ids
+        )
+        fine_hours = sum(attendances.mapped("bambus_fine_hours")) if "bambus_fine_hours" in attendances._fields else 0.0
+        fine_amount = sum(attendances.mapped("bambus_fine_amount")) if "bambus_fine_amount" in attendances._fields else 0.0
+        overtime_employee_ids = set(
+            attendances.filtered(lambda attendance: attendance.overtime_hours > 0).employee_id.ids
+        )
+        fine_employee_ids = set()
+        if "bambus_fine_hours" in attendances._fields:
+            fine_employee_ids = set(
+                attendances.filtered(
+                    lambda attendance: attendance.bambus_fine_hours > 0
+                ).employee_id.ids
+            )
+        departments = []
+        department_groups = {}
+        for employee in employees:
+            department = employee.department_id
+            key = department.id or 0
+            group = department_groups.setdefault(key, {
+                "id": key,
+                "name": department.display_name or _("No Department"),
+                "employee_ids": set(),
+            })
+            group["employee_ids"].add(employee.id)
+        for group in department_groups.values():
+            group_employee_ids = group.pop("employee_ids")
+            departments.append({
+                **group,
+                "present": len(group_employee_ids & present_employee_ids),
+                "absent": len(group_employee_ids & unmarked_employee_ids),
+                "not_marked": len(group_employee_ids & unmarked_employee_ids),
+                "halfday": len(group_employee_ids & halfday_employee_ids),
+                "overtime": len(group_employee_ids & overtime_employee_ids),
+                "fine": len(group_employee_ids & fine_employee_ids),
+                "leave": len(group_employee_ids & leave_employee_ids),
+            })
+        departments.sort(key=lambda department: department["name"].lower())
+
+        contracts = self.env["hr.contract"].search([
+            ("employee_id", "in", employees.ids),
+            ("state", "!=", "cancel"),
+            ("date_start", "<=", day),
+            "|",
+            ("date_end", "=", False),
+            ("date_end", ">=", day),
+        ], order="date_start desc, id desc")
+        contract_by_employee = {}
+        for contract in contracts:
+            contract_by_employee.setdefault(contract.employee_id.id, contract)
+        shift_groups = {}
+        for employee in employees:
+            contract = contract_by_employee.get(employee.id)
+            calendar = contract.resource_calendar_id if contract else False
+            key = calendar.id if calendar else 0
+            group = shift_groups.setdefault(key, {
+                "id": key,
+                "name": calendar.display_name if calendar else _("No Work Schedule"),
+                "employee_ids": set(),
+            })
+            group["employee_ids"].add(employee.id)
+        shifts = []
+        for group in shift_groups.values():
+            group_employee_ids = group.pop("employee_ids")
+            shifts.append({
+                **group,
+                "present": len(group_employee_ids & present_employee_ids),
+                "absent": len(group_employee_ids & unmarked_employee_ids),
+                "not_marked": len(group_employee_ids & unmarked_employee_ids),
+                "halfday": len(group_employee_ids & halfday_employee_ids),
+                "overtime": len(group_employee_ids & overtime_employee_ids),
+                "fine": len(group_employee_ids & fine_employee_ids),
+                "leave": len(group_employee_ids & leave_employee_ids),
+            })
+        shifts.sort(key=lambda shift: shift["name"].lower())
+
+        attendances_by_employee = {}
+        for attendance in attendances:
+            attendances_by_employee.setdefault(attendance.employee_id.id, []).append(attendance)
+
+        def format_time(value):
+            if not value:
+                return ""
+            local_value = fields.Datetime.context_timestamp(self, value)
+            return local_value.strftime("%I:%M %p").lstrip("0")
+
+        daily_attendance = []
+        for employee in employees.sorted(key=lambda item: (item.name or "").lower()):
+            employee_attendances = attendances_by_employee.get(employee.id, [])
+            check_ins = [attendance.check_in for attendance in employee_attendances if attendance.check_in]
+            check_outs = [attendance.check_out for attendance in employee_attendances if attendance.check_out]
+            if employee.id in leave_employee_ids:
+                status = "leave"
+                status_label = _("Leave")
+            elif employee.id in halfday_employee_ids:
+                status = "halfday"
+                status_label = _("Half Day")
+            elif employee.id in attendance_employee_ids:
+                status = "present"
+                status_label = _("Present")
+            else:
+                status = "not_marked"
+                status_label = _("Not Marked")
+            contract = contract_by_employee.get(employee.id)
+            calendar = contract.resource_calendar_id if contract else False
+            employee_fine_hours = 0.0
+            if "bambus_fine_hours" in attendances._fields:
+                employee_fine_hours = sum(
+                    attendance.bambus_fine_hours or 0.0
+                    for attendance in employee_attendances
+                )
+            daily_attendance.append({
+                "id": employee.id,
+                "name": employee.display_name,
+                "department": employee.department_id.display_name or _("No Department"),
+                "shift": calendar.display_name if calendar else _("No Work Schedule"),
+                "status": status,
+                "status_label": status_label,
+                "check_in": format_time(min(check_ins)) if check_ins else "",
+                "check_out": format_time(max(check_outs)) if check_outs else "",
+                "fine_hours": round(employee_fine_hours, 2),
+            })
+        return {
+            "date": fields.Date.to_string(day),
+            "company": company.display_name,
+            "departments": departments,
+            "shifts": shifts,
+            "daily_attendance": daily_attendance,
+            "metrics": {
+                "total": len(employees),
+                "present": len(present_employee_ids),
+                "absent": len(unmarked_employee_ids),
+                "halfday": len(halfday_employee_ids),
+                "leave": len(leave_employee_ids),
+                "punched_in": len(attendance_employee_ids),
+                "punched_out": len(set(attendances.filtered("check_out").employee_id.ids)),
+                "not_marked": len(unmarked_employee_ids),
+                "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
+                "overtime": round(sum(attendances.mapped("overtime_hours")), 2),
+                "fine": round(fine_hours, 2),
+                "fine_amount": round(fine_amount, 2),
+                "on_duty": 0,
+                "upcoming_on_duty": 0,
+                "deactivated": len(all_employees - employees),
+                "daily_work_entries": len(attendances),
+            },
+        }
 
 
     def _filtered_lines(self):
