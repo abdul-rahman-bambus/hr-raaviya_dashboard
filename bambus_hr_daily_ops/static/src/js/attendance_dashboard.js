@@ -19,6 +19,7 @@ export class AttendanceDashboard extends Component {
             statusFilter: "all",
             currentPage: 1,
             pageSize: 10,
+            collapsedContractTypes: {},
         });
         this.loadSequence = 0;
         onWillStart(() => this.load());
@@ -73,32 +74,89 @@ export class AttendanceDashboard extends Component {
         const query = this.state.query.trim().toLowerCase();
         return (this.state.data?.daily_attendance || []).filter((employee) => {
             const matchesStatus = this.state.statusFilter === "all" || employee.status === this.state.statusFilter;
-            const matchesQuery = !query || [employee.name, employee.department, employee.shift]
-                .some((value) => value.toLowerCase().includes(query));
+            const matchesQuery = !query || [
+                employee.name,
+                employee.department,
+                employee.shift,
+                employee.contract_type,
+            ].some((value) => (value || "").toLowerCase().includes(query));
             return matchesStatus && matchesQuery;
         });
     }
 
+    get filteredDailyGroups() {
+        const groups = new Map();
+        for (const employee of this.filteredDailyEmployees) {
+            const id = employee.contract_type_id || 0;
+            if (!groups.has(id)) {
+                groups.set(id, {
+                    id,
+                    name: employee.contract_type,
+                    employees: [],
+                });
+            }
+            groups.get(id).employees.push(employee);
+        }
+        return [...groups.values()].sort((left, right) => {
+            if (!left.id) {
+                return 1;
+            }
+            if (!right.id) {
+                return -1;
+            }
+            return left.name.localeCompare(right.name);
+        });
+    }
+
+    get dailyGroupPages() {
+        const pages = [];
+        let page = [];
+        let employeeCount = 0;
+        for (const group of this.filteredDailyGroups) {
+            if (page.length && employeeCount + group.employees.length > this.state.pageSize) {
+                pages.push(page);
+                page = [];
+                employeeCount = 0;
+            }
+            page.push(group);
+            employeeCount += group.employees.length;
+        }
+        if (page.length) {
+            pages.push(page);
+        }
+        return pages;
+    }
+
     get pageCount() {
-        return Math.max(1, Math.ceil(this.filteredDailyEmployees.length / this.state.pageSize));
+        return Math.max(1, this.dailyGroupPages.length);
+    }
+
+    get dailyGroups() {
+        return this.dailyGroupPages[this.state.currentPage - 1] || [];
     }
 
     get dailyEmployees() {
-        const start = (this.state.currentPage - 1) * this.state.pageSize;
-        return this.filteredDailyEmployees.slice(start, start + this.state.pageSize);
+        return this.dailyGroups.flatMap((group) => group.employees);
     }
 
     get firstVisibleEmployee() {
-        return this.filteredDailyEmployees.length
-            ? (this.state.currentPage - 1) * this.state.pageSize + 1
-            : 0;
+        if (!this.filteredDailyEmployees.length) {
+            return 0;
+        }
+        const previousEmployeeCount = this.dailyGroupPages
+            .slice(0, this.state.currentPage - 1)
+            .reduce(
+                (count, page) => count + page.reduce(
+                    (pageCount, group) => pageCount + group.employees.length,
+                    0
+                ),
+                0
+            );
+        return previousEmployeeCount + 1;
     }
 
     get lastVisibleEmployee() {
-        return Math.min(
-            this.state.currentPage * this.state.pageSize,
-            this.filteredDailyEmployees.length
-        );
+        return this.firstVisibleEmployee + this.dailyEmployees.length - (this.dailyEmployees.length ? 1 : 0);
     }
 
     updateQuery(ev) {
@@ -120,14 +178,23 @@ export class AttendanceDashboard extends Component {
         this.state.currentPage = Math.min(Math.max(page, 1), this.pageCount);
     }
 
+    toggleContractType(contractTypeId) {
+        this.state.collapsedContractTypes[contractTypeId] =
+            !this.state.collapsedContractTypes[contractTypeId];
+    }
+
+    isContractTypeCollapsed(contractTypeId) {
+        return Boolean(this.state.collapsedContractTypes[contractTypeId]);
+    }
+
     fineDisplay(hours) {
         return hours > 0 ? `${this.formatHours(hours)} h` : "—";
     }
 
     downloadDailyAttendance() {
-        const headers = ["Name", "Department", "Work Schedule", "Attendance", "In Time", "Out Time", "Fine Hours"];
-        const rows = this.filteredDailyEmployees.map((employee) => [
-            employee.name, employee.department, employee.shift, employee.status_label,
+        const headers = ["Name", "Contract Type", "Department", "Work Schedule", "Attendance", "In Time", "Out Time", "Fine Hours"];
+        const rows = this.filteredDailyGroups.flatMap((group) => group.employees).map((employee) => [
+            employee.name, employee.contract_type, employee.department, employee.shift, employee.status_label,
             employee.check_in, employee.check_out, this.fineDisplay(employee.fine_hours),
         ]);
         const csv = [headers, ...rows].map((row) => row.map((value) =>

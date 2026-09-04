@@ -233,6 +233,7 @@ class BambusHrAttendanceSheet(models.Model):
                 status_label = _("Not Marked")
             contract = contract_by_employee.get(employee.id)
             calendar = contract.resource_calendar_id if contract else False
+            contract_type = contract.contract_type_id if contract else False
             employee_fine_hours = 0.0
             if "bambus_fine_hours" in attendances._fields:
                 employee_fine_hours = sum(
@@ -244,6 +245,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "name": employee.display_name,
                 "department": employee_department(employee).display_name or _("No Department"),
                 "shift": calendar.display_name if calendar else _("No Work Schedule"),
+                "contract_type_id": contract_type.id if contract_type else 0,
+                "contract_type": contract_type.display_name if contract_type else _("No Contract Type"),
                 "status": status,
                 "status_label": status_label,
                 "check_in": format_time(min(check_ins)) if check_ins else "",
