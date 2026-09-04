@@ -73,10 +73,17 @@ class BambusHrAttendanceSheet(models.Model):
         company = self.env.company
         employee_model = self.env["hr.employee"].with_context(active_test=False)
         # Unassigned employees are visible in standard Odoo multi-company HR and
-        # belong to the shared roster. Excluding company_id=False was the reason
-        # valid historical dates previously returned an empty employee total.
+        # belong to the shared roster. Keep them only when their department is
+        # shared or belongs to the active company: an employee can otherwise be
+        # readable while department record rules hide its foreign-company
+        # department, causing the entire dashboard RPC to fail after a company
+        # switch.
         all_employees = employee_model.search([
+            "&",
             ("company_id", "in", [False, company.id]),
+            "|",
+            ("department_id", "=", False),
+            ("department_id.company_id", "in", [False, company.id]),
         ])
         employees = all_employees.filtered("active")
 
