@@ -17,6 +17,8 @@ export class AttendanceDashboard extends Component {
             error: "",
             query: "",
             statusFilter: "all",
+            currentPage: 1,
+            pageSize: 10,
         });
         this.loadSequence = 0;
         onWillStart(() => this.load());
@@ -38,6 +40,7 @@ export class AttendanceDashboard extends Component {
             // most recently selected date.
             if (sequence === this.loadSequence) {
                 this.state.data = { ...data };
+                this.state.currentPage = 1;
             }
         } catch (error) {
             if (sequence === this.loadSequence) {
@@ -66,7 +69,7 @@ export class AttendanceDashboard extends Component {
         return metric[3] === "hours" ? `${this.formatHours(value)} h` : value;
     }
 
-    get dailyEmployees() {
+    get filteredDailyEmployees() {
         const query = this.state.query.trim().toLowerCase();
         return (this.state.data?.daily_attendance || []).filter((employee) => {
             const matchesStatus = this.state.statusFilter === "all" || employee.status === this.state.statusFilter;
@@ -76,13 +79,54 @@ export class AttendanceDashboard extends Component {
         });
     }
 
+    get pageCount() {
+        return Math.max(1, Math.ceil(this.filteredDailyEmployees.length / this.state.pageSize));
+    }
+
+    get dailyEmployees() {
+        const start = (this.state.currentPage - 1) * this.state.pageSize;
+        return this.filteredDailyEmployees.slice(start, start + this.state.pageSize);
+    }
+
+    get firstVisibleEmployee() {
+        return this.filteredDailyEmployees.length
+            ? (this.state.currentPage - 1) * this.state.pageSize + 1
+            : 0;
+    }
+
+    get lastVisibleEmployee() {
+        return Math.min(
+            this.state.currentPage * this.state.pageSize,
+            this.filteredDailyEmployees.length
+        );
+    }
+
+    updateQuery(ev) {
+        this.state.query = ev.target.value;
+        this.state.currentPage = 1;
+    }
+
+    updateStatusFilter(ev) {
+        this.state.statusFilter = ev.target.value;
+        this.state.currentPage = 1;
+    }
+
+    updatePageSize(ev) {
+        this.state.pageSize = Number(ev.target.value);
+        this.state.currentPage = 1;
+    }
+
+    goToPage(page) {
+        this.state.currentPage = Math.min(Math.max(page, 1), this.pageCount);
+    }
+
     fineDisplay(hours) {
         return hours > 0 ? `${this.formatHours(hours)} h` : "—";
     }
 
     downloadDailyAttendance() {
         const headers = ["Name", "Department", "Work Schedule", "Attendance", "In Time", "Out Time", "Fine Hours"];
-        const rows = this.dailyEmployees.map((employee) => [
+        const rows = this.filteredDailyEmployees.map((employee) => [
             employee.name, employee.department, employee.shift, employee.status_label,
             employee.check_in, employee.check_out, this.fineDisplay(employee.fine_hours),
         ]);
