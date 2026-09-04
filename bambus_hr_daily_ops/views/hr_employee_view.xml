@@ -65,9 +65,14 @@
         </field>
     </record>
 
+    <record id="action_bambus_employee_dashboard" model="ir.actions.client">
+        <field name="name">Employees</field>
+        <field name="tag">bambus_employee_dashboard</field>
+    </record>
+
     <menuitem id="menu_bambus_employees_root"
               name="Employees"
-              action="action_bambus_employee_list"
+              action="action_bambus_employee_dashboard"
               sequence="-90"
               groups="hr.group_hr_user"/>
 

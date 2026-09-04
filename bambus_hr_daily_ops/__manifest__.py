@@ -29,9 +29,12 @@
         "web.assets_backend": [
             "bambus_hr_daily_ops/static/src/css/bambus_attendance_timeline.css",
             "bambus_hr_daily_ops/static/src/css/attendance_dashboard.css",
+            "bambus_hr_daily_ops/static/src/css/employee_dashboard.css",
             "bambus_hr_daily_ops/static/src/js/bambus_face_preview_flip.js",
             "bambus_hr_daily_ops/static/src/js/attendance_dashboard.js",
+            "bambus_hr_daily_ops/static/src/js/employee_dashboard.js",
             "bambus_hr_daily_ops/static/src/xml/attendance_dashboard.xml",
+            "bambus_hr_daily_ops/static/src/xml/employee_dashboard.xml",
         ],
     },
 
