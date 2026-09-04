@@ -80,6 +80,17 @@ class BambusHrAttendanceSheet(models.Model):
         ])
         employees = all_employees.filtered("active")
 
+        def employee_department(employee):
+            """Return the department linked to an already accessible employee.
+
+            Some existing employee records have a department whose company does
+            not match the employee company. Department record rules hide that
+            relation after a company switch, even though the employee itself is
+            correctly visible. Elevated access is limited to resolving this
+            employee's linked department for the dashboard.
+            """
+            return employee.sudo().department_id
+
         timezone = pytz.timezone(self.env.user.tz or "UTC")
         local_start = timezone.localize(datetime.combine(day, time.min))
         local_end = timezone.localize(datetime.combine(day + timedelta(days=1), time.min))
@@ -127,7 +138,7 @@ class BambusHrAttendanceSheet(models.Model):
         departments = []
         department_groups = {}
         for employee in employees:
-            department = employee.department_id
+            department = employee_department(employee)
             key = department.id or 0
             group = department_groups.setdefault(key, {
                 "id": key,
@@ -224,7 +235,7 @@ class BambusHrAttendanceSheet(models.Model):
             daily_attendance.append({
                 "id": employee.id,
                 "name": employee.display_name,
-                "department": employee.department_id.display_name or _("No Department"),
+                "department": employee_department(employee).display_name or _("No Department"),
                 "shift": calendar.display_name if calendar else _("No Work Schedule"),
                 "status": status,
                 "status_label": status_label,
