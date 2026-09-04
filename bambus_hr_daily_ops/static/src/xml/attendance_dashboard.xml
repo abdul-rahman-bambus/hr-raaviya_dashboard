@@ -65,8 +65,8 @@
             <div class="o_bad_daily_header">
               <div><i class="fa fa-id-card-o"/><strong>Daily Attendance View</strong></div>
               <div class="o_bad_daily_tools">
-                <input class="form-control" type="search" placeholder="Search by name, department or schedule" t-model="state.query"/>
-                <select class="form-select" t-model="state.statusFilter">
+                <input class="form-control" type="search" placeholder="Search by name, department or schedule" t-att-value="state.query" t-on-input="updateQuery"/>
+                <select class="form-select" t-att-value="state.statusFilter" t-on-change="updateStatusFilter">
                   <option value="all">All Statuses</option><option value="present">Present</option><option value="not_marked">Not Marked</option><option value="halfday">Half Day</option><option value="leave">Leave</option>
                 </select>
                 <button class="btn btn-outline-primary" t-on-click="downloadDailyAttendance"><i class="fa fa-download"/> Download</button>
@@ -82,6 +82,22 @@
                   <tr t-if="!dailyEmployees.length"><td colspan="7" class="text-muted text-center">No employees match the selected filters</td></tr>
                 </tbody>
               </table>
+            </div>
+            <div class="o_bad_pagination">
+              <div class="o_bad_page_summary">
+                Showing <strong t-esc="firstVisibleEmployee"/>–<strong t-esc="lastVisibleEmployee"/> of <strong t-esc="filteredDailyEmployees.length"/> employees
+              </div>
+              <div class="o_bad_page_size">
+                <label for="o_bad_page_size">Rows per page</label>
+                <select id="o_bad_page_size" class="form-select form-select-sm" t-att-value="state.pageSize" t-on-change="updatePageSize">
+                  <option value="10">10</option><option value="25">25</option><option value="50">50</option>
+                </select>
+              </div>
+              <div class="btn-group o_bad_page_controls" role="group" aria-label="Daily attendance pagination">
+                <button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === 1" t-on-click="() => this.goToPage(state.currentPage - 1)" aria-label="Previous page"><i class="fa fa-chevron-left"/></button>
+                <span class="btn btn-light btn-sm disabled">Page <t t-esc="state.currentPage"/> of <t t-esc="pageCount"/></span>
+                <button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === pageCount" t-on-click="() => this.goToPage(state.currentPage + 1)" aria-label="Next page"><i class="fa fa-chevron-right"/></button>
+              </div>
             </div>
           </section>
       </t>
