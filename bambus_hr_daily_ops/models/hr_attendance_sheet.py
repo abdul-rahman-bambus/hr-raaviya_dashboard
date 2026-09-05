@@ -71,20 +71,11 @@ class BambusHrAttendanceSheet(models.Model):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
         company = self.env.company
+        # Use the same employee population as the employee directory. Employee
+        # record rules already limit this query to companies the HR user may
+        # access; attendance punches must never determine roster membership.
         employee_model = self.env["hr.employee"].with_context(active_test=False)
-        # Unassigned employees are visible in standard Odoo multi-company HR and
-        # belong to the shared roster. Keep them only when their department is
-        # shared or belongs to the active company: an employee can otherwise be
-        # readable while department record rules hide its foreign-company
-        # department, causing the entire dashboard RPC to fail after a company
-        # switch.
-        all_employees = employee_model.search([
-            "&",
-            ("company_id", "in", [False, company.id]),
-            "|",
-            ("department_id", "=", False),
-            ("department_id.company_id", "in", [False, company.id]),
-        ])
+        all_employees = employee_model.search([])
         employees = all_employees.filtered("active")
 
         def employee_department(employee):
@@ -318,8 +309,8 @@ class BambusHrAttendanceSheet(models.Model):
             raise UserError(_("Only HR officers can update employee attendance."))
         day = fields.Date.to_date(selected_date)
         employee = self.env["hr.employee"].browse(employee_id).exists()
-        if not employee or (employee.company_id and employee.company_id != self.env.company):
-            raise UserError(_("The employee is not available in the active company."))
+        if not employee:
+            raise UserError(_("The employee is not available."))
         sheet = self.search([("date", "=", day), ("company_id", "=", self.env.company.id)], limit=1)
         if not sheet:
             sheet = self.create({"date": day, "company_id": self.env.company.id})
