@@ -262,6 +262,7 @@ class BambusHrAttendanceSheet(models.Model):
             daily_attendance.append({
                 "id": employee.id,
                 "name": employee.display_name,
+                "employee_code": employee.barcode or "",
                 "department": employee_department(employee).display_name or _("No Department"),
                 "shift": calendar.display_name if calendar else _("No Work Schedule"),
                 "contract_type_id": contract_type.id if contract_type else 0,
@@ -274,6 +275,7 @@ class BambusHrAttendanceSheet(models.Model):
                 "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
                 "overtime_hours": round(override.overtime_hours if override else sum(a.overtime_hours for a in employee_attendances), 2),
                 "fine_hours": round(override.fine_hours if override else employee_fine_hours, 2),
+                "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
                 "line_id": override.id if override else False,
             })
         return {

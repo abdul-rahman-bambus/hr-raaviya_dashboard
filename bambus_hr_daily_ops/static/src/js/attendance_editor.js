@@ -13,6 +13,18 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.savingIds = {};
     }
 
+    get filteredDailyGroups() {
+        const groups = new Map();
+        for (const employee of this.filteredDailyEmployees) {
+            const name = employee.department || "No Department";
+            if (!groups.has(name)) {
+                groups.set(name, { id: name, name, employees: [] });
+            }
+            groups.get(name).employees.push(employee);
+        }
+        return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
+    }
+
     updateEmployeeField(employee, field, event) {
         employee[field] = event.target.value;
     }
