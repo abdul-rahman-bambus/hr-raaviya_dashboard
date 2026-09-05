@@ -161,6 +161,29 @@ export class AttendanceDashboard extends Component {
         return this.firstVisibleEmployee + this.dailyEmployees.length - (this.dailyEmployees.length ? 1 : 0);
     }
 
+    get dashboardPageCount() {
+        return Math.max(1, Math.ceil(this.filteredDailyEmployees.length / this.state.pageSize));
+    }
+
+    get dashboardEmployees() {
+        const start = (this.state.currentPage - 1) * this.state.pageSize;
+        return this.filteredDailyEmployees.slice(start, start + this.state.pageSize);
+    }
+
+    get dashboardFirstVisibleEmployee() {
+        return this.filteredDailyEmployees.length ?
+            (this.state.currentPage - 1) * this.state.pageSize + 1 : 0;
+    }
+
+    get dashboardLastVisibleEmployee() {
+        return this.dashboardFirstVisibleEmployee + this.dashboardEmployees.length -
+            (this.dashboardEmployees.length ? 1 : 0);
+    }
+
+    goToDashboardPage(page) {
+        this.state.currentPage = Math.min(Math.max(page, 1), this.dashboardPageCount);
+    }
+
     updateQuery(ev) {
         this.state.query = ev.target.value;
         this.state.currentPage = 1;
