@@ -58,9 +58,29 @@ class HrEmployee(models.Model):
                 "worked_hours": 0.0,
                 "overtime_hours": 0.0,
                 "fine_hours": 0.0,
+                "logs": [],
             })
+            if attendance.recognized_face_checkin or attendance.check_in:
+                row["logs"].append({
+                    "id": f"{attendance.id}-in",
+                    "type": "check_in",
+                    "label": _("Punched In"),
+                    "time": local_in.strftime("%I:%M %p").lstrip("0"),
+                    "mode": attendance._fields["in_mode"].convert_to_export(attendance.in_mode, attendance) or _("Face"),
+                    "address": attendance.checkin_reverse_address or "",
+                    "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkin" if attendance.recognized_face_checkin else "",
+                })
             if local_out:
                 row["check_out"] = local_out.strftime("%I:%M %p").lstrip("0")
+                row["logs"].append({
+                    "id": f"{attendance.id}-out",
+                    "type": "check_out",
+                    "label": _("Punched Out"),
+                    "time": local_out.strftime("%I:%M %p").lstrip("0"),
+                    "mode": attendance._fields["out_mode"].convert_to_export(attendance.out_mode, attendance) or _("Face"),
+                    "address": attendance.checkout_reverse_address or "",
+                    "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkout" if attendance.recognized_face_checkout else "",
+                })
             row["worked_hours"] += attendance.worked_hours or 0.0
             row["overtime_hours"] += attendance.overtime_hours or 0.0
             if "fine_hours" in attendance._fields:
@@ -85,6 +105,7 @@ class HrEmployee(models.Model):
                         "status_label": _("Half Day") if is_half_day else _("Leave"),
                         "check_in": "", "check_out": "", "worked_hours": 0.0,
                         "overtime_hours": 0.0, "fine_hours": 0.0,
+                        "logs": [],
                     }
                 day += timedelta(days=1)
 
@@ -112,6 +133,7 @@ class HrEmployee(models.Model):
                 "worked_hours": line.worked_hours or 0.0,
                 "overtime_hours": line.overtime_hours or 0.0,
                 "fine_hours": line.fine_hours or 0.0,
+                "logs": rows.get(line.date, {}).get("logs", []),
             }
 
         result_rows = [rows[day] for day in sorted(rows)]

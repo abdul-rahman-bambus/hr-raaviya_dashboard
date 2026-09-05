@@ -32,13 +32,33 @@
         <div class="o_bea_tabs"><span>Daily Attendance View</span></div>
         <section class="o_bea_days">
           <article class="o_bea_day" t-foreach="state.data.rows" t-as="row" t-key="row.date">
-            <div class="o_bea_day_info"><strong t-esc="formatDate(row.date)"/><span><t t-esc="formatHours(row.worked_hours)"/> Hrs</span></div>
+            <div class="o_bea_day_info"><strong t-esc="formatDate(row.date)"/><span><t t-esc="formatHours(row.worked_hours)"/> Hrs</span><button type="button" t-on-click="() => this.openLogs(row)">Logs</button></div>
             <span t-att-class="'o_bea_status ' + row.status"><b t-esc="row.status_label"/><t t-if="row.check_in"> | <t t-esc="row.check_in"/> - <t t-esc="row.check_out || 'Punched In'"/></t></span>
             <span class="o_bea_detail"><b>OT</b> | <t t-esc="formatHours(row.overtime_hours)"/> Hrs</span>
             <span class="o_bea_detail fine"><b>F</b> | <t t-esc="formatHours(row.fine_hours)"/> Hrs</span>
           </article>
           <div class="o_bea_empty" t-if="!state.data.rows.length"><i class="fa fa-calendar-o"/><strong>No attendance for this month</strong></div>
         </section>
+        <div class="o_bea_modal_backdrop" t-if="state.selectedDay" t-on-click.self="closeLogs">
+          <section class="o_bea_log_modal" role="dialog" aria-modal="true" aria-labelledby="o_bea_log_title">
+            <button type="button" class="o_bea_modal_close" t-on-click="closeLogs" aria-label="Close"><i class="fa fa-times"/></button>
+            <h3 id="o_bea_log_title" t-esc="state.data.employee.name"/>
+            <p t-esc="formatDate(state.selectedDay.date)"/>
+            <div class="o_bea_log_scroll">
+              <article class="o_bea_log" t-foreach="state.selectedDay.logs" t-as="log" t-key="log.id">
+                <img t-if="log.image_url" t-att-src="log.image_url" t-att-alt="log.label"/>
+                <div t-else="" class="o_bea_log_placeholder"><i class="fa fa-user"/></div>
+                <div class="o_bea_log_copy">
+                  <strong><i t-att-class="'fa ' + (log.type === 'check_in' ? 'fa-sign-in' : 'fa-sign-out')"/> <t t-esc="log.label"/> via <t t-esc="log.mode"/></strong>
+                  <span t-if="log.address" t-esc="log.address"/>
+                  <small>By <t t-esc="state.data.employee.name"/> at <t t-esc="log.time"/></small>
+                </div>
+              </article>
+              <div class="o_bea_no_logs" t-if="!state.selectedDay.logs.length"><i class="fa fa-camera"/><span>No punch logs were captured for this day.</span></div>
+            </div>
+            <button type="button" class="btn btn-outline-primary o_bea_done" t-on-click="closeLogs">Done</button>
+          </section>
+        </div>
       </t>
     </main>
   </t>

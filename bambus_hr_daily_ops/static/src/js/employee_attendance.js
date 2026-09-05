@@ -12,7 +12,7 @@ export class EmployeeAttendance extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.employeeId = this.props.action.params.employee_id;
-        this.state = useState({ loading: true, error: "", data: null });
+        this.state = useState({ loading: true, error: "", data: null, selectedDay: null });
         onWillStart(() => this.load());
     }
 
@@ -63,6 +63,14 @@ export class EmployeeAttendance extends Component {
             views: [[false, "form"]],
             target: "current",
         });
+    }
+
+    openLogs(row) {
+        this.state.selectedDay = row;
+    }
+
+    closeLogs() {
+        this.state.selectedDay = null;
     }
 
     downloadReport() {
