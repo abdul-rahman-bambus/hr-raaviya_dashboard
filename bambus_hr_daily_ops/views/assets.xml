@@ -1,8 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
-  <template id="assets_backend" inherit_id="web.assets_backend" name="Bambus HR Daily Ops assets">
-    <xpath expr="." position="inside">
-      <link rel="stylesheet" type="text/css"
-            href="/bambus_hr_daily_ops/static/src/css/bambus_attendance_timeline.css"/>
-    </xpath>
-  </template>
+    <!-- Remove the temporary database-backed asset records introduced in
+         18.0.1.2.0. The module manifest remains the single asset source. -->
+    <delete model="ir.asset"
+            search="[('path', '=like', 'bambus_hr_daily_ops/static/src/%')]"/>
 </odoo>
