@@ -121,6 +121,25 @@ export class EmployeeAttendance extends Component {
         this.state.selectedDay = null;
     }
 
+    openLeave(row) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: row.leave_id ? "Time Off" : "New Time Off Request",
+            res_model: "hr.leave",
+            res_id: row.leave_id || false,
+            views: [[false, "form"]],
+            target: "new",
+            context: {
+                default_employee_id: this.employeeId,
+                default_holiday_type: "employee",
+                default_request_date_from: row.date,
+                default_request_date_to: row.date,
+            },
+        }, {
+            onClose: () => this.load(this.state.data.month),
+        });
+    }
+
     downloadReport() {
         const rows = this.state.data.rows.map((row) => [
             row.date, row.status_label, row.check_in, row.check_out,

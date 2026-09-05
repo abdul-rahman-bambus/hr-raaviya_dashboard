@@ -60,6 +60,7 @@ class HrEmployee(models.Model):
                 "overtime_hours": 0.0,
                 "fine_hours": 0.0,
                 "logs": [],
+                "leave_id": False,
             })
             if attendance.recognized_face_checkin or attendance.check_in:
                 row["logs"].append({
@@ -89,7 +90,7 @@ class HrEmployee(models.Model):
 
         leaves = self.env["hr.leave"].search([
             ("employee_id", "=", employee.id),
-            ("state", "=", "validate"),
+            ("state", "in", ["confirm", "validate1", "validate"]),
             ("date_from", "<", range_end),
             ("date_to", ">=", range_start),
         ])
@@ -98,7 +99,9 @@ class HrEmployee(models.Model):
             leave_end = min(fields.Datetime.context_timestamp(self, leave.date_to).date(), month_end)
             day = leave_start
             while day <= leave_end:
-                if day not in rows:
+                if day in rows:
+                    rows[day]["leave_id"] = leave.id
+                else:
                     is_half_day = bool(getattr(leave, "request_unit_half", False))
                     rows[day] = {
                         "date": fields.Date.to_string(day),
@@ -107,6 +110,7 @@ class HrEmployee(models.Model):
                         "check_in": "", "check_out": "", "worked_hours": 0.0,
                         "overtime_hours": 0.0, "fine_hours": 0.0,
                         "logs": [],
+                        "leave_id": leave.id,
                     }
                 day += timedelta(days=1)
 
@@ -135,6 +139,7 @@ class HrEmployee(models.Model):
                 "overtime_hours": line.overtime_hours or 0.0,
                 "fine_hours": line.fine_hours or 0.0,
                 "logs": rows.get(line.date, {}).get("logs", []),
+                "leave_id": line.leave_id.id or rows.get(line.date, {}).get("leave_id", False),
             }
 
         result_rows = [rows[day] for day in sorted(rows)]

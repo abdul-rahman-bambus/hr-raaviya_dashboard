@@ -39,6 +39,7 @@
             <span t-att-class="'o_bea_status ' + row.status"><b t-esc="row.status_label"/><t t-if="row.check_in"> | <t t-esc="row.check_in"/> - <t t-esc="row.check_out || 'Punched In'"/></t></span>
             <span class="o_bea_detail"><b>OT</b> | <t t-esc="formatHours(row.overtime_hours)"/> Hrs</span>
             <span class="o_bea_detail fine"><b>F</b> | <t t-esc="formatHours(row.fine_hours)"/> Hrs</span>
+            <button type="button" t-att-class="'o_bea_detail leave ' + (row.leave_id ? 'selected' : '')" t-on-click="() => this.openLeave(row)"><b>L</b> | <t t-esc="row.leave_id ? 'View Leave' : 'Leave'"/></button>
           </article>
           <div class="o_bea_empty" t-if="!state.data.rows.length"><i class="fa fa-calendar-o"/><strong>No attendance for this month</strong></div>
         </section>
