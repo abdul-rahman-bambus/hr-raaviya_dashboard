@@ -78,7 +78,7 @@
                 <tbody>
                   <t t-foreach="dailyGroups" t-as="group" t-key="group.id">
                     <tr class="o_bad_contract_type_row">
-                      <td colspan="7">
+                      <td colspan="8">
                         <button type="button" class="o_bad_contract_type_toggle" t-on-click="() => this.toggleContractType(group.id)" t-att-aria-expanded="!isContractTypeCollapsed(group.id)">
                           <i t-att-class="'fa ' + (isContractTypeCollapsed(group.id) ? 'fa-chevron-right' : 'fa-chevron-down')"/>
                           <span t-esc="group.name"/>
@@ -87,12 +87,22 @@
                       </td>
                     </tr>
                     <t t-if="!isContractTypeCollapsed(group.id)">
-                      <tr t-foreach="group.employees" t-as="employee" t-key="employee.id">
-                        <td class="fw-semibold" t-esc="employee.name"/><td t-esc="employee.department"/><td t-esc="employee.shift"/><td><span t-att-class="'o_bad_daily_status ' + employee.status" t-esc="employee.status_label"/></td><td t-esc="employee.check_in || '—'"/><td t-esc="employee.check_out || '—'"/><td t-esc="fineDisplay(employee.fine_hours)"/>
+                      <tr t-foreach="group.employees" t-as="employee" t-key="employee.id" t-att-class="isSaving(employee.id) ? 'o_bad_row_saving' : ''">
+                        <td class="fw-semibold" t-esc="employee.name"/><td t-esc="employee.department"/><td t-esc="employee.shift"/>
+                        <td><input type="time" class="form-control form-control-sm o_bad_time_input" t-att-value="employee.check_in_value" t-on-input="(ev) => this.updateEmployeeField(employee, 'check_in_value', ev)"/></td>
+                        <td><input type="time" class="form-control form-control-sm o_bad_time_input" t-att-value="employee.check_out_value" t-on-input="(ev) => this.updateEmployeeField(employee, 'check_out_value', ev)"/></td>
+                        <td><div class="o_bad_status_buttons" role="group" t-att-aria-label="'Attendance status for ' + employee.name">
+                          <button type="button" t-att-class="'present ' + (employee.status === 'present' ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'present')" title="Present">P</button>
+                          <button type="button" t-att-class="'halfday ' + (employee.status === 'halfday' ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'halfday')" title="Half Day">HD</button>
+                          <button type="button" t-att-class="'absent ' + (['absent', 'not_marked'].includes(employee.status) ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'absent')" title="Absent">A</button>
+                          <button type="button" t-att-class="'leave ' + (employee.status === 'leave' ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'leave')" title="Leave">L</button>
+                        </div></td>
+                        <td><div class="o_bad_hours_inputs"><label>OT <input type="number" min="0" step="0.25" t-att-value="employee.overtime_hours" t-on-input="(ev) => this.updateEmployeeField(employee, 'overtime_hours', ev)"/></label><label>Fine <input type="number" min="0" step="0.25" t-att-value="employee.fine_hours" t-on-input="(ev) => this.updateEmployeeField(employee, 'fine_hours', ev)"/></label></div></td>
+                        <td><button type="button" class="btn btn-outline-primary btn-sm" t-att-disabled="isSaving(employee.id)" t-on-click="() => this.saveEmployee(employee)"><i t-att-class="'fa ' + (isSaving(employee.id) ? 'fa-spinner fa-spin' : 'fa-save')"/> Save</button></td>
                       </tr>
                     </t>
                   </t>
-                  <tr t-if="!dailyEmployees.length"><td colspan="7" class="text-muted text-center">No employees match the selected filters</td></tr>
+                  <tr t-if="!dailyEmployees.length"><td colspan="8" class="text-muted text-center">No employees match the selected filters</td></tr>
                 </tbody>
               </table>
             </div>
