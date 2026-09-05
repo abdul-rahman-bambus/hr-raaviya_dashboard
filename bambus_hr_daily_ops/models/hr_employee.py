@@ -18,10 +18,11 @@ class HrEmployee(models.Model):
             "name": _("Attendance"),
             "tag": "bambus_employee_attendance",
             "params": {"employee_id": self.id},
+            "context": {"active_id": self.id, "active_model": "hr.employee"},
         }
 
     @api.model
-    def get_monthly_attendance(self, employee_id, month=None):
+    def get_monthly_attendance(self, employee_id=None, month=None):
         employee = self.browse(employee_id).exists()
         if not employee:
             raise UserError(_("The employee no longer exists."))

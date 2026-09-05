@@ -11,7 +11,14 @@ export class EmployeeAttendance extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
-        this.employeeId = this.props.action.params.employee_id;
+        const actionEmployeeId = this.props.action.params?.employee_id ||
+            this.props.action.context?.active_id;
+        if (actionEmployeeId) {
+            window.sessionStorage.setItem("bambus_employee_attendance_id", String(actionEmployeeId));
+        }
+        this.employeeId = Number(
+            actionEmployeeId || window.sessionStorage.getItem("bambus_employee_attendance_id")
+        ) || false;
         this.state = useState({ loading: true, error: "", data: null, selectedDay: null });
         onWillStart(() => this.load());
     }
@@ -20,11 +27,13 @@ export class EmployeeAttendance extends Component {
         this.state.loading = true;
         this.state.error = "";
         try {
+            if (!this.employeeId) {
+                throw new Error("No employee was selected. Return to Employees and open Attendance again.");
+            }
             this.state.data = await this.orm.call(
                 "hr.employee",
                 "get_monthly_attendance",
-                [],
-                { employee_id: this.employeeId, month }
+                [this.employeeId, month || false]
             );
         } catch (error) {
             this.state.error = error.cause?.message || error.message || "Unable to load attendance.";
