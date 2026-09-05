@@ -19,7 +19,13 @@ export class EmployeeAttendance extends Component {
         this.employeeId = Number(
             actionEmployeeId || window.sessionStorage.getItem("bambus_employee_attendance_id")
         ) || false;
-        this.state = useState({ loading: true, error: "", data: null, selectedDay: null });
+        this.state = useState({
+            loading: true,
+            error: "",
+            data: null,
+            selectedDay: null,
+            activeView: "daily",
+        });
         onWillStart(() => this.load());
     }
 
@@ -62,6 +68,39 @@ export class EmployeeAttendance extends Component {
     formatHours(value) {
         const minutes = Math.round((value || 0) * 60);
         return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+    }
+
+    get calendarWeeks() {
+        if (!this.state.data) {
+            return [];
+        }
+        const [year, month] = this.state.data.month.split("-").map(Number);
+        const firstDay = new Date(Date.UTC(year, month - 1, 1));
+        const lastDay = new Date(Date.UTC(year, month, 0));
+        const gridStart = new Date(firstDay);
+        gridStart.setUTCDate(gridStart.getUTCDate() - gridStart.getUTCDay());
+        const gridEnd = new Date(lastDay);
+        gridEnd.setUTCDate(gridEnd.getUTCDate() + (6 - gridEnd.getUTCDay()));
+        const rowsByDate = new Map(this.state.data.rows.map((row) => [row.date, row]));
+        const weeks = [];
+        let week = [];
+        for (const cursor = new Date(gridStart); cursor <= gridEnd; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+            const key = cursor.toISOString().slice(0, 10);
+            const row = rowsByDate.get(key) || null;
+            week.push({
+                key,
+                number: cursor.getUTCDate(),
+                inMonth: cursor.getUTCMonth() === month - 1,
+                row,
+                status: row?.status || "not_marked",
+                statusLabel: row?.status_label || "Not Marked",
+            });
+            if (week.length === 7) {
+                weeks.push(week);
+                week = [];
+            }
+        }
+        return weeks;
     }
 
     goBack() {
