@@ -13,6 +13,7 @@ class TestBackendAssets(TransactionCase):
 
         expected_assets = {
             "bambus_hr_daily_ops/static/src/js/attendance_dashboard.js",
+            "bambus_hr_daily_ops/static/src/js/attendance_editor.js",
             "bambus_hr_daily_ops/static/src/js/employee_dashboard.js",
             "bambus_hr_daily_ops/static/src/js/employee_attendance.js",
         }
@@ -21,6 +22,7 @@ class TestBackendAssets(TransactionCase):
         module_root = Path(__file__).parents[1]
         registrations = {
             "static/src/js/attendance_dashboard.js": "bambus_attendance_dashboard",
+            "static/src/js/attendance_editor.js": "bambus_attendance_editor",
             "static/src/js/employee_dashboard.js": "bambus_employee_dashboard",
             "static/src/js/employee_attendance.js": "bambus_employee_attendance",
         }

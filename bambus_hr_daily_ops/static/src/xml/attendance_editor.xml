@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="bambus_hr_daily_ops.AttendanceEditor">
+    <div class="o_bambus_attendance_dashboard">
+      <div class="o_bad_toolbar">
+        <div><h2>Attendance</h2><span t-if="state.data">Update daily employee attendance · <t t-esc="state.data.company"/></span></div>
+        <div class="o_bad_actions" t-if="state.data">
+          <button class="btn btn-light" t-on-click="() => this.moveDate(-1)" title="Previous day"><i class="fa fa-chevron-left"/></button>
+          <input class="form-control" type="date" t-att-value="state.data.date" t-on-change="(ev) => this.changeDate(ev)"/>
+          <button class="btn btn-light" t-on-click="() => this.moveDate(1)" title="Next day"><i class="fa fa-chevron-right"/></button>
+          <button class="btn btn-outline-secondary" t-on-click="openHistory">History</button>
+        </div>
+      </div>
+      <div t-if="state.loading" class="o_bad_loading"><i class="fa fa-spinner fa-spin"/> Loading employees…</div>
+      <div t-elif="state.error" class="alert alert-danger"><strong>Attendance could not be loaded.</strong> <span t-esc="state.error"/></div>
+      <t t-elif="state.data">
+        <div class="o_bad_metrics o_bad_editor_metrics">
+          <t t-foreach="[['total','All Staff','fa-users'],['present','Present','fa-check-circle'],['absent','Absent','fa-times-circle'],['halfday','Half Day','fa-adjust'],['leave','On Leave','fa-plane'],['punched_in','Punched In','fa-sign-in'],['punched_out','Punched Out','fa-sign-out'],['overtime','Overtime Hours','fa-clock-o','hours'],['fine','Fine Hours','fa-money','hours'] ]" t-as="metric" t-key="metric[0]">
+            <div class="o_bad_metric"><i t-att-class="'fa ' + metric[2]"/><div><span t-esc="metric[1]"/><strong t-esc="metricValue(metric)"/></div></div>
+          </t>
+        </div>
+        <section class="o_bad_daily_card">
+          <div class="o_bad_daily_header"><div><i class="fa fa-pencil-square-o"/><strong>Daily Attendance Entry</strong></div><div class="o_bad_daily_tools"><input class="form-control" type="search" placeholder="Search employee, group, department or schedule" t-att-value="state.query" t-on-input="updateQuery"/><select class="form-select" t-att-value="state.statusFilter" t-on-change="updateStatusFilter"><option value="all">All Statuses</option><option value="present">Present</option><option value="absent">Absent</option><option value="not_marked">Not Marked</option><option value="halfday">Half Day</option><option value="leave">Leave</option></select></div></div>
+          <div class="table-responsive"><table class="table o_bad_daily_table o_bad_editable_table"><thead><tr><th>Employee</th><th>Department</th><th>Work Schedule</th><th>Punch In</th><th>Punch Out</th><th>Attendance</th><th>OT / Fine</th><th>Action</th></tr></thead><tbody>
+            <t t-foreach="dailyGroups" t-as="group" t-key="group.id"><tr class="o_bad_contract_type_row"><td colspan="8"><button type="button" class="o_bad_contract_type_toggle" t-on-click="() => this.toggleContractType(group.id)"><i t-att-class="'fa ' + (isContractTypeCollapsed(group.id) ? 'fa-chevron-right' : 'fa-chevron-down')"/><span t-esc="group.name"/><span class="o_bad_contract_type_count"><t t-esc="group.employees.length"/> employees</span></button></td></tr>
+              <t t-if="!isContractTypeCollapsed(group.id)"><tr t-foreach="group.employees" t-as="employee" t-key="employee.id" t-att-class="isSaving(employee.id) ? 'o_bad_row_saving' : ''"><td class="fw-semibold" t-esc="employee.name"/><td t-esc="employee.department"/><td t-esc="employee.shift"/><td><input type="time" class="form-control form-control-sm o_bad_time_input" t-att-value="employee.check_in_value" t-on-input="(ev) => this.updateEmployeeField(employee, 'check_in_value', ev)"/></td><td><input type="time" class="form-control form-control-sm o_bad_time_input" t-att-value="employee.check_out_value" t-on-input="(ev) => this.updateEmployeeField(employee, 'check_out_value', ev)"/></td><td><div class="o_bad_status_buttons"><button type="button" t-att-class="'present ' + (employee.status === 'present' ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'present')" title="Present">P</button><button type="button" t-att-class="'halfday ' + (employee.status === 'halfday' ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'halfday')" title="Half Day">HD</button><button type="button" t-att-class="'absent ' + (['absent','not_marked'].includes(employee.status) ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'absent')" title="Absent">A</button><button type="button" t-att-class="'leave ' + (employee.status === 'leave' ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'leave')" title="Leave">L</button></div></td><td><div class="o_bad_hours_inputs"><label>OT <input type="number" min="0" step="0.25" t-att-value="employee.overtime_hours" t-on-input="(ev) => this.updateEmployeeField(employee, 'overtime_hours', ev)"/></label><label>Fine <input type="number" min="0" step="0.25" t-att-value="employee.fine_hours" t-on-input="(ev) => this.updateEmployeeField(employee, 'fine_hours', ev)"/></label></div></td><td><button type="button" class="btn btn-outline-primary btn-sm" t-att-disabled="isSaving(employee.id)" t-on-click="() => this.saveEmployee(employee)"><i t-att-class="'fa ' + (isSaving(employee.id) ? 'fa-spinner fa-spin' : 'fa-save')"/> Save</button></td></tr></t>
+            </t><tr t-if="!dailyEmployees.length"><td colspan="8" class="text-muted text-center">No employees match the selected filters</td></tr>
+          </tbody></table></div>
+          <div class="o_bad_pagination"><div class="o_bad_page_summary">Showing <strong t-esc="firstVisibleEmployee"/>–<strong t-esc="lastVisibleEmployee"/> of <strong t-esc="filteredDailyEmployees.length"/> employees</div><div class="o_bad_page_size"><label for="o_bae_page_size">Rows per page</label><select id="o_bae_page_size" class="form-select form-select-sm" t-att-value="state.pageSize" t-on-change="updatePageSize"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select></div><div class="btn-group"><button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === 1" t-on-click="() => this.goToPage(state.currentPage - 1)"><i class="fa fa-chevron-left"/></button><span class="btn btn-light btn-sm disabled">Page <t t-esc="state.currentPage"/> of <t t-esc="pageCount"/></span><button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === pageCount" t-on-click="() => this.goToPage(state.currentPage + 1)"><i class="fa fa-chevron-right"/></button></div></div>
+        </section>
+      </t>
+    </div>
+  </t>
+</templates>

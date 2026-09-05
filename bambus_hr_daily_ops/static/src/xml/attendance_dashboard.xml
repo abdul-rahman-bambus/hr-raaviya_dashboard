@@ -73,8 +73,8 @@
               </div>
             </div>
             <div class="table-responsive">
-              <table class="table o_bad_daily_table o_bad_editable_table">
-                <thead><tr><th>Employee</th><th>Department</th><th>Work Schedule</th><th>Punch In</th><th>Punch Out</th><th>Attendance</th><th>OT / Fine</th><th>Action</th></tr></thead>
+              <table class="table table-hover o_bad_daily_table">
+                <thead><tr><th>Employee</th><th>Department</th><th>Work Schedule</th><th>Attendance</th><th>Punch In</th><th>Punch Out</th><th>Fine</th></tr></thead>
                 <tbody>
                   <t t-foreach="dailyGroups" t-as="group" t-key="group.id">
                     <tr class="o_bad_contract_type_row">
