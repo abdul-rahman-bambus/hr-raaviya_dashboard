@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="bambus_hr_daily_ops.EmployeeAttendance">
+    <main class="o_bea_dashboard">
+      <button type="button" class="o_bea_back" t-on-click="goBack"><i class="fa fa-arrow-left"/> Back</button>
+      <div t-if="state.loading" class="o_bea_state"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>
+      <div t-elif="state.error" class="alert alert-danger o_bea_state">
+        <strong>Attendance could not be loaded.</strong> <span t-esc="state.error"/>
+      </div>
+      <t t-elif="state.data">
+        <header class="o_bea_header">
+          <h2><t t-esc="state.data.employee.name"/> <small t-if="state.data.employee.barcode">#<t t-esc="state.data.employee.barcode"/></small></h2>
+          <button type="button" class="btn btn-outline-primary" t-on-click="downloadReport"><i class="fa fa-download"/> Download Report</button>
+        </header>
+        <section class="o_bea_summary">
+          <div class="o_bea_month">
+            <button type="button" t-on-click="() => this.moveMonth(-1)" aria-label="Previous month"><i class="fa fa-chevron-left"/></button>
+            <label><span t-esc="state.data.month_label"/><input type="month" t-att-value="state.data.month" t-on-change="changeMonth" aria-label="Select month"/></label>
+            <button type="button" t-on-click="() => this.moveMonth(1)" aria-label="Next month"><i class="fa fa-chevron-right"/></button>
+          </div>
+          <div class="o_bea_approval"><i class="fa fa-check-circle"/> Attendance Summary</div>
+          <div class="o_bea_metrics">
+            <div><span>Days</span><strong t-esc="state.data.metrics.days"/></div>
+            <div><span>Present</span><strong t-esc="state.data.metrics.present"/></div>
+            <div><span>Absent</span><strong t-esc="state.data.metrics.absent"/></div>
+            <div><span>Half Day</span><strong t-esc="state.data.metrics.halfday"/></div>
+            <div><span>Leave</span><strong t-esc="state.data.metrics.leave"/></div>
+            <div><span>Punched In</span><strong t-esc="state.data.metrics.punched_in"/></div>
+            <div><span>Punched Out</span><strong t-esc="state.data.metrics.punched_out"/></div>
+          </div>
+        </section>
+        <div class="o_bea_tabs"><span>Daily Attendance View</span></div>
+        <section class="o_bea_days">
+          <article class="o_bea_day" t-foreach="state.data.rows" t-as="row" t-key="row.date">
+            <div class="o_bea_day_info"><strong t-esc="formatDate(row.date)"/><span><t t-esc="formatHours(row.worked_hours)"/> Hrs</span></div>
+            <span t-att-class="'o_bea_status ' + row.status"><b t-esc="row.status_label"/><t t-if="row.check_in"> | <t t-esc="row.check_in"/> - <t t-esc="row.check_out || 'Punched In'"/></t></span>
+            <span class="o_bea_detail"><b>OT</b> | <t t-esc="formatHours(row.overtime_hours)"/> Hrs</span>
+            <span class="o_bea_detail fine"><b>F</b> | <t t-esc="formatHours(row.fine_hours)"/> Hrs</span>
+          </article>
+          <div class="o_bea_empty" t-if="!state.data.rows.length"><i class="fa fa-calendar-o"/><strong>No attendance for this month</strong></div>
+        </section>
+      </t>
+    </main>
+  </t>
+</templates>
