@@ -67,14 +67,14 @@
               <div class="o_bad_daily_tools">
                 <input class="form-control" type="search" placeholder="Search by name, contract type, department or schedule" t-att-value="state.query" t-on-input="updateQuery"/>
                 <select class="form-select" t-att-value="state.statusFilter" t-on-change="updateStatusFilter">
-                  <option value="all">All Statuses</option><option value="present">Present</option><option value="not_marked">Not Marked</option><option value="halfday">Half Day</option><option value="leave">Leave</option>
+                  <option value="all">All Statuses</option><option value="present">Present</option><option value="absent">Absent</option><option value="not_marked">Not Marked</option><option value="halfday">Half Day</option><option value="leave">Leave</option>
                 </select>
                 <button class="btn btn-outline-primary" t-on-click="downloadDailyAttendance"><i class="fa fa-download"/> Download</button>
               </div>
             </div>
             <div class="table-responsive">
               <table class="table table-hover o_bad_daily_table">
-                <thead><tr><th>Name</th><th>Department</th><th>Work Schedule</th><th>Attendance</th><th>In Time</th><th>Out Time</th><th>Fine</th></tr></thead>
+                <thead><tr><th>Employee</th><th>Department</th><th>Work Schedule</th><th>Attendance</th><th>Punch In</th><th>Punch Out</th><th>Fine</th></tr></thead>
                 <tbody>
                   <t t-foreach="dailyGroups" t-as="group" t-key="group.id">
                     <tr class="o_bad_contract_type_row">
