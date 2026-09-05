@@ -19,3 +19,4 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertEqual(roster[employee.id]["status"], "not_marked")
         self.assertFalse(roster[employee.id]["check_in"])
         self.assertFalse(roster[employee.id]["check_out"])
+        self.assertEqual(roster[employee.id]["logs"], [])

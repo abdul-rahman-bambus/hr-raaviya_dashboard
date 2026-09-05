@@ -268,6 +268,29 @@ class BambusHrAttendanceSheet(models.Model):
                 )
             display_check_in = override.check_in if override else (min(check_ins) if check_ins else False)
             display_check_out = override.check_out if override else (max(check_outs) if check_outs else False)
+            attendance_logs = []
+            for attendance in sorted(employee_attendances, key=lambda item: item.check_in):
+                local_in = fields.Datetime.context_timestamp(self, attendance.check_in)
+                attendance_logs.append({
+                    "id": f"{attendance.id}-in",
+                    "type": "check_in",
+                    "label": _("Punched In"),
+                    "time": local_in.strftime("%I:%M %p").lstrip("0"),
+                    "mode": attendance._fields["in_mode"].convert_to_export(attendance.in_mode, attendance) or _("Face"),
+                    "address": attendance.checkin_reverse_address or "",
+                    "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkin" if attendance.recognized_face_checkin else "",
+                })
+                if attendance.check_out:
+                    local_out = fields.Datetime.context_timestamp(self, attendance.check_out)
+                    attendance_logs.append({
+                        "id": f"{attendance.id}-out",
+                        "type": "check_out",
+                        "label": _("Punched Out"),
+                        "time": local_out.strftime("%I:%M %p").lstrip("0"),
+                        "mode": attendance._fields["out_mode"].convert_to_export(attendance.out_mode, attendance) or _("Face"),
+                        "address": attendance.checkout_reverse_address or "",
+                        "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkout" if attendance.recognized_face_checkout else "",
+                    })
             daily_attendance.append({
                 "id": employee.id,
                 "name": employee.display_name,
@@ -288,6 +311,7 @@ class BambusHrAttendanceSheet(models.Model):
                 "line_id": override.id if override else False,
                 "leave_id": (override.leave_id.id if override and override.leave_id else
                              leave_by_employee.get(employee.id, self.env["hr.leave"]).id or False),
+                "logs": attendance_logs,
             })
         return {
             "date": fields.Date.to_string(day),

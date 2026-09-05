@@ -11,6 +11,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         super.setup();
         this.notification = useService("notification");
         this.state.savingIds = {};
+        this.state.logEmployee = null;
     }
 
     get filteredDailyGroups() {
@@ -54,6 +55,14 @@ export class AttendanceEditor extends AttendanceDashboard {
         }, {
             onClose: () => this.load(this.state.data.date),
         });
+    }
+
+    openLogs(employee) {
+        this.state.logEmployee = employee;
+    }
+
+    closeLogs() {
+        this.state.logEmployee = null;
     }
 
     async saveEmployee(employee) {
