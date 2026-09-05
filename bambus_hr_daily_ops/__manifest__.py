@@ -13,7 +13,9 @@
         "hr_contract",
         "hr_payroll_community",
         "hr_holidays_attendance",
-        "face_attendance_custom"
+        "face_attendance_custom",
+        "ohrms_core",
+        "hrms_dashboard",
     ],
     "data": [
         # "views/assets.xml",
