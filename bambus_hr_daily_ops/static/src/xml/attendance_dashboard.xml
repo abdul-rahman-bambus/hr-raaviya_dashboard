@@ -4,12 +4,7 @@
     <div class="o_bambus_attendance_dashboard">
       <div class="o_bad_toolbar">
         <div><h2>Attendance Dashboard</h2><span t-if="state.data" t-esc="state.data.company"/></div>
-        <div class="o_bad_actions" t-if="state.data">
-          <button class="btn btn-light" t-on-click="() => this.moveDate(-1)" title="Previous day"><i class="fa fa-chevron-left"/></button>
-          <input class="form-control" type="date" t-att-value="state.data.date" t-on-change="(ev) => this.changeDate(ev)"/>
-          <button class="btn btn-light" t-on-click="() => this.moveDate(1)" title="Next day"><i class="fa fa-chevron-right"/></button>
-          <button class="btn btn-outline-secondary" t-on-click="openHistory">History</button>
-        </div>
+        <button class="btn btn-outline-secondary" t-if="state.data" t-on-click="openHistory">History</button>
       </div>
       <div t-if="state.loading" class="o_bad_loading"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>
       <div t-elif="state.error" class="alert alert-danger o_bad_error" role="alert">
@@ -64,41 +59,25 @@
           <section class="o_bad_daily_card">
             <div class="o_bad_daily_header">
               <div><i class="fa fa-id-card-o"/><strong>Daily Attendance View</strong></div>
-              <div class="o_bad_daily_tools">
-                <input class="form-control" type="search" placeholder="Search by name, contract type, department or schedule" t-att-value="state.query" t-on-input="updateQuery"/>
-                <select class="form-select" t-att-value="state.statusFilter" t-on-change="updateStatusFilter">
-                  <option value="all">All Statuses</option><option value="present">Present</option><option value="not_marked">Not Marked</option><option value="halfday">Half Day</option><option value="leave">Leave</option>
-                </select>
+              <div class="o_bad_daily_tools o_bad_dashboard_tools">
+                <div class="o_bad_dashboard_search"><i class="fa fa-search"/><input type="search" placeholder="Search by Name" t-att-value="state.query" t-on-input="updateQuery"/></div>
+                <label class="o_bad_filter_control"><i class="fa fa-filter"/><select t-att-value="state.statusFilter" t-on-change="updateStatusFilter"><option value="all">Filter</option><option value="present">Present</option><option value="absent">Absent</option><option value="not_marked">Not Marked</option><option value="halfday">Half Day</option><option value="leave">Leave</option></select></label>
+                <div class="o_bad_inline_date"><button type="button" t-on-click="() => this.moveDate(-1)" title="Previous day"><i class="fa fa-chevron-left"/></button><input type="date" t-att-value="state.data.date" t-on-change="(ev) => this.changeDate(ev)"/><button type="button" t-on-click="() => this.moveDate(1)" title="Next day"><i class="fa fa-chevron-right"/></button></div>
                 <button class="btn btn-outline-primary" t-on-click="downloadDailyAttendance"><i class="fa fa-download"/> Download</button>
               </div>
             </div>
             <div class="table-responsive">
               <table class="table table-hover o_bad_daily_table">
-                <thead><tr><th>Name</th><th>Department</th><th>Work Schedule</th><th>Attendance</th><th>In Time</th><th>Out Time</th><th>Fine</th></tr></thead>
+                <thead><tr><th>Employee</th><th>Department</th><th>Work Schedule</th><th>Attendance</th><th>Punch In</th><th>Punch Out</th><th>Fine</th></tr></thead>
                 <tbody>
-                  <t t-foreach="dailyGroups" t-as="group" t-key="group.id">
-                    <tr class="o_bad_contract_type_row">
-                      <td colspan="7">
-                        <button type="button" class="o_bad_contract_type_toggle" t-on-click="() => this.toggleContractType(group.id)" t-att-aria-expanded="!isContractTypeCollapsed(group.id)">
-                          <i t-att-class="'fa ' + (isContractTypeCollapsed(group.id) ? 'fa-chevron-right' : 'fa-chevron-down')"/>
-                          <span t-esc="group.name"/>
-                          <span class="o_bad_contract_type_count"><t t-esc="group.employees.length"/> employee<t t-if="group.employees.length !== 1">s</t></span>
-                        </button>
-                      </td>
-                    </tr>
-                    <t t-if="!isContractTypeCollapsed(group.id)">
-                      <tr t-foreach="group.employees" t-as="employee" t-key="employee.id">
-                        <td class="fw-semibold" t-esc="employee.name"/><td t-esc="employee.department"/><td t-esc="employee.shift"/><td><span t-att-class="'o_bad_daily_status ' + employee.status" t-esc="employee.status_label"/></td><td t-esc="employee.check_in || '—'"/><td t-esc="employee.check_out || '—'"/><td t-esc="fineDisplay(employee.fine_hours)"/>
-                      </tr>
-                    </t>
-                  </t>
-                  <tr t-if="!dailyEmployees.length"><td colspan="7" class="text-muted text-center">No employees match the selected filters</td></tr>
+                  <tr t-foreach="dashboardEmployees" t-as="employee" t-key="employee.id"><td class="fw-semibold" t-esc="employee.name"/><td t-esc="employee.department"/><td t-esc="employee.shift"/><td><span t-att-class="'o_bad_daily_status ' + employee.status" t-esc="employee.status_label"/></td><td t-esc="employee.check_in || '—'"/><td t-esc="employee.check_out || '—'"/><td t-esc="fineDisplay(employee.fine_hours)"/></tr>
+                  <tr t-if="!dashboardEmployees.length"><td colspan="7" class="text-muted text-center">No employees match the selected filters</td></tr>
                 </tbody>
               </table>
             </div>
             <div class="o_bad_pagination">
               <div class="o_bad_page_summary">
-                Showing <strong t-esc="firstVisibleEmployee"/>–<strong t-esc="lastVisibleEmployee"/> of <strong t-esc="filteredDailyEmployees.length"/> employees
+                Showing <strong t-esc="dashboardFirstVisibleEmployee"/>–<strong t-esc="dashboardLastVisibleEmployee"/> of <strong t-esc="filteredDailyEmployees.length"/> employees
               </div>
               <div class="o_bad_page_size">
                 <label for="o_bad_page_size">Rows per page</label>
@@ -107,9 +86,9 @@
                 </select>
               </div>
               <div class="btn-group o_bad_page_controls" role="group" aria-label="Daily attendance pagination">
-                <button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === 1" t-on-click="() => this.goToPage(state.currentPage - 1)" aria-label="Previous page"><i class="fa fa-chevron-left"/></button>
-                <span class="btn btn-light btn-sm disabled">Page <t t-esc="state.currentPage"/> of <t t-esc="pageCount"/></span>
-                <button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === pageCount" t-on-click="() => this.goToPage(state.currentPage + 1)" aria-label="Next page"><i class="fa fa-chevron-right"/></button>
+                <button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === 1" t-on-click="() => this.goToDashboardPage(state.currentPage - 1)" aria-label="Previous page"><i class="fa fa-chevron-left"/></button>
+                <span class="btn btn-light btn-sm disabled">Page <t t-esc="state.currentPage"/> of <t t-esc="dashboardPageCount"/></span>
+                <button class="btn btn-outline-secondary btn-sm" t-att-disabled="state.currentPage === dashboardPageCount" t-on-click="() => this.goToDashboardPage(state.currentPage + 1)" aria-label="Next page"><i class="fa fa-chevron-right"/></button>
               </div>
             </div>
           </section>
