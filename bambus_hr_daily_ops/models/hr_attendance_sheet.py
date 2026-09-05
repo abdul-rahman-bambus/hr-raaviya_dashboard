@@ -71,20 +71,11 @@ class BambusHrAttendanceSheet(models.Model):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
         company = self.env.company
+        # Use the same employee population as the employee directory. Employee
+        # record rules already limit this query to companies the HR user may
+        # access; attendance punches must never determine roster membership.
         employee_model = self.env["hr.employee"].with_context(active_test=False)
-        # Unassigned employees are visible in standard Odoo multi-company HR and
-        # belong to the shared roster. Keep them only when their department is
-        # shared or belongs to the active company: an employee can otherwise be
-        # readable while department record rules hide its foreign-company
-        # department, causing the entire dashboard RPC to fail after a company
-        # switch.
-        all_employees = employee_model.search([
-            "&",
-            ("company_id", "in", [False, company.id]),
-            "|",
-            ("department_id", "=", False),
-            ("department_id.company_id", "in", [False, company.id]),
-        ])
+        all_employees = employee_model.search([])
         employees = all_employees.filtered("active")
 
         def employee_department(employee):
@@ -114,6 +105,15 @@ class BambusHrAttendanceSheet(models.Model):
             ("request_date_from", "<=", day),
             ("request_date_to", ">=", day),
         ])
+        day_leave_requests = self.env["hr.leave"].search([
+            ("employee_id", "in", employees.ids),
+            ("state", "in", ["confirm", "validate1", "validate"]),
+            ("request_date_from", "<=", day),
+            ("request_date_to", ">=", day),
+        ], order="id desc")
+        leave_by_employee = {}
+        for leave in day_leave_requests:
+            leave_by_employee.setdefault(leave.employee_id.id, leave)
         upcoming_leaves = self.env["hr.leave"].search([
             ("employee_id", "in", employees.ids),
             ("state", "=", "validate"),
@@ -130,6 +130,28 @@ class BambusHrAttendanceSheet(models.Model):
             set(employees.ids) - attendance_employee_ids
             - leave_employee_ids - halfday_employee_ids
         )
+        sheet = self.search([
+            ("date", "=", day),
+            ("company_id", "=", company.id),
+        ], limit=1)
+        sheet_lines = sheet.line_ids.filtered(lambda line: line.employee_id in employees)
+        line_by_employee = {line.employee_id.id: line for line in sheet_lines}
+        # Manager-entered daily-sheet statuses take precedence over calculated
+        # punch/leave statuses throughout the dashboard.
+        for line in sheet_lines:
+            employee_id = line.employee_id.id
+            present_employee_ids.discard(employee_id)
+            unmarked_employee_ids.discard(employee_id)
+            halfday_employee_ids.discard(employee_id)
+            leave_employee_ids.discard(employee_id)
+            if line.status == "present":
+                present_employee_ids.add(employee_id)
+            elif line.status == "halfday":
+                halfday_employee_ids.add(employee_id)
+            elif line.status == "leave":
+                leave_employee_ids.add(employee_id)
+            else:
+                unmarked_employee_ids.add(employee_id)
         fine_hours = sum(attendances.mapped("bambus_fine_hours")) if "bambus_fine_hours" in attendances._fields else 0.0
         fine_amount = sum(attendances.mapped("bambus_fine_amount")) if "bambus_fine_amount" in attendances._fields else 0.0
         overtime_employee_ids = set(
@@ -217,6 +239,7 @@ class BambusHrAttendanceSheet(models.Model):
         daily_attendance = []
         for employee in employees.sorted(key=lambda item: (item.name or "").lower()):
             employee_attendances = attendances_by_employee.get(employee.id, [])
+            override = line_by_employee.get(employee.id)
             check_ins = [attendance.check_in for attendance in employee_attendances if attendance.check_in]
             check_outs = [attendance.check_out for attendance in employee_attendances if attendance.check_out]
             if employee.id in leave_employee_ids:
@@ -231,6 +254,9 @@ class BambusHrAttendanceSheet(models.Model):
             else:
                 status = "not_marked"
                 status_label = _("Not Marked")
+            if override:
+                status = override.status
+                status_label = dict(override._fields["status"].selection).get(status, status)
             contract = contract_by_employee.get(employee.id)
             calendar = contract.resource_calendar_id if contract else False
             contract_type = contract.contract_type_id if contract else False
@@ -240,18 +266,28 @@ class BambusHrAttendanceSheet(models.Model):
                     attendance.bambus_fine_hours or 0.0
                     for attendance in employee_attendances
                 )
+            display_check_in = override.check_in if override else (min(check_ins) if check_ins else False)
+            display_check_out = override.check_out if override else (max(check_outs) if check_outs else False)
             daily_attendance.append({
                 "id": employee.id,
                 "name": employee.display_name,
+                "employee_code": employee.barcode or "",
                 "department": employee_department(employee).display_name or _("No Department"),
                 "shift": calendar.display_name if calendar else _("No Work Schedule"),
                 "contract_type_id": contract_type.id if contract_type else 0,
                 "contract_type": contract_type.display_name if contract_type else _("No Contract Type"),
                 "status": status,
                 "status_label": status_label,
-                "check_in": format_time(min(check_ins)) if check_ins else "",
-                "check_out": format_time(max(check_outs)) if check_outs else "",
-                "fine_hours": round(employee_fine_hours, 2),
+                "check_in": format_time(display_check_in),
+                "check_out": format_time(display_check_out),
+                "check_in_value": fields.Datetime.context_timestamp(self, display_check_in).strftime("%H:%M") if display_check_in else "",
+                "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
+                "overtime_hours": round(override.overtime_hours if override else sum(a.overtime_hours for a in employee_attendances), 2),
+                "fine_hours": round(override.fine_hours if override else employee_fine_hours, 2),
+                "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
+                "line_id": override.id if override else False,
+                "leave_id": (override.leave_id.id if override and override.leave_id else
+                             leave_by_employee.get(employee.id, self.env["hr.leave"]).id or False),
             })
         return {
             "date": fields.Date.to_string(day),
@@ -278,6 +314,60 @@ class BambusHrAttendanceSheet(models.Model):
                 "daily_work_entries": len(attendances),
             },
         }
+
+    @api.model
+    def update_dashboard_attendance(self, employee_id, selected_date, values):
+        """Create or update the editable daily snapshot used by HR."""
+        if not self.env.user.has_group("hr.group_hr_user"):
+            raise UserError(_("Only HR officers can update employee attendance."))
+        day = fields.Date.to_date(selected_date)
+        employee = self.env["hr.employee"].browse(employee_id).exists()
+        if not employee:
+            raise UserError(_("The employee is not available."))
+        sheet = self.search([("date", "=", day), ("company_id", "=", self.env.company.id)], limit=1)
+        if not sheet:
+            sheet = self.create({"date": day, "company_id": self.env.company.id})
+        if sheet.state == "approved":
+            raise UserError(_("This attendance day is approved and cannot be changed."))
+        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
+        if not line:
+            line = self.env["bambus.hr.attendance.sheet.line"].create({
+                "sheet_id": sheet.id,
+                "employee_id": employee.id,
+            })
+
+        status = values.get("status", line.status or "absent")
+        if status not in {"present", "absent", "halfday", "leave"}:
+            raise UserError(_("Select a valid attendance status."))
+        timezone = pytz.timezone(self.env.user.tz or "UTC")
+
+        def parse_time(value):
+            if not value:
+                return False
+            try:
+                local_value = timezone.localize(datetime.combine(day, datetime.strptime(value, "%H:%M").time()))
+            except (TypeError, ValueError):
+                raise UserError(_("Enter time in HH:MM format."))
+            return local_value.astimezone(pytz.UTC).replace(tzinfo=None)
+
+        check_in = parse_time(values.get("check_in"))
+        check_out = parse_time(values.get("check_out"))
+        if check_in and check_out and check_out < check_in:
+            check_out += timedelta(days=1)
+        try:
+            overtime_hours = max(float(values.get("overtime_hours") or 0.0), 0.0)
+            fine_hours = max(float(values.get("fine_hours") or 0.0), 0.0)
+        except (TypeError, ValueError):
+            raise UserError(_("Overtime and fine hours must be numbers."))
+        line.write({
+            "status": status,
+            "check_in": check_in,
+            "check_out": check_out,
+            "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
+            "overtime_hours": overtime_hours,
+            "fine_hours": fine_hours,
+        })
+        return True
 
 
     def _filtered_lines(self):
