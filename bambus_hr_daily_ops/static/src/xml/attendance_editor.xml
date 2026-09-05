@@ -31,7 +31,7 @@
                 <button type="button" t-att-class="'o_bae_action absent ' + (['absent','not_marked'].includes(employee.status) ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'absent')"><b>A</b><span>Absent</span></button>
                 <label class="o_bae_action fine"><b>F</b><span>Fine</span><input type="number" min="0" step="0.25" t-att-value="employee.fine_hours" t-on-input="(ev) => this.updateEmployeeField(employee, 'fine_hours', ev)"/></label>
                 <label class="o_bae_action overtime"><b>OT</b><span>Overtime</span><input type="number" min="0" step="0.25" t-att-value="employee.overtime_hours" t-on-input="(ev) => this.updateEmployeeField(employee, 'overtime_hours', ev)"/></label>
-                <button type="button" t-att-class="'o_bae_action leave ' + (employee.status === 'leave' ? 'active' : '')" t-on-click="() => this.setStatus(employee, 'leave')"><b>L</b><span>Leave</span></button>
+                <button type="button" t-att-class="'o_bae_action leave ' + (employee.status === 'leave' || employee.leave_id ? 'active' : '')" t-on-click="() => this.openLeave(employee)"><b>L</b><span t-esc="employee.leave_id ? 'View Leave' : 'Leave'"/></button>
               </div>
             </article></t>
           </div><div class="o_bae_empty" t-if="!dailyEmployees.length">No employees match the selected filters</div>

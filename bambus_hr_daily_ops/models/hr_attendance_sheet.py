@@ -105,6 +105,15 @@ class BambusHrAttendanceSheet(models.Model):
             ("request_date_from", "<=", day),
             ("request_date_to", ">=", day),
         ])
+        day_leave_requests = self.env["hr.leave"].search([
+            ("employee_id", "in", employees.ids),
+            ("state", "in", ["confirm", "validate1", "validate"]),
+            ("request_date_from", "<=", day),
+            ("request_date_to", ">=", day),
+        ], order="id desc")
+        leave_by_employee = {}
+        for leave in day_leave_requests:
+            leave_by_employee.setdefault(leave.employee_id.id, leave)
         upcoming_leaves = self.env["hr.leave"].search([
             ("employee_id", "in", employees.ids),
             ("state", "=", "validate"),
@@ -277,6 +286,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "fine_hours": round(override.fine_hours if override else employee_fine_hours, 2),
                 "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
                 "line_id": override.id if override else False,
+                "leave_id": (override.leave_id.id if override and override.leave_id else
+                             leave_by_employee.get(employee.id, self.env["hr.leave"]).id or False),
             })
         return {
             "date": fields.Date.to_string(day),

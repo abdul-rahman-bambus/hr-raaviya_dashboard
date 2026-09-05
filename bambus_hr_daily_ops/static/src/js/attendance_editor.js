@@ -37,6 +37,25 @@ export class AttendanceEditor extends AttendanceDashboard {
         await this.saveEmployee(employee);
     }
 
+    openLeave(employee) {
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            name: employee.leave_id ? "Time Off" : "New Time Off Request",
+            res_model: "hr.leave",
+            res_id: employee.leave_id || false,
+            views: [[false, "form"]],
+            target: "new",
+            context: {
+                default_employee_id: employee.id,
+                default_holiday_type: "employee",
+                default_request_date_from: this.state.data.date,
+                default_request_date_to: this.state.data.date,
+            },
+        }, {
+            onClose: () => this.load(this.state.data.date),
+        });
+    }
+
     async saveEmployee(employee) {
         if (this.state.savingIds[employee.id]) {
             return;
