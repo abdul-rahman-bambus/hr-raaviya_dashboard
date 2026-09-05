@@ -70,64 +70,11 @@
         <field name="tag">bambus_employee_dashboard</field>
     </record>
 
-    <!-- One application entry point for the complete HR operation. Existing
-         Odoo/OpenHRMS application roots are moved below it, keeping their own
-         actions, access groups, and children intact. -->
-    <menuitem id="menu_bambus_hrms_root"
-              name="HRMS"
-              action="action_bambus_employee_dashboard"
-              sequence="-95"
-              web_icon="hr,static/description/icon.png"
-              groups="base.group_user"/>
-
     <menuitem id="menu_bambus_employees_root"
               name="Employees"
-              parent="menu_bambus_hrms_root"
               action="action_bambus_employee_dashboard"
-              sequence="10"
+              sequence="-90"
               groups="hr.group_hr_user"/>
-
-    <record id="hrms_dashboard.hrms_dashboard_menu_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">5</field>
-    </record>
-    <record id="hr.menu_hr_root" model="ir.ui.menu">
-        <field name="name">Employee Management</field>
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">15</field>
-    </record>
-    <record id="hr_attendance.menu_hr_attendance_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">20</field>
-    </record>
-    <record id="hr_holidays.menu_hr_holidays_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">25</field>
-    </record>
-    <record id="hr_timesheet.timesheet_menu_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">30</field>
-    </record>
-    <record id="hr_payroll_community.menu_hr_payroll_community_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">35</field>
-    </record>
-    <record id="hr_expense.menu_hr_expense_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">40</field>
-    </record>
-    <record id="hr_recruitment.menu_hr_recruitment_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">45</field>
-    </record>
-    <record id="hr_resignation.hr_resignation_menu_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">50</field>
-    </record>
-    <record id="hr_reward_warning.hr_announcement_menu_root" model="ir.ui.menu">
-        <field name="parent_id" ref="menu_bambus_hrms_root"/>
-        <field name="sequence">55</field>
-    </record>
 
     <record id="view_employee_form_inherit_view" model="ir.ui.view">
         <field name="name">hr.employee.form.inherit.view</field>

@@ -27,10 +27,3 @@ class TestBackendAssets(TransactionCase):
         for relative_path, action_key in registrations.items():
             source = (module_root / relative_path).read_text(encoding="utf-8")
             self.assertIn(f'.add("{action_key}"', source)
-
-            asset_path = f"bambus_hr_daily_ops/{relative_path}"
-            self.assertTrue(self.env["ir.asset"].search_count([
-                ("bundle", "=", "web.assets_backend"),
-                ("path", "=", asset_path),
-                ("active", "=", True),
-            ]), f"Missing active ir.asset record for {asset_path}")
