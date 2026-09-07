@@ -130,6 +130,7 @@ class BambusHrAttendanceSheet(models.Model):
             set(employees.ids) - attendance_employee_ids
             - leave_employee_ids - halfday_employee_ids
         )
+        absent_employee_ids = set()
         sheet = self.search([
             ("date", "=", day),
             ("company_id", "=", company.id),
@@ -144,6 +145,7 @@ class BambusHrAttendanceSheet(models.Model):
             unmarked_employee_ids.discard(employee_id)
             halfday_employee_ids.discard(employee_id)
             leave_employee_ids.discard(employee_id)
+            absent_employee_ids.discard(employee_id)
             if line.status == "present":
                 present_employee_ids.add(employee_id)
             elif line.status == "halfday":
@@ -151,7 +153,7 @@ class BambusHrAttendanceSheet(models.Model):
             elif line.status == "leave":
                 leave_employee_ids.add(employee_id)
             else:
-                unmarked_employee_ids.add(employee_id)
+                absent_employee_ids.add(employee_id)
         fine_hours = sum(attendances.mapped("bambus_fine_hours")) if "bambus_fine_hours" in attendances._fields else 0.0
         fine_amount = sum(attendances.mapped("bambus_fine_amount")) if "bambus_fine_amount" in attendances._fields else 0.0
         overtime_employee_ids = set(
@@ -180,7 +182,7 @@ class BambusHrAttendanceSheet(models.Model):
             departments.append({
                 **group,
                 "present": len(group_employee_ids & present_employee_ids),
-                "absent": len(group_employee_ids & unmarked_employee_ids),
+                "absent": len(group_employee_ids & absent_employee_ids),
                 "not_marked": len(group_employee_ids & unmarked_employee_ids),
                 "halfday": len(group_employee_ids & halfday_employee_ids),
                 "overtime": len(group_employee_ids & overtime_employee_ids),
@@ -217,7 +219,7 @@ class BambusHrAttendanceSheet(models.Model):
             shifts.append({
                 **group,
                 "present": len(group_employee_ids & present_employee_ids),
-                "absent": len(group_employee_ids & unmarked_employee_ids),
+                "absent": len(group_employee_ids & absent_employee_ids),
                 "not_marked": len(group_employee_ids & unmarked_employee_ids),
                 "halfday": len(group_employee_ids & halfday_employee_ids),
                 "overtime": len(group_employee_ids & overtime_employee_ids),
@@ -305,8 +307,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "check_out": format_time(display_check_out),
                 "check_in_value": fields.Datetime.context_timestamp(self, display_check_in).strftime("%H:%M") if display_check_in else "",
                 "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
-                "overtime_hours": round(override.overtime_hours if override else sum(a.overtime_hours for a in employee_attendances), 2),
-                "fine_hours": round(override.fine_hours if override else employee_fine_hours, 2),
+                "overtime_hours": round(sum(a.overtime_hours for a in employee_attendances), 2),
+                "fine_hours": round(employee_fine_hours, 2),
                 "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
                 "line_id": override.id if override else False,
                 "leave_id": (override.leave_id.id if override and override.leave_id else
@@ -322,7 +324,7 @@ class BambusHrAttendanceSheet(models.Model):
             "metrics": {
                 "total": len(employees),
                 "present": len(present_employee_ids),
-                "absent": len(unmarked_employee_ids),
+                "absent": len(absent_employee_ids),
                 "halfday": len(halfday_employee_ids),
                 "leave": len(leave_employee_ids),
                 "punched_in": len(attendance_employee_ids),
@@ -378,18 +380,11 @@ class BambusHrAttendanceSheet(models.Model):
         check_out = parse_time(values.get("check_out"))
         if check_in and check_out and check_out < check_in:
             check_out += timedelta(days=1)
-        try:
-            overtime_hours = max(float(values.get("overtime_hours") or 0.0), 0.0)
-            fine_hours = max(float(values.get("fine_hours") or 0.0), 0.0)
-        except (TypeError, ValueError):
-            raise UserError(_("Overtime and fine hours must be numbers."))
         line.write({
             "status": status,
             "check_in": check_in,
             "check_out": check_out,
             "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
-            "overtime_hours": overtime_hours,
-            "fine_hours": fine_hours,
         })
         return True
 

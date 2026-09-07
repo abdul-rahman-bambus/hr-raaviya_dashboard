@@ -26,8 +26,13 @@ export class AttendanceEditor extends AttendanceDashboard {
         return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
     }
 
-    updateEmployeeField(employee, field, event) {
+    async updateEmployeeField(employee, field, event) {
         employee[field] = event.target.value;
+        if (employee.status === "not_marked" && event.target.value) {
+            employee.status = "present";
+            employee.status_label = "Present";
+        }
+        await this.saveEmployee(employee);
     }
 
     async setStatus(employee, status) {
@@ -75,14 +80,12 @@ export class AttendanceEditor extends AttendanceDashboard {
                 "bambus.hr.attendance.sheet",
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
-                    status: employee.status === "not_marked" ? "absent" : employee.status,
+                    status: employee.status,
                     check_in: employee.check_in_value || false,
                     check_out: employee.check_out_value || false,
-                    overtime_hours: Number(employee.overtime_hours) || 0,
-                    fine_hours: Number(employee.fine_hours) || 0,
                 }]
             );
-            this.notification.add(`${employee.name} attendance updated.`, { type: "success" });
+            this.notification.add(`${employee.name} attendance saved automatically.`, { type: "success" });
             await this.load(this.state.data.date);
         } catch (error) {
             this.notification.add(error.cause?.message || error.message || "Unable to update attendance.", {
