@@ -45,6 +45,25 @@ class HrEmployee(models.Model):
             ("check_in", ">=", range_start),
             ("check_in", "<", range_end),
         ], order="check_in asc")
+
+        def optional_value(attendance, field_name, default=""):
+            """Read fields supplied by optional attendance integrations safely."""
+            if field_name not in attendance._fields:
+                return default
+            return getattr(attendance, field_name, default) or default
+
+        def attendance_mode(attendance, field_name):
+            field = attendance._fields.get(field_name)
+            if not field:
+                return _("Attendance")
+            value = getattr(attendance, field_name, False)
+            return field.convert_to_export(value, attendance) or _("Attendance")
+
+        def attendance_image_url(attendance, field_name):
+            if not optional_value(attendance, field_name):
+                return ""
+            return f"/web/image/hr.attendance/{attendance.id}/{field_name}"
+
         rows = {}
         for attendance in attendances:
             local_in = utc.localize(attendance.check_in).astimezone(timezone)
@@ -62,15 +81,15 @@ class HrEmployee(models.Model):
                 "logs": [],
                 "leave_id": False,
             })
-            if attendance.recognized_face_checkin or attendance.check_in:
+            if optional_value(attendance, "recognized_face_checkin") or attendance.check_in:
                 row["logs"].append({
                     "id": f"{attendance.id}-in",
                     "type": "check_in",
                     "label": _("Punched In"),
                     "time": local_in.strftime("%I:%M %p").lstrip("0"),
-                    "mode": attendance._fields["in_mode"].convert_to_export(attendance.in_mode, attendance) or _("Face"),
-                    "address": attendance.checkin_reverse_address or "",
-                    "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkin" if attendance.recognized_face_checkin else "",
+                    "mode": attendance_mode(attendance, "in_mode"),
+                    "address": optional_value(attendance, "checkin_reverse_address"),
+                    "image_url": attendance_image_url(attendance, "recognized_face_checkin"),
                 })
             if local_out:
                 row["check_out"] = local_out.strftime("%I:%M %p").lstrip("0")
@@ -79,9 +98,9 @@ class HrEmployee(models.Model):
                     "type": "check_out",
                     "label": _("Punched Out"),
                     "time": local_out.strftime("%I:%M %p").lstrip("0"),
-                    "mode": attendance._fields["out_mode"].convert_to_export(attendance.out_mode, attendance) or _("Face"),
-                    "address": attendance.checkout_reverse_address or "",
-                    "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkout" if attendance.recognized_face_checkout else "",
+                    "mode": attendance_mode(attendance, "out_mode"),
+                    "address": optional_value(attendance, "checkout_reverse_address"),
+                    "image_url": attendance_image_url(attendance, "recognized_face_checkout"),
                 })
             row["worked_hours"] += attendance.worked_hours or 0.0
             row["overtime_hours"] += attendance.overtime_hours or 0.0

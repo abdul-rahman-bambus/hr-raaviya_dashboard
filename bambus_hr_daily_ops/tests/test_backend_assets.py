@@ -83,3 +83,14 @@ class TestBackendAssets(TransactionCase):
             menu = navigation_tree.find(f".//menuitem[@id='{menu_id}']")
             self.assertIsNotNone(menu)
             self.assertEqual(menu.get("parent"), "menu_bambus_hrms_attendance")
+
+    def test_attendance_log_fields_are_optional(self):
+        module_root = Path(__file__).parents[1]
+        for relative_path in {
+            "models/hr_attendance_sheet.py",
+            "models/hr_employee.py",
+        }:
+            source = (module_root / relative_path).read_text(encoding="utf-8")
+            self.assertIn("def optional_value(", source)
+            self.assertNotIn("attendance.checkin_reverse_address", source)
+            self.assertNotIn("attendance.checkout_reverse_address", source)

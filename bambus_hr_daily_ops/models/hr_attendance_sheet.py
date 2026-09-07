@@ -238,6 +238,24 @@ class BambusHrAttendanceSheet(models.Model):
             local_value = fields.Datetime.context_timestamp(self, value)
             return local_value.strftime("%I:%M %p").lstrip("0")
 
+        def optional_value(attendance, field_name, default=""):
+            """Read fields supplied by optional attendance integrations safely."""
+            if field_name not in attendance._fields:
+                return default
+            return getattr(attendance, field_name, default) or default
+
+        def attendance_mode(attendance, field_name):
+            field = attendance._fields.get(field_name)
+            if not field:
+                return _("Attendance")
+            value = getattr(attendance, field_name, False)
+            return field.convert_to_export(value, attendance) or _("Attendance")
+
+        def attendance_image_url(attendance, field_name):
+            if not optional_value(attendance, field_name):
+                return ""
+            return f"/web/image/hr.attendance/{attendance.id}/{field_name}"
+
         daily_attendance = []
         for employee in employees.sorted(key=lambda item: (item.name or "").lower()):
             employee_attendances = attendances_by_employee.get(employee.id, [])
@@ -279,9 +297,9 @@ class BambusHrAttendanceSheet(models.Model):
                     "type": "check_in",
                     "label": _("Punched In"),
                     "time": local_in.strftime("%I:%M %p").lstrip("0"),
-                    "mode": attendance._fields["in_mode"].convert_to_export(attendance.in_mode, attendance) or _("Face"),
-                    "address": attendance.checkin_reverse_address or "",
-                    "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkin" if attendance.recognized_face_checkin else "",
+                    "mode": attendance_mode(attendance, "in_mode"),
+                    "address": optional_value(attendance, "checkin_reverse_address"),
+                    "image_url": attendance_image_url(attendance, "recognized_face_checkin"),
                 })
                 if attendance.check_out:
                     local_out = fields.Datetime.context_timestamp(self, attendance.check_out)
@@ -290,9 +308,9 @@ class BambusHrAttendanceSheet(models.Model):
                         "type": "check_out",
                         "label": _("Punched Out"),
                         "time": local_out.strftime("%I:%M %p").lstrip("0"),
-                        "mode": attendance._fields["out_mode"].convert_to_export(attendance.out_mode, attendance) or _("Face"),
-                        "address": attendance.checkout_reverse_address or "",
-                        "image_url": f"/web/image/hr.attendance/{attendance.id}/recognized_face_checkout" if attendance.recognized_face_checkout else "",
+                        "mode": attendance_mode(attendance, "out_mode"),
+                        "address": optional_value(attendance, "checkout_reverse_address"),
+                        "image_url": attendance_image_url(attendance, "recognized_face_checkout"),
                     })
             daily_attendance.append({
                 "id": employee.id,
