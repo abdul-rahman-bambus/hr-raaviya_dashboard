@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- The single application entry point for the custom HR workspace. -->
+    <menuitem id="menu_bambus_hrms_root"
+              name="HRMS"
+              sequence="-100"
+              web_icon="hr,static/description/icon.png"
+              groups="hr.group_hr_user"/>
+</odoo>
