@@ -437,6 +437,11 @@
       <field name="tag">bambus_attendance_dashboard</field>
     </record>
 
+    <record id="action_bambus_hr_attendance_editor" model="ir.actions.client">
+      <field name="name">Attendance</field>
+      <field name="tag">bambus_attendance_editor</field>
+    </record>
+
         <!-- History action: retain the complete record-oriented audit view. -->
     <record id="action_bambus_hr_attendance_sheet" model="ir.actions.act_window">
       <field name="name">Attendance History</field>
@@ -458,7 +463,14 @@
               name="Attendance History"
               parent="hr_attendance.menu_hr_attendance_root"
               action="action_bambus_hr_attendance_sheet"
-              sequence="2"/>
+              sequence="3"/>
+
+    <menuitem id="menu_bambus_hr_attendance_editor"
+              name="Attendance"
+              parent="hr_attendance.menu_hr_attendance_root"
+              action="action_bambus_hr_attendance_editor"
+              sequence="2"
+              groups="hr.group_hr_user"/>
 
   </data>
 </odoo>
