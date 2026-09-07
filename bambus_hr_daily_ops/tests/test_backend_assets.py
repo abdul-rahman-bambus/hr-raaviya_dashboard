@@ -53,3 +53,22 @@ class TestBackendAssets(TransactionCase):
         self.assertIsNotNone(attendance_menu)
         self.assertEqual(attendance_menu.get("parent"), "menu_bambus_hrms_root")
         self.assertEqual(attendance_menu.get("action"), "action_bambus_hr_attendance_editor")
+
+    def test_hrms_navigation_contains_core_hr_workflows(self):
+        module_root = Path(__file__).parents[1]
+        navigation_tree = ElementTree.parse(module_root / "views/hrms_navigation.xml")
+        expected_menus = {
+            "menu_bambus_hrms_dashboard",
+            "menu_bambus_hrms_attendance_history",
+            "menu_bambus_hrms_punch_logs",
+            "menu_bambus_hrms_time_off",
+            "menu_bambus_hrms_payroll",
+            "menu_bambus_hrms_configuration",
+        }
+        menu_ids = {
+            menu.get("id") for menu in navigation_tree.findall(".//menuitem")
+        }
+        self.assertTrue(expected_menus.issubset(menu_ids))
+        for menu_id in expected_menus:
+            menu = navigation_tree.find(f".//menuitem[@id='{menu_id}']")
+            self.assertEqual(menu.get("parent"), "menu_bambus_hrms_root")

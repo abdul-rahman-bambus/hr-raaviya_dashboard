@@ -2,7 +2,7 @@
 {
     "name": "Bambus HR Daily Ops",
     "summary": "Single Kanban/Form to manage attendance corrections, time off, overtime and fines.",
-    "version": "18.0.1.14.0",
+    "version": "18.0.1.15.0",
     "category": "Human Resources",
     "author": "Bambus Technologies LLP",
     "license": "LGPL-3",
@@ -22,6 +22,7 @@
         "views/hrms_menu.xml",
         "views/hr_attendance_sheet_views.xml", 
         "views/hr_employee_view.xml",
+        "views/hrms_navigation.xml",
         "views/hr_attendance_view.xml",
         "data/attendance_sheet_cron.xml",
     ],
