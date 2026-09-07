@@ -29,3 +29,6 @@ class TestBackendAssets(TransactionCase):
         for relative_path, action_key in registrations.items():
             source = (module_root / relative_path).read_text(encoding="utf-8")
             self.assertIn(f'.add("{action_key}"', source)
+
+        editor_template = (module_root / "static/src/xml/attendance_editor.xml").read_text(encoding="utf-8")
+        self.assertIn('t-if="!employee.is_hourly"', editor_template)

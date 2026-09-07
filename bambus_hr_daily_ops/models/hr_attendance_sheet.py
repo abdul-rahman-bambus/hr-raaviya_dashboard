@@ -262,6 +262,7 @@ class BambusHrAttendanceSheet(models.Model):
             contract = contract_by_employee.get(employee.id)
             calendar = contract.resource_calendar_id if contract else False
             contract_type = contract.contract_type_id if contract else False
+            wage_type = contract.wage_type if contract and "wage_type" in contract._fields else ""
             employee_fine_hours = 0.0
             if "bambus_fine_hours" in attendances._fields:
                 employee_fine_hours = sum(
@@ -301,6 +302,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "shift": calendar.display_name if calendar else _("No Work Schedule"),
                 "contract_type_id": contract_type.id if contract_type else 0,
                 "contract_type": contract_type.display_name if contract_type else _("No Contract Type"),
+                "wage_type": wage_type,
+                "is_hourly": wage_type == "hourly",
                 "status": status,
                 "status_label": status_label,
                 "check_in": format_time(display_check_in),
@@ -350,6 +353,14 @@ class BambusHrAttendanceSheet(models.Model):
         employee = self.env["hr.employee"].browse(employee_id).exists()
         if not employee:
             raise UserError(_("The employee is not available."))
+        contract = self.env["hr.contract"].search([
+            ("employee_id", "=", employee.id),
+            ("state", "!=", "cancel"),
+            ("date_start", "<=", day),
+            "|",
+            ("date_end", "=", False),
+            ("date_end", ">=", day),
+        ], order="date_start desc, id desc", limit=1)
         sheet = self.search([("date", "=", day), ("company_id", "=", self.env.company.id)], limit=1)
         if not sheet:
             sheet = self.create({"date": day, "company_id": self.env.company.id})
@@ -365,6 +376,8 @@ class BambusHrAttendanceSheet(models.Model):
         status = values.get("status", line.status or "absent")
         if status not in {"present", "absent", "halfday", "leave"}:
             raise UserError(_("Select a valid attendance status."))
+        if status == "absent" and contract and "wage_type" in contract._fields and contract.wage_type == "hourly":
+            raise UserError(_("Hourly employees cannot be marked absent."))
         timezone = pytz.timezone(self.env.user.tz or "UTC")
 
         def parse_time(value):
