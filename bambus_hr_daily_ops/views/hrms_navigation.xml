@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Read-only operational and audit shortcuts. -->
+    <menuitem id="menu_bambus_hrms_dashboard"
+              name="Dashboard"
+              parent="menu_bambus_hrms_root"
+              action="action_bambus_hr_attendance_dashboard"
+              sequence="1"
+              groups="hr.group_hr_user"/>
+
+    <record id="action_bambus_hrms_punch_logs" model="ir.actions.act_window">
+        <field name="name">Punch Logs</field>
+        <field name="res_model">hr.attendance</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_bambus_hrms_attendance_history"
+              name="Attendance History"
+              parent="menu_bambus_hrms_root"
+              action="action_bambus_hr_attendance_sheet"
+              sequence="21"
+              groups="hr.group_hr_user"/>
+    <menuitem id="menu_bambus_hrms_punch_logs"
+              name="Punch Logs"
+              parent="menu_bambus_hrms_root"
+              action="action_bambus_hrms_punch_logs"
+              sequence="22"
+              groups="hr.group_hr_user"/>
+
+    <!-- Time Off shortcuts retain Odoo's models, access rules and forms. -->
+    <menuitem id="menu_bambus_hrms_time_off"
+              name="Time Off"
+              parent="menu_bambus_hrms_root"
+              sequence="30"
+              groups="hr.group_hr_user"/>
+    <record id="action_bambus_hrms_time_off_requests" model="ir.actions.act_window">
+        <field name="name">Time Off Requests</field>
+        <field name="res_model">hr.leave</field>
+        <field name="view_mode">list,calendar,form</field>
+    </record>
+    <record id="action_bambus_hrms_time_off_allocations" model="ir.actions.act_window">
+        <field name="name">Time Off Allocations</field>
+        <field name="res_model">hr.leave.allocation</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <record id="action_bambus_hrms_time_off_approvals" model="ir.actions.act_window">
+        <field name="name">Time Off Approvals</field>
+        <field name="res_model">hr.leave</field>
+        <field name="view_mode">list,calendar,form</field>
+        <field name="domain">[('state', 'in', ('confirm', 'validate1'))]</field>
+    </record>
+    <menuitem id="menu_bambus_hrms_time_off_requests"
+              name="Requests"
+              parent="menu_bambus_hrms_time_off"
+              action="action_bambus_hrms_time_off_requests"
+              sequence="10"
+              groups="hr_holidays.group_hr_holidays_user"/>
+    <menuitem id="menu_bambus_hrms_time_off_allocations"
+              name="Allocations"
+              parent="menu_bambus_hrms_time_off"
+              action="action_bambus_hrms_time_off_allocations"
+              sequence="20"
+              groups="hr_holidays.group_hr_holidays_user"/>
+    <menuitem id="menu_bambus_hrms_time_off_approvals"
+              name="Approvals"
+              parent="menu_bambus_hrms_time_off"
+              action="action_bambus_hrms_time_off_approvals"
+              sequence="30"
+              groups="hr_holidays.group_hr_holidays_user"/>
+
+    <!-- Payroll shortcuts use the installed community payroll models. -->
+    <menuitem id="menu_bambus_hrms_payroll"
+              name="Payroll"
+              parent="menu_bambus_hrms_root"
+              sequence="40"
+              groups="hr_payroll_community.group_hr_payroll_community_user"/>
+    <record id="action_bambus_hrms_contracts" model="ir.actions.act_window">
+        <field name="name">Contracts</field>
+        <field name="res_model">hr.contract</field>
+        <field name="view_mode">list,kanban,form</field>
+    </record>
+    <menuitem id="menu_bambus_hrms_contracts"
+              name="Contracts"
+              parent="menu_bambus_hrms_payroll"
+              action="action_bambus_hrms_contracts"
+              sequence="10"
+              groups="hr.group_hr_user"/>
+    <menuitem id="menu_bambus_hrms_payslips"
+              name="Payslips"
+              parent="menu_bambus_hrms_payroll"
+              action="hr_payroll_community.hr_payslip_action"
+              sequence="20"
+              groups="hr_payroll_community.group_hr_payroll_community_user"/>
+    <menuitem id="menu_bambus_hrms_payslip_batches"
+              name="Payslip Batches"
+              parent="menu_bambus_hrms_payroll"
+              action="hr_payroll_community.hr_payslip_run_action"
+              sequence="30"
+              groups="hr_payroll_community.group_hr_payroll_community_user"/>
+
+    <!-- Common HR setup remains available without opening another app. -->
+    <menuitem id="menu_bambus_hrms_configuration"
+              name="Configuration"
+              parent="menu_bambus_hrms_root"
+              sequence="90"
+              groups="hr.group_hr_manager"/>
+    <record id="action_bambus_hrms_departments" model="ir.actions.act_window">
+        <field name="name">Departments</field>
+        <field name="res_model">hr.department</field>
+        <field name="view_mode">kanban,list,form</field>
+    </record>
+    <record id="action_bambus_hrms_jobs" model="ir.actions.act_window">
+        <field name="name">Job Positions</field>
+        <field name="res_model">hr.job</field>
+        <field name="view_mode">kanban,list,form</field>
+    </record>
+    <record id="action_bambus_hrms_work_schedules" model="ir.actions.act_window">
+        <field name="name">Work Schedules</field>
+        <field name="res_model">resource.calendar</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_bambus_hrms_departments"
+              name="Departments"
+              parent="menu_bambus_hrms_configuration"
+              action="action_bambus_hrms_departments"
+              sequence="10"
+              groups="hr.group_hr_manager"/>
+    <menuitem id="menu_bambus_hrms_jobs"
+              name="Job Positions"
+              parent="menu_bambus_hrms_configuration"
+              action="action_bambus_hrms_jobs"
+              sequence="20"
+              groups="hr.group_hr_manager"/>
+    <menuitem id="menu_bambus_hrms_work_schedules"
+              name="Work Schedules"
+              parent="menu_bambus_hrms_configuration"
+              action="action_bambus_hrms_work_schedules"
+              sequence="30"
+              groups="hr.group_hr_manager"/>
+</odoo>
