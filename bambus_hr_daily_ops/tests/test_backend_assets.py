@@ -1,4 +1,5 @@
 from pathlib import Path
+from xml.etree import ElementTree
 
 from odoo.modules.module import load_information_from_description_file
 from odoo.tests.common import TransactionCase
@@ -32,3 +33,15 @@ class TestBackendAssets(TransactionCase):
 
         editor_template = (module_root / "static/src/xml/attendance_editor.xml").read_text(encoding="utf-8")
         self.assertIn('t-if="!employee.is_hourly"', editor_template)
+
+    def test_employee_dashboard_is_nested_under_hrms(self):
+        module_root = Path(__file__).parents[1]
+        hrms_tree = ElementTree.parse(module_root / "views/hrms_menu.xml")
+        hrms_menu = hrms_tree.find(".//menuitem[@id='menu_bambus_hrms_root']")
+        self.assertIsNotNone(hrms_menu)
+        self.assertEqual(hrms_menu.get("name"), "HRMS")
+
+        employee_tree = ElementTree.parse(module_root / "views/hr_employee_view.xml")
+        employee_menu = employee_tree.find(".//menuitem[@id='menu_bambus_employees_root']")
+        self.assertIsNotNone(employee_menu)
+        self.assertEqual(employee_menu.get("parent"), "menu_bambus_hrms_root")
