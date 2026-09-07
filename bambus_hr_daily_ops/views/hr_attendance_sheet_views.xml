@@ -467,9 +467,9 @@
 
     <menuitem id="menu_bambus_hr_attendance_editor"
               name="Attendance"
-              parent="hr_attendance.menu_hr_attendance_root"
+              parent="menu_bambus_hrms_root"
               action="action_bambus_hr_attendance_editor"
-              sequence="2"
+              sequence="20"
               groups="hr.group_hr_user"/>
 
   </data>

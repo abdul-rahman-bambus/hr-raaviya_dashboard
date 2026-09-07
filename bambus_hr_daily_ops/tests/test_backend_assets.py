@@ -45,3 +45,11 @@ class TestBackendAssets(TransactionCase):
         employee_menu = employee_tree.find(".//menuitem[@id='menu_bambus_employees_root']")
         self.assertIsNotNone(employee_menu)
         self.assertEqual(employee_menu.get("parent"), "menu_bambus_hrms_root")
+
+        attendance_tree = ElementTree.parse(module_root / "views/hr_attendance_sheet_views.xml")
+        attendance_menu = attendance_tree.find(
+            ".//menuitem[@id='menu_bambus_hr_attendance_editor']"
+        )
+        self.assertIsNotNone(attendance_menu)
+        self.assertEqual(attendance_menu.get("parent"), "menu_bambus_hrms_root")
+        self.assertEqual(attendance_menu.get("action"), "action_bambus_hr_attendance_editor")
