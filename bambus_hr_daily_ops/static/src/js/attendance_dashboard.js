@@ -11,6 +11,7 @@ export class AttendanceDashboard extends Component {
     setup() {
         this.orm = useService("orm");
         this.action = useService("action");
+        this.notification = useService("notification");
         this.state = useState({
             loading: true,
             data: null,
@@ -20,6 +21,7 @@ export class AttendanceDashboard extends Component {
             currentPage: 1,
             pageSize: 10,
             collapsedContractTypes: {},
+            savingIds: {},
         });
         this.loadSequence = 0;
         onWillStart(() => this.load());
@@ -212,6 +214,50 @@ export class AttendanceDashboard extends Component {
 
     fineDisplay(hours) {
         return hours > 0 ? `${this.formatHours(hours)} h` : "—";
+    }
+
+    updateEmployeeField(employee, field, event) {
+        employee[field] = event.target.value;
+    }
+
+    async setStatus(employee, status) {
+        employee.status = status;
+        employee.status_label = {
+            present: "Present", absent: "Absent", halfday: "Half Day", leave: "Leave",
+        }[status];
+        await this.saveEmployee(employee);
+    }
+
+    async saveEmployee(employee) {
+        if (this.state.savingIds[employee.id]) {
+            return;
+        }
+        this.state.savingIds[employee.id] = true;
+        try {
+            await this.orm.call(
+                "bambus.hr.attendance.sheet",
+                "update_dashboard_attendance",
+                [employee.id, this.state.data.date, {
+                    status: employee.status === "not_marked" ? "absent" : employee.status,
+                    check_in: employee.check_in_value || false,
+                    check_out: employee.check_out_value || false,
+                    overtime_hours: Number(employee.overtime_hours) || 0,
+                    fine_hours: Number(employee.fine_hours) || 0,
+                }]
+            );
+            this.notification.add(`${employee.name} attendance updated.`, { type: "success" });
+            await this.load(this.state.data.date);
+        } catch (error) {
+            this.notification.add(error.cause?.message || error.message || "Unable to update attendance.", {
+                type: "danger",
+            });
+        } finally {
+            this.state.savingIds[employee.id] = false;
+        }
+    }
+
+    isSaving(employeeId) {
+        return Boolean(this.state.savingIds[employeeId]);
     }
 
     downloadDailyAttendance() {
