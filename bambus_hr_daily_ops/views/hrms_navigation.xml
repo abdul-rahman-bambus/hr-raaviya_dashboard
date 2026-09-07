@@ -15,13 +15,13 @@
     </record>
     <menuitem id="menu_bambus_hrms_attendance_history"
               name="Attendance History"
-              parent="menu_bambus_hrms_root"
+              parent="menu_bambus_hrms_attendance"
               action="action_bambus_hr_attendance_sheet"
               sequence="21"
               groups="hr.group_hr_user"/>
     <menuitem id="menu_bambus_hrms_punch_logs"
               name="Punch Logs"
-              parent="menu_bambus_hrms_root"
+              parent="menu_bambus_hrms_attendance"
               action="action_bambus_hrms_punch_logs"
               sequence="22"
               groups="hr.group_hr_user"/>

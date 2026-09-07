@@ -6,4 +6,9 @@
               sequence="-100"
               web_icon="hr,static/description/icon.png"
               groups="hr.group_hr_user"/>
+    <menuitem id="menu_bambus_hrms_attendance"
+              name="Attendance"
+              parent="menu_bambus_hrms_root"
+              sequence="20"
+              groups="hr.group_hr_user"/>
 </odoo>

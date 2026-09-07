@@ -40,6 +40,11 @@ class TestBackendAssets(TransactionCase):
         hrms_menu = hrms_tree.find(".//menuitem[@id='menu_bambus_hrms_root']")
         self.assertIsNotNone(hrms_menu)
         self.assertEqual(hrms_menu.get("name"), "HRMS")
+        attendance_parent = hrms_tree.find(
+            ".//menuitem[@id='menu_bambus_hrms_attendance']"
+        )
+        self.assertIsNotNone(attendance_parent)
+        self.assertEqual(attendance_parent.get("parent"), "menu_bambus_hrms_root")
 
         employee_tree = ElementTree.parse(module_root / "views/hr_employee_view.xml")
         employee_menu = employee_tree.find(".//menuitem[@id='menu_bambus_employees_root']")
@@ -51,7 +56,7 @@ class TestBackendAssets(TransactionCase):
             ".//menuitem[@id='menu_bambus_hr_attendance_editor']"
         )
         self.assertIsNotNone(attendance_menu)
-        self.assertEqual(attendance_menu.get("parent"), "menu_bambus_hrms_root")
+        self.assertEqual(attendance_menu.get("parent"), "menu_bambus_hrms_attendance")
         self.assertEqual(attendance_menu.get("action"), "action_bambus_hr_attendance_editor")
 
     def test_hrms_navigation_contains_core_hr_workflows(self):
@@ -59,8 +64,6 @@ class TestBackendAssets(TransactionCase):
         navigation_tree = ElementTree.parse(module_root / "views/hrms_navigation.xml")
         expected_menus = {
             "menu_bambus_hrms_dashboard",
-            "menu_bambus_hrms_attendance_history",
-            "menu_bambus_hrms_punch_logs",
             "menu_bambus_hrms_time_off",
             "menu_bambus_hrms_payroll",
             "menu_bambus_hrms_configuration",
@@ -72,3 +75,11 @@ class TestBackendAssets(TransactionCase):
         for menu_id in expected_menus:
             menu = navigation_tree.find(f".//menuitem[@id='{menu_id}']")
             self.assertEqual(menu.get("parent"), "menu_bambus_hrms_root")
+
+        for menu_id in {
+            "menu_bambus_hrms_attendance_history",
+            "menu_bambus_hrms_punch_logs",
+        }:
+            menu = navigation_tree.find(f".//menuitem[@id='{menu_id}']")
+            self.assertIsNotNone(menu)
+            self.assertEqual(menu.get("parent"), "menu_bambus_hrms_attendance")
