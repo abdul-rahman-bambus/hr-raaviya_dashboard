@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+  <t t-name="bambus_hr_daily_ops.EmployeeDashboard">
+    <main class="o_bed_dashboard">
+      <header class="o_bed_titlebar">
+        <div>
+          <h2>Staff List</h2>
+          <p>View and manage your employee directory</p>
+        </div>
+        <button type="button" class="btn btn-primary o_bed_add" t-on-click="addEmployee">
+          <i class="fa fa-user-plus"/> Add Staff
+        </button>
+      </header>
+
+      <section class="o_bed_card">
+        <div class="o_bed_tools">
+          <label class="o_bed_search">
+            <i class="fa fa-search"/>
+            <input type="search" placeholder="Search Staff" aria-label="Search staff"
+                   t-att-value="state.query" t-on-input="updateQuery"/>
+          </label>
+          <button type="button" t-att-class="'o_bed_filter ' + (state.showFilters ? 'active' : '')"
+                  t-on-click="() => state.showFilters = !state.showFilters">
+            <i class="fa fa-filter"/> Filter
+          </button>
+          <button type="button" class="btn btn-outline-primary o_bed_bulk" t-on-click="openStandardList">
+            Bulk Actions <i class="fa fa-angle-down"/>
+          </button>
+        </div>
+        <div class="o_bed_filter_panel" t-if="state.showFilters">
+          <label for="o_bed_department">Department</label>
+          <select id="o_bed_department" class="form-select" t-att-value="state.departmentId" t-on-change="updateDepartment">
+            <option value="all">All Departments</option>
+            <option t-foreach="departments" t-as="department" t-key="department.id"
+                    t-att-value="department.id" t-esc="department.name"/>
+          </select>
+          <button type="button" class="btn btn-link" t-on-click="() => state.departmentId = 'all'">Clear filters</button>
+        </div>
+        <div class="o_bed_select_all">
+          <input class="form-check-input" type="checkbox" id="o_bed_select_all"
+                 t-att-checked="allSelected" t-on-change="toggleAll"/>
+          <label for="o_bed_select_all">Select All</label>
+          <span t-if="state.selectedIds.length"><t t-esc="state.selectedIds.length"/> selected</span>
+        </div>
+      </section>
+
+      <div t-if="state.loading" class="o_bed_state"><i class="fa fa-spinner fa-spin"/> Loading staff…</div>
+      <div t-elif="state.error" class="alert alert-danger o_bed_state">
+        <strong>Employee list could not be loaded.</strong> <span t-esc="state.error"/>
+        <button type="button" class="btn btn-outline-danger btn-sm ms-2" t-on-click="load">Try Again</button>
+      </div>
+      <section t-else="" class="o_bed_groups">
+        <div class="o_bed_group" t-foreach="employeeGroups" t-as="group" t-key="group.id">
+          <div class="o_bed_group_title">
+            <span t-esc="group.name"/>
+            <span class="o_bed_count" t-esc="group.employees.length"/>
+          </div>
+          <article class="o_bed_employee" t-foreach="group.employees" t-as="employee" t-key="employee.id"
+                   t-on-click="() => this.openEmployee(employee.id)">
+            <input class="form-check-input" type="checkbox"
+                   t-att-checked="state.selectedIds.includes(employee.id)"
+                   t-on-click.stop="() => this.toggleEmployee(employee.id)"/>
+            <img class="o_bed_avatar" t-att-src="avatarUrl(employee.id)" t-att-alt="employee.name"/>
+            <div class="o_bed_identity">
+              <strong t-esc="employee.name"/>
+              <small t-if="employee.job_id" t-esc="employee.job_id[1]"/>
+            </div>
+            <span class="o_bed_code" t-esc="employee.barcode || '—'"/>
+            <span class="o_bed_contact" t-esc="employee.work_email || employee.mobile_phone || '—'"/>
+            <button type="button" class="btn btn-outline-primary btn-sm" t-on-click.stop="() => this.openEmployee(employee.id)">View Profile</button>
+          </article>
+        </div>
+        <div class="o_bed_empty" t-if="!filteredEmployees.length">
+          <i class="fa fa-users"/><strong>No employees found</strong>
+          <span>Try changing your search or department filter.</span>
+        </div>
+      </section>
+    </main>
+  </t>
+</templates>
