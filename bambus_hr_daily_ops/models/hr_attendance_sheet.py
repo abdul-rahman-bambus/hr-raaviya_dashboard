@@ -532,6 +532,8 @@ class BambusHrAttendanceSheet(models.Model):
                 raise UserError(_("Open Time Off to modify a request that covers multiple days."))
             if leave.state not in {"draft", "refuse", "cancel"}:
                 leave.action_refuse()
+            if leave.state == "refuse":
+                leave.action_draft()
             leave.unlink()
 
         line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1] if sheet else False
