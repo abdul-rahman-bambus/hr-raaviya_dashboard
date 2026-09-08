@@ -106,3 +106,9 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("this.createHalfDayLeave(employee)", editor_template)
         self.assertIn("this.toggleAbsent(employee)", editor_template)
         self.assertIn("this.toggleLeave(employee)", editor_template)
+
+        attendance_sheet_source = (
+            module_root / "models/hr_attendance_sheet.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("leave.action_draft()", attendance_sheet_source)
+        self.assertIn('write({"state": "draft"})', attendance_sheet_source)

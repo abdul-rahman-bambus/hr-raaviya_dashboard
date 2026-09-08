@@ -533,7 +533,11 @@ class BambusHrAttendanceSheet(models.Model):
             if leave.state not in {"draft", "refuse", "cancel"}:
                 leave.action_refuse()
             if leave.state == "refuse":
-                leave.action_draft()
+                # Odoo 18 does not expose a draft-transition action. Refusal has already
+                # removed the generated calendar entry; switch the request to
+                # draft explicitly so the standard unlink guard permits the
+                # requested permanent deletion.
+                leave.with_context(mail_notrack=True).write({"state": "draft"})
             leave.unlink()
 
         line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1] if sheet else False
