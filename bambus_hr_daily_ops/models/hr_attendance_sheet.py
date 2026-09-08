@@ -423,7 +423,11 @@ class BambusHrAttendanceSheet(models.Model):
             "check_out": check_out,
             "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
         })
-        return True
+        return {
+            "line_id": line.id,
+            "status": line.status,
+            "worked_hours": line.worked_hours,
+        }
 
     @api.model
     def create_half_day_leave(self, employee_id, selected_date):

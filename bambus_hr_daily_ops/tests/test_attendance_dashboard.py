@@ -101,11 +101,14 @@ class TestAttendanceDashboard(TransactionCase):
         })
         today = fields.Date.context_today(employee)
         attendance_sheet = self.env["bambus.hr.attendance.sheet"]
-        attendance_sheet.update_dashboard_attendance(
+        result = attendance_sheet.update_dashboard_attendance(
             employee.id,
             fields.Date.to_string(today),
             {"status": "absent"},
         )
+        self.assertEqual(result["status"], "absent")
+        self.assertTrue(result["line_id"])
+        self.assertEqual(result["worked_hours"], 0.0)
 
         attendance_sheet.revoke_dashboard_status(
             employee.id,
