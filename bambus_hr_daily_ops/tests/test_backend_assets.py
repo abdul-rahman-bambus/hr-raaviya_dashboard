@@ -94,3 +94,12 @@ class TestBackendAssets(TransactionCase):
             self.assertIn("def optional_value(", source)
             self.assertNotIn("attendance.checkin_reverse_address", source)
             self.assertNotIn("attendance.checkout_reverse_address", source)
+
+        editor_source = (module_root / "static/src/js/attendance_editor.js").read_text(
+            encoding="utf-8"
+        )
+        editor_template = (module_root / "static/src/xml/attendance_editor.xml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"create_half_day_leave"', editor_source)
+        self.assertIn("this.createHalfDayLeave(employee)", editor_template)

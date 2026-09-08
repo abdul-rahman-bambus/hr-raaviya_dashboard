@@ -43,6 +43,30 @@ export class AttendanceEditor extends AttendanceDashboard {
         await this.saveEmployee(employee);
     }
 
+    async createHalfDayLeave(employee) {
+        if (this.state.savingIds[employee.id]) {
+            return;
+        }
+        this.state.savingIds[employee.id] = true;
+        try {
+            await this.orm.call(
+                "bambus.hr.attendance.sheet",
+                "create_half_day_leave",
+                [employee.id, this.state.data.date]
+            );
+            this.notification.add(`${employee.name} half-day leave created and confirmed.`, {
+                type: "success",
+            });
+            await this.load(this.state.data.date);
+        } catch (error) {
+            this.notification.add(error.cause?.message || error.message || "Unable to create half-day leave.", {
+                type: "danger",
+            });
+        } finally {
+            this.state.savingIds[employee.id] = false;
+        }
+    }
+
     openLeave(employee) {
         this.action.doAction({
             type: "ir.actions.act_window",

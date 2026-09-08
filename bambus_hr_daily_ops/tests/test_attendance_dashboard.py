@@ -53,3 +53,30 @@ class TestAttendanceDashboard(TransactionCase):
                 fields.Date.to_string(today),
                 {"status": "absent"},
             )
+
+    def test_half_day_action_creates_and_confirms_unpaid_leave(self):
+        employee = self.env["hr.employee"].create({
+            "name": "Half Day Employee",
+            "company_id": self.env.company.id,
+        })
+        leave_type = self.env.ref(
+            "hr_holidays.holiday_status_unpaid", raise_if_not_found=False
+        )
+        if not leave_type:
+            leave_type = self.env["hr.leave.type"].create({
+                "name": "Unpaid",
+                "requires_allocation": "no",
+            })
+        today = fields.Date.context_today(employee)
+
+        result = self.env["bambus.hr.attendance.sheet"].create_half_day_leave(
+            employee.id,
+            fields.Date.to_string(today),
+        )
+
+        leave = self.env["hr.leave"].browse(result["leave_id"])
+        self.assertEqual(leave.employee_id, employee)
+        self.assertEqual(leave.holiday_status_id, leave_type)
+        self.assertTrue(leave.request_unit_half)
+        self.assertEqual(leave.request_date_from_period, "am")
+        self.assertEqual(leave.state, "confirm")

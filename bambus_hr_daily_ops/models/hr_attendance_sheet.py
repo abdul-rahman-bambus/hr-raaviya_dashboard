@@ -419,6 +419,80 @@ class BambusHrAttendanceSheet(models.Model):
         })
         return True
 
+    @api.model
+    def create_half_day_leave(self, employee_id, selected_date):
+        """Create and confirm one morning half-day unpaid leave from the editor."""
+        if not self.env.user.has_group("hr.group_hr_user"):
+            raise UserError(_("Only HR officers can create employee time off."))
+
+        day = fields.Date.to_date(selected_date)
+        employee = self.env["hr.employee"].browse(employee_id).exists()
+        if not employee:
+            raise UserError(_("The employee is not available."))
+
+        Leave = self.env["hr.leave"].sudo()
+        existing_leave = Leave.search([
+            ("employee_id", "=", employee.id),
+            ("state", "not in", ["refuse", "cancel"]),
+            ("request_date_from", "<=", day),
+            ("request_date_to", ">=", day),
+        ], order="id desc", limit=1)
+        if existing_leave:
+            if not getattr(existing_leave, "request_unit_half", False):
+                raise UserError(_("This employee already has a time off request for the selected date."))
+            leave = existing_leave
+        else:
+            leave_type = self.env.ref("hr_holidays.holiday_status_unpaid", raise_if_not_found=False)
+            if leave_type and (
+                not leave_type.active
+                or (leave_type.company_id and leave_type.company_id != employee.company_id)
+            ):
+                leave_type = False
+            leave_type_domain = [
+                ("active", "=", True),
+                ("name", "ilike", "unpaid"),
+                "|",
+                ("company_id", "=", False),
+                ("company_id", "=", employee.company_id.id),
+            ]
+            if not leave_type:
+                leave_type = self.env["hr.leave.type"].sudo().search(leave_type_domain, limit=1)
+            if not leave_type:
+                raise UserError(_("Configure an active Unpaid time off type before marking a half day."))
+
+            leave = Leave.create({
+                "employee_id": employee.id,
+                "holiday_status_id": leave_type.id,
+                "request_date_from": day,
+                "request_date_to": day,
+                "request_unit_half": True,
+                "request_date_from_period": "am",
+                "name": _("Half Day Leave"),
+            })
+        if leave.state == "draft":
+            leave.action_confirm()
+
+        sheet = self.search([
+            ("date", "=", day),
+            ("company_id", "=", employee.company_id.id),
+        ], limit=1)
+        if not sheet:
+            sheet = self.create({"date": day, "company_id": employee.company_id.id})
+        if sheet.state == "approved":
+            raise UserError(_("This attendance day is approved and cannot be changed."))
+        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
+        if not line:
+            line = self.env["bambus.hr.attendance.sheet.line"].create({
+                "sheet_id": sheet.id,
+                "employee_id": employee.id,
+            })
+        line.sudo().write({
+            "status": "halfday",
+            "leave_id": leave.id,
+            "is_half_day_leave": True,
+        })
+        return {"leave_id": leave.id, "state": leave.state}
+
 
     def _filtered_lines(self):
         self.ensure_one()
