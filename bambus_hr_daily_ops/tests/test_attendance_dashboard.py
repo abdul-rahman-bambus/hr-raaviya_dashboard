@@ -86,7 +86,8 @@ class TestAttendanceDashboard(TransactionCase):
             fields.Date.to_string(today),
             "halfday",
         )
-        self.assertFalse(leave.exists())
+        self.assertTrue(leave.exists())
+        self.assertEqual(leave.state, "cancel")
         sheet = self.env["bambus.hr.attendance.sheet"].search([
             ("date", "=", today),
             ("company_id", "=", self.env.company.id),
@@ -143,4 +144,5 @@ class TestAttendanceDashboard(TransactionCase):
             "leave",
         )
 
-        self.assertFalse(leave.exists())
+        self.assertTrue(leave.exists())
+        self.assertEqual(leave.state, "cancel")

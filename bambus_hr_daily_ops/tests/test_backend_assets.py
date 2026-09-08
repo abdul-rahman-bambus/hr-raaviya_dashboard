@@ -111,4 +111,5 @@ class TestBackendAssets(TransactionCase):
             module_root / "models/hr_attendance_sheet.py"
         ).read_text(encoding="utf-8")
         self.assertNotIn("leave.action_draft()", attendance_sheet_source)
-        self.assertIn('write({"state": "draft"})', attendance_sheet_source)
+        self.assertNotIn('write({"state": "draft"})', attendance_sheet_source)
+        self.assertIn('write({"state": "cancel"})', attendance_sheet_source)

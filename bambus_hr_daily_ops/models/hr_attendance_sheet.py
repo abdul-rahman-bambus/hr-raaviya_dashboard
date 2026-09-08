@@ -501,7 +501,7 @@ class BambusHrAttendanceSheet(models.Model):
 
     @api.model
     def revoke_dashboard_status(self, employee_id, selected_date, status):
-        """Remove an HR status override and its one-day leave, when applicable."""
+        """Remove an HR override and cancel its one-day leave, when applicable."""
         if not self.env.user.has_group("hr.group_hr_user"):
             raise UserError(_("Only HR officers can revoke employee attendance statuses."))
         if status not in {"absent", "halfday", "leave"}:
@@ -532,13 +532,11 @@ class BambusHrAttendanceSheet(models.Model):
                 raise UserError(_("Open Time Off to modify a request that covers multiple days."))
             if leave.state not in {"draft", "refuse", "cancel"}:
                 leave.action_refuse()
-            if leave.state == "refuse":
-                # Odoo 18 does not expose a draft-transition action. Refusal has already
-                # removed the generated calendar entry; switch the request to
-                # draft explicitly so the standard unlink guard permits the
-                # requested permanent deletion.
-                leave.with_context(mail_notrack=True).write({"state": "draft"})
-            leave.unlink()
+            if leave.state != "cancel":
+                # Odoo 18 has no draft state for hr.leave and refuses to unlink
+                # refused requests. Keep the audit record and mark it Cancelled;
+                # the refusal above already removes its calendar allocation.
+                leave.with_context(mail_notrack=True).write({"state": "cancel"})
 
         line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1] if sheet else False
         if line:
