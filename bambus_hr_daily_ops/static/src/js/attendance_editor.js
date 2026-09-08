@@ -44,6 +44,10 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async createHalfDayLeave(employee) {
+        if (employee.status === "halfday" || (employee.leave_id && employee.leave_is_half_day)) {
+            await this.revokeStatus(employee, "halfday");
+            return;
+        }
         if (this.state.savingIds[employee.id]) {
             return;
         }
@@ -60,6 +64,46 @@ export class AttendanceEditor extends AttendanceDashboard {
             await this.load(this.state.data.date);
         } catch (error) {
             this.notification.add(error.cause?.message || error.message || "Unable to create half-day leave.", {
+                type: "danger",
+            });
+        } finally {
+            this.state.savingIds[employee.id] = false;
+        }
+    }
+
+    async toggleAbsent(employee) {
+        if (employee.status === "absent") {
+            await this.revokeStatus(employee, "absent");
+            return;
+        }
+        await this.setStatus(employee, "absent");
+    }
+
+    async toggleLeave(employee) {
+        if (employee.status === "leave" || (employee.leave_id && !employee.leave_is_half_day)) {
+            await this.revokeStatus(employee, "leave");
+            return;
+        }
+        this.openLeave(employee);
+    }
+
+    async revokeStatus(employee, status) {
+        if (this.state.savingIds[employee.id]) {
+            return;
+        }
+        this.state.savingIds[employee.id] = true;
+        try {
+            await this.orm.call(
+                "bambus.hr.attendance.sheet",
+                "revoke_dashboard_status",
+                [employee.id, this.state.data.date, status]
+            );
+            this.notification.add(`${employee.name} ${status === "absent" ? "absence" : "leave"} revoked.`, {
+                type: "success",
+            });
+            await this.load(this.state.data.date);
+        } catch (error) {
+            this.notification.add(error.cause?.message || error.message || "Unable to revoke status.", {
                 type: "danger",
             });
         } finally {

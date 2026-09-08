@@ -102,4 +102,7 @@ class TestBackendAssets(TransactionCase):
             encoding="utf-8"
         )
         self.assertIn('"create_half_day_leave"', editor_source)
+        self.assertIn('"revoke_dashboard_status"', editor_source)
         self.assertIn("this.createHalfDayLeave(employee)", editor_template)
+        self.assertIn("this.toggleAbsent(employee)", editor_template)
+        self.assertIn("this.toggleLeave(employee)", editor_template)

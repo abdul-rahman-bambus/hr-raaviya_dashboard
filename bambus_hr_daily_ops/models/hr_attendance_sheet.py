@@ -260,6 +260,11 @@ class BambusHrAttendanceSheet(models.Model):
         for employee in employees.sorted(key=lambda item: (item.name or "").lower()):
             employee_attendances = attendances_by_employee.get(employee.id, [])
             override = line_by_employee.get(employee.id)
+            day_leave = (
+                override.leave_id
+                if override and override.leave_id
+                else leave_by_employee.get(employee.id, self.env["hr.leave"])
+            )
             check_ins = [attendance.check_in for attendance in employee_attendances if attendance.check_in]
             check_outs = [attendance.check_out for attendance in employee_attendances if attendance.check_out]
             if employee.id in leave_employee_ids:
@@ -331,9 +336,10 @@ class BambusHrAttendanceSheet(models.Model):
                 "overtime_hours": round(sum(a.overtime_hours for a in employee_attendances), 2),
                 "fine_hours": round(employee_fine_hours, 2),
                 "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
+                "has_attendance": bool(employee_attendances),
                 "line_id": override.id if override else False,
-                "leave_id": (override.leave_id.id if override and override.leave_id else
-                             leave_by_employee.get(employee.id, self.env["hr.leave"]).id or False),
+                "leave_id": day_leave.id or False,
+                "leave_is_half_day": bool(day_leave and getattr(day_leave, "request_unit_half", False)),
                 "logs": attendance_logs,
             })
         return {
@@ -492,6 +498,46 @@ class BambusHrAttendanceSheet(models.Model):
             "is_half_day_leave": True,
         })
         return {"leave_id": leave.id, "state": leave.state}
+
+    @api.model
+    def revoke_dashboard_status(self, employee_id, selected_date, status):
+        """Remove an HR status override and its one-day leave, when applicable."""
+        if not self.env.user.has_group("hr.group_hr_user"):
+            raise UserError(_("Only HR officers can revoke employee attendance statuses."))
+        if status not in {"absent", "halfday", "leave"}:
+            raise UserError(_("Only absent and leave statuses can be revoked."))
+
+        day = fields.Date.to_date(selected_date)
+        employee = self.env["hr.employee"].browse(employee_id).exists()
+        if not employee:
+            raise UserError(_("The employee is not available."))
+        sheet = self.search([
+            ("date", "=", day),
+            ("company_id", "=", employee.company_id.id),
+        ], limit=1)
+        if sheet and sheet.state == "approved":
+            raise UserError(_("This attendance day is approved and cannot be changed."))
+
+        leave = self.env["hr.leave"].sudo().search([
+            ("employee_id", "=", employee.id),
+            ("state", "not in", ["refuse", "cancel"]),
+            ("request_date_from", "<=", day),
+            ("request_date_to", ">=", day),
+        ], order="id desc", limit=1)
+        if status in {"halfday", "leave"} and leave:
+            is_half_day = bool(getattr(leave, "request_unit_half", False))
+            if (status == "halfday") != is_half_day:
+                raise UserError(_("The selected status does not match the existing time off request."))
+            if leave.request_date_from != day or leave.request_date_to != day:
+                raise UserError(_("Open Time Off to modify a request that covers multiple days."))
+            if leave.state not in {"draft", "refuse", "cancel"}:
+                leave.action_refuse()
+            leave.unlink()
+
+        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1] if sheet else False
+        if line:
+            line.sudo().unlink()
+        return True
 
 
     def _filtered_lines(self):
