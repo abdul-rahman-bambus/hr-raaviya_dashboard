@@ -29,3 +29,20 @@
 .o_bed_empty { display:flex; align-items:center; flex-direction:column; color:#7b8794; }.o_bed_empty i { margin-bottom:12px; color:#a9b4c0; font-size:30px; }.o_bed_empty strong { color:#475463; }.o_bed_empty span { margin-top:5px; }
 @media (max-width:900px) { .o_bed_dashboard { padding:18px 14px 36px; }.o_bed_tools { align-items:stretch; flex-wrap:wrap; }.o_bed_search { width:100%; }.o_bed_bulk { margin-left:auto; }.o_bed_employee { grid-template-columns:24px 40px minmax(150px,1fr) 100px; }.o_bed_contact,.o_bed_code { display:none; } }
 @media (max-width:600px) { .o_bed_titlebar { align-items:flex-start; }.o_bed_titlebar p { display:none; }.o_bed_employee { grid-template-columns:24px 36px 1fr; padding:9px 14px; }.o_bed_employee>.btn { display:none; }.o_bed_filter_panel { align-items:stretch; flex-direction:column; }.o_bed_filter_panel select { width:100%; } }
+
+/* Employee form salary overview */
+.o_bambus_salary_overview { padding:18px 4px 8px; color:#20252b; }
+.o_bso_heading { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:20px; }
+.o_bso_heading h3 { margin:0; font-size:22px; font-weight:700; }
+.o_bso_heading p { margin:5px 0 0; color:#7c8795; }
+.o_bso_heading .btn { padding:9px 16px; border-radius:8px; box-shadow:0 5px 12px rgba(35,105,224,.18); }
+.o_bso_heading .btn i { margin-right:7px; }
+.o_bso_metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+.o_bso_metric { display:flex; align-items:center; min-height:82px; padding:15px 18px; border:1px solid #e6eaf0; border-radius:10px; background:#fff; box-shadow:0 2px 10px rgba(27,45,72,.04); gap:13px; }
+.o_bso_metric_icon { display:grid; width:40px; height:40px; flex:0 0 40px; place-items:center; border-radius:9px; color:#2369e0; background:#eef5ff; font-size:17px; }
+.o_bso_metric div { display:flex; min-width:0; flex-direction:column; }
+.o_bso_metric small { margin-bottom:3px; color:#7c8795; font-size:12px; }
+.o_bso_metric strong { overflow:hidden; color:#20252b; text-overflow:ellipsis; white-space:nowrap; font-size:17px; }
+.o_bso_list { overflow:hidden; border:1px solid #e6eaf0; border-radius:10px; background:#fff; box-shadow:0 2px 10px rgba(27,45,72,.04); }
+.o_bso_list .o_list_renderer { border:0; }
+@media (max-width:767px) { .o_bso_heading { align-items:flex-start; flex-direction:column; }.o_bso_metrics { grid-template-columns:1fr; } }
