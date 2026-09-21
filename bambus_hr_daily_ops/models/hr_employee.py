@@ -11,6 +11,58 @@ from odoo.exceptions import UserError
 class HrEmployee(models.Model):
     _inherit = "hr.employee"
 
+    payslip_currency_id = fields.Many2one(
+        related="company_id.currency_id",
+        string="Payslip Currency",
+        readonly=True,
+    )
+    latest_payslip_amount = fields.Monetary(
+        compute="_compute_salary_overview",
+        currency_field="payslip_currency_id",
+        string="Latest Net Pay",
+    )
+    year_to_date_pay = fields.Monetary(
+        compute="_compute_salary_overview",
+        currency_field="payslip_currency_id",
+        string="Year-to-date Pay",
+    )
+
+    def _compute_salary_overview(self):
+        """Show payroll totals without changing the source payslip records."""
+        year_start = fields.Date.context_today(self).replace(month=1, day=1)
+        for employee in self:
+            completed_slips = employee.slip_ids.filtered(
+                lambda slip: slip.state == "done"
+            ).sorted(
+                key=lambda slip: (slip.date_to or slip.date_from, slip.id),
+                reverse=True,
+            )
+            employee.latest_payslip_amount = (
+                completed_slips[:1].net_pay if completed_slips else 0.0
+            )
+            employee.year_to_date_pay = sum(
+                completed_slips.filtered(
+                    lambda slip: slip.date_to and slip.date_to >= year_start
+                ).mapped("net_pay")
+            )
+
+    def action_open_salary_overview(self):
+        self.ensure_one()
+        action = self.env["ir.actions.actions"]._for_xml_id(
+            "hr_payroll_community.action_hr_payslip"
+        )
+        action.update(
+            {
+                "name": _("Salary Overview - %s", self.name),
+                "domain": [("employee_id", "=", self.id)],
+                "context": {
+                    "default_employee_id": self.id,
+                    "search_default_employee_id": self.id,
+                },
+            }
+        )
+        return action
+
     def action_open_monthly_attendance(self):
         self.ensure_one()
         return {

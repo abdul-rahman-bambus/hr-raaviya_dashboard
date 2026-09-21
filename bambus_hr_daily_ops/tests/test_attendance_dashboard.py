@@ -120,6 +120,36 @@ class TestAttendanceDashboard(TransactionCase):
         roster = {item["id"]: item for item in dashboard["daily_attendance"]}
         self.assertEqual(roster[employee.id]["status"], "not_marked")
 
+    def test_hr_can_update_overtime_and_fine_from_editor(self):
+        employee = self.env["hr.employee"].create({
+            "name": "Overtime Employee",
+            "company_id": self.env.company.id,
+        })
+        today = fields.Date.context_today(employee)
+        attendance_sheet = self.env["bambus.hr.attendance.sheet"]
+
+        attendance_sheet.update_dashboard_attendance(
+            employee.id,
+            fields.Date.to_string(today),
+            {
+                "status": "present",
+                "overtime_hours": 1.5,
+                "fine_hours": 0.25,
+            },
+        )
+
+        dashboard = attendance_sheet.get_attendance_dashboard(
+            fields.Date.to_string(today)
+        )
+        row = next(
+            item for item in dashboard["daily_attendance"]
+            if item["id"] == employee.id
+        )
+        self.assertEqual(row["overtime_hours"], 1.5)
+        self.assertEqual(row["fine_hours"], 0.25)
+        self.assertGreaterEqual(dashboard["metrics"]["overtime"], 1.5)
+        self.assertGreaterEqual(dashboard["metrics"]["fine"], 0.25)
+
     def test_full_day_leave_can_be_revoked(self):
         employee = self.env["hr.employee"].create({
             "name": "Full Day Leave Employee",

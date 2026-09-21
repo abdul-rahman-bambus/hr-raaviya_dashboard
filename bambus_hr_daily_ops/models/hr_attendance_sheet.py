@@ -166,6 +166,13 @@ class BambusHrAttendanceSheet(models.Model):
                     lambda attendance: attendance.bambus_fine_hours > 0
                 ).employee_id.ids
             )
+        for line in sheet_lines:
+            overtime_employee_ids.discard(line.employee_id.id)
+            fine_employee_ids.discard(line.employee_id.id)
+            if line.overtime_hours > 0:
+                overtime_employee_ids.add(line.employee_id.id)
+            if line.fine_hours > 0:
+                fine_employee_ids.add(line.employee_id.id)
         departments = []
         department_groups = {}
         for employee in employees:
@@ -333,8 +340,15 @@ class BambusHrAttendanceSheet(models.Model):
                 "check_out": format_time(display_check_out),
                 "check_in_value": fields.Datetime.context_timestamp(self, display_check_in).strftime("%H:%M") if display_check_in else "",
                 "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
-                "overtime_hours": round(sum(a.overtime_hours for a in employee_attendances), 2),
-                "fine_hours": round(employee_fine_hours, 2),
+                "overtime_hours": round(
+                    override.overtime_hours if override
+                    else sum(a.overtime_hours for a in employee_attendances),
+                    2,
+                ),
+                "fine_hours": round(
+                    override.fine_hours if override else employee_fine_hours,
+                    2,
+                ),
                 "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
                 "has_attendance": bool(employee_attendances),
                 "line_id": override.id if override else False,
@@ -358,8 +372,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "punched_out": len(set(attendances.filtered("check_out").employee_id.ids)),
                 "not_marked": len(unmarked_employee_ids),
                 "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
-                "overtime": round(sum(attendances.mapped("overtime_hours")), 2),
-                "fine": round(fine_hours, 2),
+                "overtime": round(sum(row["overtime_hours"] for row in daily_attendance), 2),
+                "fine": round(sum(row["fine_hours"] for row in daily_attendance), 2),
                 "fine_amount": round(fine_amount, 2),
                 "on_duty": 0,
                 "upcoming_on_duty": 0,
@@ -417,11 +431,19 @@ class BambusHrAttendanceSheet(models.Model):
         check_out = parse_time(values.get("check_out"))
         if check_in and check_out and check_out < check_in:
             check_out += timedelta(days=1)
+        overtime_hours = float(values.get("overtime_hours", line.overtime_hours) or 0.0)
+        fine_hours = float(values.get("fine_hours", line.fine_hours) or 0.0)
+        if overtime_hours < 0 or fine_hours < 0:
+            raise UserError(_("Overtime and late/fine hours cannot be negative."))
         line.write({
             "status": status,
             "check_in": check_in,
             "check_out": check_out,
             "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
+            "overtime_hours": overtime_hours,
+            "overtime_state": "submitted" if overtime_hours else "draft",
+            "fine_hours": fine_hours,
+            "fine_state": "submitted" if fine_hours else "draft",
         })
         return {
             "line_id": line.id,
