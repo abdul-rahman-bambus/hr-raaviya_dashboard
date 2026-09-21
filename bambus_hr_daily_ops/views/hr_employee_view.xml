@@ -143,6 +143,25 @@
         </field>
     </record>
 
+    <!-- Make the existing payroll entry point explicit and easy to discover.
+         This keeps the standard smart-button workflow while the tab above
+         provides the same records inline. -->
+    <record id="view_employee_form_salary_overview_button" model="ir.ui.view">
+        <field name="name">hr.employee.form.salary.overview.button</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr_payroll_community.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[field[@name='payslip_count']]" position="replace">
+                <button name="action_open_salary_overview" type="object"
+                        class="oe_stat_button" icon="fa-money"
+                        groups="hr_payroll_community.group_hr_payroll_community_user">
+                    <field name="payslip_count" widget="statinfo"
+                           string="Salary Overview"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
     <record id="hr_holidays_attendance.hr_employee_view_form_inherit" model="ir.ui.view">
         <field name="active" eval="False"/>
     </record>
