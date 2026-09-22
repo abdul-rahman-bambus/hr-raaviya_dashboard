@@ -91,6 +91,74 @@
             <xpath expr="//header/button[1]" position="attributes">
                 <attribute name="invisible">1</attribute>
             </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Salary Overview" name="salary_overview"
+                      groups="hr_payroll_community.group_hr_payroll_community_user">
+                    <div class="o_bambus_salary_overview">
+                        <div class="o_bso_heading">
+                            <div>
+                                <h3>Salary Overview</h3>
+                                <p>Review this employee's generated payslips and payment history.</p>
+                            </div>
+                            <button name="action_open_salary_overview" type="object"
+                                    string="View All Payslips" class="btn btn-primary"
+                                    icon="fa-external-link"/>
+                        </div>
+                        <div class="o_bso_metrics">
+                            <div class="o_bso_metric">
+                                <span class="o_bso_metric_icon"><i class="fa fa-file-text-o"/></span>
+                                <div><small>Total Payslips</small><strong><field name="payslip_count"/></strong></div>
+                            </div>
+                            <div class="o_bso_metric">
+                                <span class="o_bso_metric_icon"><i class="fa fa-money"/></span>
+                                <div><small>Latest Net Pay</small><strong><field name="latest_payslip_amount" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
+                            </div>
+                            <div class="o_bso_metric">
+                                <span class="o_bso_metric_icon"><i class="fa fa-line-chart"/></span>
+                                <div><small>Year-to-date Pay</small><strong><field name="year_to_date_pay" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
+                            </div>
+                        </div>
+                        <field name="payslip_currency_id" invisible="1"/>
+                        <div class="o_bso_list">
+                            <field name="slip_ids" readonly="1" nolabel="1">
+                                <list string="Payslips" create="0" delete="0"
+                                      decoration-success="state == 'done'"
+                                      decoration-muted="state == 'cancel'">
+                                    <field name="name" string="Pay Period"/>
+                                    <field name="date_from"/>
+                                    <field name="date_to"/>
+                                    <field name="basic_pay" sum="Total Basic"/>
+                                    <field name="gross_pay" sum="Total Gross"/>
+                                    <field name="net_pay" sum="Total Net"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state == 'done'"
+                                           decoration-warning="state in ('draft', 'verify')"
+                                           decoration-danger="state == 'cancel'"/>
+                                </list>
+                            </field>
+                        </div>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Make the existing payroll entry point explicit and easy to discover.
+         This keeps the standard smart-button workflow while the tab above
+         provides the same records inline. -->
+    <record id="view_employee_form_salary_overview_button" model="ir.ui.view">
+        <field name="name">hr.employee.form.salary.overview.button</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr_payroll_community.view_employee_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[field[@name='payslip_count']]" position="replace">
+                <button name="action_open_salary_overview" type="object"
+                        class="oe_stat_button" icon="fa-money"
+                        groups="hr_payroll_community.group_hr_payroll_community_user">
+                    <field name="payslip_count" widget="statinfo"
+                           string="Salary Overview"/>
+                </button>
+            </xpath>
         </field>
     </record>
 

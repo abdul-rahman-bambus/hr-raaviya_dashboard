@@ -348,19 +348,24 @@
       <field name="name">bambus.hr.overtime.wizard.form</field>
       <field name="model">bambus.hr.overtime.wizard</field>
       <field name="arch" type="xml">
-        <form string="Edit Overtime">
+        <form string="Approve Overtime">
           <group>
             <field name="employee_id" readonly="1"/>
             <field name="date" readonly="1"/>
-            <field name="overtime_hours" widget="float_time" readonly="1"/>
+            <field name="detected_overtime_hours" widget="float_time"/>
+            <field name="overtime_hours" widget="float_time" string="Approved Hours"/>
+            <field name="calculation_type"/>
+            <field name="rate" widget="monetary" options="{'currency_field':'currency_id'}"
+                   invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
             <field name="overtime_amount" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
-            <!-- <field name="note"/> -->
+            <field name="note"/>
             <field name="line_id" invisible="1"/>
+            <field name="currency_id" invisible="1"/>
 
           </group>
           <footer>
             <!-- <button name="action_apply" type="object" class="btn-primary" string="Apply Overtime"/> -->
-            <button name="action_approve" type="object" class="btn-secondary" string="Approve (Manager)"/>
+            <button name="action_approve" type="object" class="btn-primary" string="Approve Overtime"/>
             <button special="cancel" class="btn-secondary" string="Cancel"/>
           </footer>
         </form>
@@ -371,20 +376,24 @@
       <field name="name">bambus.hr.fine.wizard.form</field>
       <field name="model">bambus.hr.fine.wizard</field>
       <field name="arch" type="xml">
-        <form string="Fine">
+        <form string="Approve Late / Fine">
           <group>
             <field name="employee_id" readonly="1"/>
             <field name="date" readonly="1"/>
-            <field name="fine_hours" widget="float_time" readonly="1"/>
+            <field name="detected_fine_hours" widget="float_time"/>
+            <field name="fine_hours" widget="float_time" string="Approved Hours"/>
+            <field name="calculation_type"/>
+            <field name="rate" widget="monetary" options="{'currency_field':'currency_id'}"
+                   invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
             <field name="fine_amount" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
-            <!-- <field name="reason"/> -->
-            <!-- <field name="send_sms"/> -->
+            <field name="reason"/>
             <field name="line_id" invisible="1"/>
+            <field name="currency_id" invisible="1"/>
 
           </group>
           <footer>
             <!-- <button name="action_apply" type="object" class="btn-primary" string="Apply Fine"/> -->
-            <button name="action_approve" type="object" class="btn-secondary" string="Approve (Manager)"/>
+            <button name="action_approve" type="object" class="btn-primary" string="Approve Fine"/>
             <button special="cancel" class="btn-secondary" string="Cancel"/>
           </footer>
         </form>

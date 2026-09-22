@@ -1,4 +1,5 @@
 from . import res_company
+from . import attendance_automation_template
 from . import res_config_settings
 from . import hr_attendance
 from . import hr_attendance_overtime
