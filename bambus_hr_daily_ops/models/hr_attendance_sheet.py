@@ -441,8 +441,10 @@ class BambusHrAttendanceSheet(models.Model):
             "check_out": check_out,
             "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
             "overtime_hours": overtime_hours,
+            "overtime_detected_hours": overtime_hours,
             "overtime_state": "submitted" if overtime_hours else "draft",
             "fine_hours": fine_hours,
+            "fine_detected_hours": fine_hours,
             "fine_state": "submitted" if fine_hours else "draft",
         })
         return {
@@ -864,18 +866,42 @@ class BambusHrAttendanceSheetLine(models.Model):
 
     # OT / Fine editable values (and approvals)
     overtime_hours = fields.Float(string="OT Hours", digits=(16, 2))
+    overtime_detected_hours = fields.Float(string="System OT Hours", digits=(16, 2), readonly=True)
     overtime_amount = fields.Monetary(string="OT Amount")
     overtime_state = fields.Selection(
         [("draft", "Draft"), ("submitted", "Submitted"), ("approved", "Approved"), ("rejected", "Rejected")],
         default="draft",
     )
+    overtime_calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"),
+        ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"),
+        ("full_day", "Full Day"),
+        ("regularize", "Regularize"),
+        ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"),
+        ("salary_2", "2x Salary"),
+    ], string="OT Calculation")
+    overtime_rate = fields.Monetary(string="OT Approval Rate")
 
     fine_hours = fields.Float(string="Fine Hours", digits=(16, 2))
+    fine_detected_hours = fields.Float(string="System Fine Hours", digits=(16, 2), readonly=True)
     fine_amount = fields.Monetary(string="Fine Amount")
     fine_state = fields.Selection(
         [("draft", "Draft"), ("submitted", "Submitted"), ("approved", "Approved"), ("rejected", "Rejected")],
         default="draft",
     )
+    fine_calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"),
+        ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"),
+        ("full_day", "Full Day"),
+        ("regularize", "Regularize"),
+        ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"),
+        ("salary_2", "2x Salary"),
+    ], string="Fine Calculation")
+    fine_rate = fields.Monetary(string="Fine Approval Rate")
 
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id", store=False)
 

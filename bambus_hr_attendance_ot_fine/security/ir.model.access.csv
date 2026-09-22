@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_attendance_automation_template_hr_user,attendance.automation.template.hr.user,model_bambus_attendance_automation_template,hr.group_hr_user,1,0,0,0
+access_attendance_automation_template_hr_manager,attendance.automation.template.hr.manager,model_bambus_attendance_automation_template,hr.group_hr_manager,1,1,1,1
