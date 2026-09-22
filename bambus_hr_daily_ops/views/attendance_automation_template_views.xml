@@ -103,10 +103,14 @@
         <field name="model">hr.employee</field>
         <field name="inherit_id" ref="hr.view_employee_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//page[@name='settings']//group" position="inside">
-                <group string="Attendance Automation" groups="hr.group_hr_user">
-                    <field name="attendance_automation_template_id" options="{'no_create': True}"/>
-                </group>
+            <xpath expr="//notebook" position="inside">
+                <page string="Attendance Rules" name="attendance_automation"
+                      groups="hr.group_hr_user">
+                    <group string="Attendance Automation">
+                        <field name="attendance_automation_template_id"
+                               options="{'no_create': True}"/>
+                    </group>
+                </page>
             </xpath>
         </field>
     </record>
