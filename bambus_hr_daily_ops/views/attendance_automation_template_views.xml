@@ -96,10 +96,29 @@
                                 </group>
                                 <group string="Approval Default">
                                     <field name="overtime_calculation_type"/>
+                                    <field name="overtime_rate_policy"/>
+                                    <field name="overtime_salary_basis"
+                                           invisible="overtime_rate_policy != 'salary_slab'"/>
                                     <field name="overtime_rate" widget="monetary"
                                            options="{'currency_field': 'currency_id'}"
-                                           invisible="overtime_calculation_type not in ('fixed', 'fixed_hour')"/>
+                                           invisible="overtime_rate_policy != 'fixed'"/>
                                 </group>
+                            </group>
+                            <group string="OT Salary Slabs"
+                                   invisible="overtime_rate_policy != 'salary_slab'">
+                                <field name="overtime_slab_ids" nolabel="1">
+                                    <list editable="bottom">
+                                        <field name="salary_from" widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"/>
+                                        <field name="has_maximum"/>
+                                        <field name="salary_to" widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"
+                                               invisible="not has_maximum"/>
+                                        <field name="rate" widget="monetary"
+                                               options="{'currency_field': 'currency_id'}"/>
+                                        <field name="currency_id" column_invisible="True"/>
+                                    </list>
+                                </field>
                             </group>
                         </page>
                         <page string="Assigned Employees">

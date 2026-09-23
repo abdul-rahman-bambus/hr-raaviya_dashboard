@@ -360,6 +360,20 @@ class BambusHrOvertimeWizard(models.TransientModel):
         ("salary_2", "2x Salary"),
     ], required=True, default="fixed_hour")
     rate = fields.Monetary(currency_field="currency_id", string="Rate / Amount")
+    resolved_rate = fields.Monetary(
+        currency_field="currency_id", string="Resolved OT Rate", readonly=True
+    )
+    rate_override_reason = fields.Char()
+    automation_template_id = fields.Many2one(
+        "bambus.attendance.automation.template", readonly=True
+    )
+    salary_basis_amount = fields.Monetary(
+        currency_field="currency_id", string="Contract Salary Used", readonly=True
+    )
+    overtime_slab_id = fields.Many2one(
+        "bambus.attendance.overtime.rate.slab", string="Matched Salary Slab", readonly=True
+    )
+    rate_resolution_warning = fields.Char(readonly=True)
     overtime_amount = fields.Monetary(
         currency_field="currency_id", compute="_compute_overtime_amount",
         string="Approved Amount",
@@ -410,18 +424,42 @@ class BambusHrOvertimeWizard(models.TransientModel):
         res = super().default_get(fields_list)
         line = self.env["bambus.hr.attendance.sheet.line"].browse(self.env.context.get("default_line_id"))
         if line and line.exists():
-            template = line.employee_id._get_attendance_automation_template(line.date)
+            template = (
+                line.overtime_template_id
+                or line.employee_id._get_attendance_automation_template(line.date)
+            )
+            resolved_rate = getattr(line.contract_id, "overtime_rate", 0.0)
+            salary_amount = 0.0
+            slab = self.env["bambus.attendance.overtime.rate.slab"]
+            warning = False
+            if line.overtime_state == "approved" and line.overtime_template_id:
+                salary_amount = line.overtime_salary_basis_amount
+                slab = line.overtime_slab_id
+                resolved_rate = line.overtime_rate
+            elif template:
+                resolved_rate, salary_amount, slab = template.resolve_overtime_rate(
+                    line.contract_id
+                )
+                if template.overtime_rate_policy == "salary_slab" and not slab:
+                    warning = _(
+                        "No overtime salary slab matches the contract salary of %s.",
+                        salary_amount,
+                    )
             res.update({
                 "line_id": line.id,
                 "detected_overtime_hours": line.overtime_detected_hours or line.overtime_hours,
                 "overtime_hours": line.overtime_hours,
                 "calculation_type": line.overtime_calculation_type or (
-                    template.overtime_calculation_type if template else "fixed_hour"
+                    "fixed_hour" if template and template.overtime_rate_policy == "salary_slab"
+                    else template.overtime_calculation_type if template else "fixed_hour"
                 ),
-                "rate": line.overtime_rate or (
-                    template.overtime_rate if template and template.overtime_rate
-                    else getattr(line.contract_id, "overtime_rate", 0.0)
-                ),
+                "rate": line.overtime_rate or resolved_rate,
+                "resolved_rate": line.overtime_resolved_rate or resolved_rate,
+                "rate_override_reason": line.overtime_rate_override_reason,
+                "automation_template_id": template.id if template else False,
+                "salary_basis_amount": salary_amount,
+                "overtime_slab_id": slab.id if slab else False,
+                "rate_resolution_warning": warning,
             })
         return res
 
@@ -442,12 +480,29 @@ class BambusHrOvertimeWizard(models.TransientModel):
             raise UserError(_("Only an HR manager can approve overtime."))
         if self.overtime_hours < 0:
             raise UserError(_("Approved overtime hours cannot be negative."))
+        if (
+            self.automation_template_id.overtime_rate_policy == "salary_slab"
+            and not self.overtime_slab_id
+            and self.calculation_type != "regularize"
+        ):
+            raise UserError(_("Configure a matching overtime salary slab before approval."))
+        if (
+            self.calculation_type in ("fixed", "fixed_hour")
+            and self.rate != self.resolved_rate
+            and not self.rate_override_reason
+        ):
+            raise UserError(_("Enter a reason for overriding the resolved overtime rate."))
         vals = {
             "overtime_detected_hours": self.detected_overtime_hours,
             "overtime_hours": self.overtime_hours,
             "overtime_amount": self.overtime_amount,
             "overtime_calculation_type": self.calculation_type,
             "overtime_rate": self.rate,
+            "overtime_resolved_rate": self.resolved_rate,
+            "overtime_rate_override_reason": self.rate_override_reason,
+            "overtime_template_id": self.automation_template_id.id or False,
+            "overtime_salary_basis_amount": self.salary_basis_amount,
+            "overtime_slab_id": self.overtime_slab_id.id or False,
             "overtime_state": "approved",
         }
         self.line_id.sudo().write(vals)

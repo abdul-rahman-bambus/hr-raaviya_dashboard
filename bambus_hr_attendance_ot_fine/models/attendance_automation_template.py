@@ -44,7 +44,21 @@ class AttendanceAutomationTemplate(models.Model):
     overtime_calculation_type = fields.Selection(
         CALCULATION_TYPES, required=True, default="fixed_hour"
     )
+    overtime_rate_policy = fields.Selection([
+        ("contract", "Contract OT Rate"),
+        ("fixed", "Fixed Template Rate"),
+        ("salary_slab", "Salary Range / Slab"),
+        ("salary_multiplier", "Salary Multiplier"),
+    ], required=True, default="contract")
+    overtime_salary_basis = fields.Selection([
+        ("monthly", "Monthly Contract Wage"),
+        ("daily", "Daily Contract Wage"),
+        ("hourly", "Hourly Contract Rate"),
+    ], required=True, default="monthly")
     overtime_rate = fields.Monetary(currency_field="currency_id")
+    overtime_slab_ids = fields.One2many(
+        "bambus.attendance.overtime.rate.slab", "template_id", string="OT Salary Slabs"
+    )
 
     fine_calculation_type = fields.Selection(
         CALCULATION_TYPES, required=True, default="fixed_hour"
@@ -56,6 +70,34 @@ class AttendanceAutomationTemplate(models.Model):
     def _compute_employee_count(self):
         for template in self:
             template.employee_count = len(template.employee_ids)
+
+    def _salary_basis_amount(self, contract):
+        self.ensure_one()
+        if not contract:
+            return 0.0
+        if self.overtime_salary_basis == "daily":
+            return float(getattr(contract, "daily_wage", 0.0) or 0.0)
+        if self.overtime_salary_basis == "hourly":
+            return float(getattr(contract, "hourly_rate", 0.0) or 0.0)
+        return float(contract.wage or 0.0)
+
+    def resolve_overtime_rate(self, contract):
+        """Return the configured rate, salary basis, and matching slab."""
+        self.ensure_one()
+        salary_amount = self._salary_basis_amount(contract)
+        if self.overtime_rate_policy == "fixed":
+            return self.overtime_rate or 0.0, salary_amount, self.env[
+                "bambus.attendance.overtime.rate.slab"
+            ]
+        if self.overtime_rate_policy == "salary_slab":
+            slab = self.overtime_slab_ids.filtered(
+                lambda item: item.salary_from <= salary_amount
+                and (not item.has_maximum or salary_amount <= item.salary_to)
+            )[:1]
+            return (slab.rate or 0.0) if slab else 0.0, salary_amount, slab
+        return float(getattr(contract, "overtime_rate", 0.0) or 0.0), salary_amount, self.env[
+            "bambus.attendance.overtime.rate.slab"
+        ]
 
     @api.constrains(
         "date_from", "date_to", "late_grace_minutes", "early_exit_grace_minutes",
@@ -75,6 +117,41 @@ class AttendanceAutomationTemplate(models.Model):
             )
             if any(value < 0 for value in values):
                 raise ValidationError("Automation rule values cannot be negative.")
+
+
+class AttendanceOvertimeRateSlab(models.Model):
+    _name = "bambus.attendance.overtime.rate.slab"
+    _description = "Attendance Overtime Salary Slab"
+    _order = "salary_from, id"
+
+    template_id = fields.Many2one(
+        "bambus.attendance.automation.template", required=True, ondelete="cascade", index=True
+    )
+    company_id = fields.Many2one(related="template_id.company_id", store=True, readonly=True)
+    currency_id = fields.Many2one(related="template_id.currency_id", readonly=True)
+    salary_from = fields.Monetary(required=True, currency_field="currency_id")
+    has_maximum = fields.Boolean(string="Has Maximum", default=True)
+    salary_to = fields.Monetary(currency_field="currency_id")
+    rate = fields.Monetary(string="OT Rate / Hour", required=True, currency_field="currency_id")
+
+    @api.constrains("salary_from", "salary_to", "has_maximum", "rate", "template_id")
+    def _check_salary_ranges(self):
+        for slab in self:
+            if slab.salary_from < 0 or slab.rate < 0:
+                raise ValidationError("Salary limits and overtime rates cannot be negative.")
+            if slab.has_maximum and slab.salary_to < slab.salary_from:
+                raise ValidationError("To Salary cannot be lower than From Salary.")
+            siblings = slab.template_id.overtime_slab_ids.sorted("salary_from")
+            open_ended = siblings.filtered(lambda item: not item.has_maximum)
+            if len(open_ended) > 1:
+                raise ValidationError("Only one open-ended overtime salary slab is allowed.")
+            previous = False
+            for item in siblings:
+                if previous and (
+                    not previous.has_maximum or item.salary_from <= previous.salary_to
+                ):
+                    raise ValidationError("Overtime salary slabs cannot overlap.")
+                previous = item
 
 
 class ResCompany(models.Model):

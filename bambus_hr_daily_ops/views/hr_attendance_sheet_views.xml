@@ -355,8 +355,20 @@
             <field name="detected_overtime_hours" widget="float_time"/>
             <field name="overtime_hours" widget="float_time" string="Approved Hours"/>
             <field name="calculation_type"/>
+            <field name="automation_template_id"/>
+            <field name="salary_basis_amount" widget="monetary"
+                   options="{'currency_field':'currency_id'}"
+                   invisible="not overtime_slab_id"/>
+            <field name="overtime_slab_id"/>
+            <field name="rate_resolution_warning" class="text-warning"
+                   invisible="not rate_resolution_warning"/>
             <field name="rate" widget="monetary" options="{'currency_field':'currency_id'}"
                    invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
+            <field name="resolved_rate" widget="monetary"
+                   options="{'currency_field':'currency_id'}"
+                   invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
+            <field name="rate_override_reason"
+                   invisible="calculation_type not in ('fixed', 'fixed_hour') or rate == resolved_rate"/>
             <field name="overtime_amount" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
             <field name="note"/>
             <field name="line_id" invisible="1"/>

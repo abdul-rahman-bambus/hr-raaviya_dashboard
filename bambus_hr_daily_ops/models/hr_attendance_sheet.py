@@ -883,6 +883,17 @@ class BambusHrAttendanceSheetLine(models.Model):
         ("salary_2", "2x Salary"),
     ], string="OT Calculation")
     overtime_rate = fields.Monetary(string="OT Approval Rate")
+    overtime_resolved_rate = fields.Monetary(string="Resolved OT Rate", readonly=True)
+    overtime_rate_override_reason = fields.Char(string="OT Rate Override Reason", readonly=True)
+    overtime_template_id = fields.Many2one(
+        "bambus.attendance.automation.template", string="OT Automation Template", readonly=True
+    )
+    overtime_salary_basis_amount = fields.Monetary(
+        string="OT Salary Basis", readonly=True
+    )
+    overtime_slab_id = fields.Many2one(
+        "bambus.attendance.overtime.rate.slab", string="OT Salary Slab", readonly=True
+    )
 
     fine_hours = fields.Float(string="Fine Hours", digits=(16, 2))
     fine_detected_hours = fields.Float(string="System Fine Hours", digits=(16, 2), readonly=True)

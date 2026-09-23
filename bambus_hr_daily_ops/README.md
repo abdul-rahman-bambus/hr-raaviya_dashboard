@@ -17,6 +17,19 @@ wage and statutory rates continue to come from the contract.
 The resolved template affects automatic detection and supplies defaults to the
 approval dialogs. It does not bypass HR approval.
 
+### Salary-based overtime rates
+
+Set **OT Rate Policy** to **Salary Range / Slab** to derive the hourly overtime
+rate from the contract salary valid for the attendance date. Monthly, daily,
+and hourly contract values are supported as salary bases. Slabs use inclusive
+lower and upper limits; an unchecked **Has Maximum** creates the final
+open-ended range. Overlapping ranges and multiple open-ended slabs are rejected.
+
+Example: `0–9,000 = 75/hour`, `9,000.01–12,000 = 100/hour`, and
+`12,000.01–No Limit = 120/hour`. Approved entries keep a snapshot of the
+template, salary basis, matched slab, rate, hours, and amount, so later contract
+salary changes affect new proposals without changing historical approvals.
+
 Use **Assign Existing Employees** on the template to select active employees
 from the template company. The assigned list is read-only and never creates an
 employee; employee creation remains in the Employees workflow.
