@@ -5,6 +5,45 @@ from datetime import datetime, time, timedelta
 import pytz
 
 
+class AttendanceAutomationAssignWizard(models.TransientModel):
+    _name = "bambus.attendance.automation.assign.wizard"
+    _description = "Assign Employees to Attendance Automation"
+
+    template_id = fields.Many2one(
+        "bambus.attendance.automation.template", required=True, readonly=True
+    )
+    company_id = fields.Many2one(related="template_id.company_id", readonly=True)
+    employee_ids = fields.Many2many(
+        "hr.employee",
+        string="Employees",
+        domain="[('company_id', '=', company_id), ('active', '=', True)]",
+    )
+
+    @api.model
+    def default_get(self, fields_list):
+        values = super().default_get(fields_list)
+        template = self.env["bambus.attendance.automation.template"].browse(
+            self.env.context.get("default_template_id")
+        ).exists()
+        if template:
+            values.update({
+                "template_id": template.id,
+                "employee_ids": [(6, 0, template.employee_ids.ids)],
+            })
+        return values
+
+    def action_assign(self):
+        self.ensure_one()
+        if not self.env.user.has_group("hr.group_hr_manager"):
+            raise UserError(_("Only an HR manager can assign automation rules."))
+        removed_employees = self.template_id.employee_ids - self.employee_ids
+        removed_employees.write({"attendance_automation_template_id": False})
+        self.employee_ids.write({
+            "attendance_automation_template_id": self.template_id.id,
+        })
+        return {"type": "ir.actions.client", "tag": "reload"}
+
+
 class BambusHrAttendanceMultiWizard(models.TransientModel):
     _name = "bambus.hr.attendance.multi.wizard"
     _description = "Edit Daily Punches"

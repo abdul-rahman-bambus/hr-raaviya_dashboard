@@ -17,6 +17,10 @@ wage and statutory rates continue to come from the contract.
 The resolved template affects automatic detection and supplies defaults to the
 approval dialogs. It does not bypass HR approval.
 
+Use **Assign Existing Employees** on the template to select active employees
+from the template company. The assigned list is read-only and never creates an
+employee; employee creation remains in the Employees workflow.
+
 ## Overtime and late/fine approval flow
 
 Attendance punches and the employee's work schedule produce proposed overtime

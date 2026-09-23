@@ -34,6 +34,20 @@ class TestAttendanceDashboard(TransactionCase):
             employee._get_attendance_automation_template(today), company_template
         )
 
+        assignment_employee = self.env["hr.employee"].create({
+            "name": "Wizard Assignment Employee",
+            "company_id": self.env.company.id,
+        })
+        wizard = self.env["bambus.attendance.automation.assign.wizard"].create({
+            "template_id": employee_template.id,
+            "employee_ids": [(6, 0, assignment_employee.ids)],
+        })
+        wizard.action_assign()
+        self.assertEqual(
+            assignment_employee.attendance_automation_template_id,
+            employee_template,
+        )
+
     def test_active_employee_without_punch_is_in_daily_roster(self):
         employee = self.env["hr.employee"].create({
             "name": "Employee Without Attendance",

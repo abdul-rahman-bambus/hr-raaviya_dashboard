@@ -1,5 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="view_attendance_automation_assign_wizard" model="ir.ui.view">
+        <field name="name">bambus.attendance.automation.assign.wizard.form</field>
+        <field name="model">bambus.attendance.automation.assign.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Assign Existing Employees">
+                <group>
+                    <field name="template_id"/>
+                    <field name="company_id"/>
+                    <field name="employee_ids" widget="many2many_tags"
+                           options="{'no_create': True, 'no_create_edit': True}"
+                           domain="[('company_id', '=', company_id), ('active', '=', True)]"/>
+                </group>
+                <footer>
+                    <button name="action_assign" type="object" string="Assign Employees"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_attendance_automation_assign_wizard" model="ir.actions.act_window">
+        <field name="name">Assign Existing Employees</field>
+        <field name="res_model">bambus.attendance.automation.assign.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
     <record id="view_attendance_automation_template_list" model="ir.ui.view">
         <field name="name">bambus.attendance.automation.template.list</field>
         <field name="model">bambus.attendance.automation.template</field>
@@ -75,8 +103,16 @@
                             </group>
                         </page>
                         <page string="Assigned Employees">
-                            <field name="employee_ids" context="{'default_company_id': company_id}">
-                                <list><field name="name"/><field name="department_id"/><field name="job_id"/></list>
+                            <button name="%(action_attendance_automation_assign_wizard)d"
+                                    type="action" string="Assign Existing Employees"
+                                    class="btn-primary"
+                                    context="{'default_template_id': id}"/>
+                            <field name="employee_ids" readonly="1">
+                                <list create="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="department_id"/>
+                                    <field name="job_id"/>
+                                </list>
                             </field>
                         </page>
                     </notebook>
