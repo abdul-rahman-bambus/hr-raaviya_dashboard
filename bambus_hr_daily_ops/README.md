@@ -86,3 +86,11 @@ The attendance calculation supplies a recommendation; the approval record
 stores the managerial decision. The approval saves the selected method and rate
 along with the final hours and amount so the payroll result can be explained
 later.
+
+## Testing
+
+The automated suite creates isolated employees, contracts, schedules,
+attendance punches, templates, salary slabs, and approval records for the main
+company-default and employee-override scenarios. See
+[`TESTING_CHECKLIST.md`](TESTING_CHECKLIST.md) for automated coverage, expected
+client examples, and the browser/UAT checks to complete before release.
