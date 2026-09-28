@@ -13,6 +13,11 @@
             <setting string="Overtime Mode" help="Choose default overtime or Bambus custom daily rule.">
               <field name="bambus_ot_mode" widget="radio"/>
             </setting>
+            <setting string="Default Automation Rules"
+                     help="Used when an employee has no individual attendance automation template.">
+              <field name="attendance_automation_template_id"
+                     domain="[('company_id', '=', company_id)]"/>
+            </setting>
           </block>
 
         </xpath>
