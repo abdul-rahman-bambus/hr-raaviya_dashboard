@@ -397,6 +397,20 @@ class BambusHrOvertimeWizard(models.TransientModel):
         daily_rate = (contract.wage or 0.0) / 30.0
         return daily_rate, daily_rate / hours_per_day if hours_per_day else 0.0
 
+    def _scheduled_hours_on_date(self, line):
+        contract = line.contract_id
+        calendar = contract.resource_calendar_id if contract else False
+        if not calendar or not line.date:
+            return (calendar.hours_per_day if calendar else 0.0) or 8.0
+        weekday = str(line.date.weekday())
+        rules = calendar.attendance_ids.filtered(
+            lambda rule: rule.dayofweek is not None
+            and str(int(float(rule.dayofweek))) == weekday
+            and (rule.day_period or "").lower() not in ("lunch", "break")
+        )
+        scheduled = sum(max((rule.hour_to or 0.0) - (rule.hour_from or 0.0), 0.0) for rule in rules)
+        return scheduled or calendar.hours_per_day or 8.0
+
     @api.depends("overtime_hours", "calculation_type", "rate", "line_id.contract_id")
     def _compute_overtime_amount(self):
         for wizard in self:
@@ -521,14 +535,19 @@ class BambusHrFineWizard(models.TransientModel):
         ("half_day", "Half Day"),
         ("full_day", "Full Day"),
         ("regularize", "Regularize"),
+        ("salary_minute", "Per Minute from Daily Salary"),
         ("salary_1", "1x Salary"),
         ("salary_1_5", "1.5x Salary"),
         ("salary_2", "2x Salary"),
-    ], required=True, default="fixed_hour")
+    ], required=True, default="salary_minute")
     rate = fields.Monetary(currency_field="currency_id", string="Rate / Amount")
     fine_amount = fields.Monetary(
         currency_field="currency_id", compute="_compute_fine_amount",
-        string="Approved Deduction",
+        string="Calculated Deduction",
+    )
+    salary_per_minute = fields.Monetary(
+        currency_field="currency_id", compute="_compute_fine_amount",
+        string="Salary per Minute",
     )
     currency_id = fields.Many2one(related="line_id.currency_id", readonly=True)
     reason = fields.Char()
@@ -539,6 +558,13 @@ class BambusHrFineWizard(models.TransientModel):
         overtime_wizard = self.env["bambus.hr.overtime.wizard"]
         for wizard in self:
             daily_rate, hourly_rate = overtime_wizard._contract_rates(wizard.line_id)
+            scheduled_hours = overtime_wizard._scheduled_hours_on_date(wizard.line_id)
+            contract = wizard.line_id.contract_id
+            wage_type = getattr(contract, "wage_type", "monthly") if contract else ""
+            salary_per_minute = (
+                daily_rate / (scheduled_hours * 60.0)
+                if scheduled_hours and wage_type != "hourly" else 0.0
+            )
             hours = max(wizard.fine_hours or 0.0, 0.0)
             if wizard.calculation_type == "fixed":
                 amount = wizard.rate
@@ -550,12 +576,15 @@ class BambusHrFineWizard(models.TransientModel):
                 amount = daily_rate
             elif wizard.calculation_type == "regularize":
                 amount = 0.0
+            elif wizard.calculation_type == "salary_minute":
+                amount = hours * 60.0 * salary_per_minute
             else:
                 multiplier = {"salary_1": 1.0, "salary_1_5": 1.5, "salary_2": 2.0}.get(
                     wizard.calculation_type, 0.0
                 )
                 amount = hours * hourly_rate * multiplier
             wizard.fine_amount = max(amount or 0.0, 0.0)
+            wizard.salary_per_minute = salary_per_minute
 
     @api.model
     def default_get(self, fields_list):
@@ -568,7 +597,7 @@ class BambusHrFineWizard(models.TransientModel):
                 "detected_fine_hours": line.fine_detected_hours or line.fine_hours,
                 "fine_hours": line.fine_hours,
                 "calculation_type": line.fine_calculation_type or (
-                    template.fine_calculation_type if template else "fixed_hour"
+                    template.fine_calculation_type if template else "salary_minute"
                 ),
                 "rate": line.fine_rate or (
                     template.fine_rate if template and template.fine_rate
@@ -598,7 +627,10 @@ class BambusHrFineWizard(models.TransientModel):
             "fine_hours": self.fine_hours,
             "fine_amount": self.fine_amount,
             "fine_calculation_type": self.calculation_type,
-            "fine_rate": self.rate,
+            "fine_rate": (
+                self.salary_per_minute
+                if self.calculation_type == "salary_minute" else self.rate
+            ),
             "fine_state": "approved",
             "fine_note": self.reason,
             "fine_updated_by_id": self.env.user.id,

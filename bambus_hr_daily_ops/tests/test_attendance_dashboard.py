@@ -375,6 +375,65 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertEqual(line.fine_calculation_type, "regularize")
         self.assertEqual(line.fine_amount, 0)
 
+    def test_fine_defaults_to_daily_salary_per_minute(self):
+        day = fields.Date.to_date("2026-09-21")
+        calendar = self.env["resource.calendar"].create({
+            "name": "Fine Test 8 Hours",
+            "tz": "UTC",
+            "company_id": self.env.company.id,
+            "attendance_ids": [(0, 0, {
+                "name": "Monday",
+                "dayofweek": "0",
+                "day_period": "morning",
+                "hour_from": 9.0,
+                "hour_to": 17.0,
+            })],
+        })
+        template = self.env["bambus.attendance.automation.template"].create({
+            "name": "Salary Minute Fine",
+            "company_id": self.env.company.id,
+        })
+        employee = self.env["hr.employee"].create({
+            "name": "Salary Minute Employee",
+            "company_id": self.env.company.id,
+            "resource_calendar_id": calendar.id,
+            "attendance_automation_template_id": template.id,
+        })
+        contract = self.env["hr.contract"].create({
+            "name": "Salary Minute Contract",
+            "employee_id": employee.id,
+            "date_start": day,
+            "resource_calendar_id": calendar.id,
+            "wage": 12000,
+            "wage_type": "monthly",
+        })
+        sheet = self.env["bambus.hr.attendance.sheet"].create({
+            "date": day,
+            "company_id": self.env.company.id,
+        })
+        line = self.env["bambus.hr.attendance.sheet.line"].create({
+            "sheet_id": sheet.id,
+            "employee_id": employee.id,
+            "contract_id": contract.id,
+            "fine_hours": 10 / 60,
+            "fine_state": "submitted",
+        })
+        wizard_model = self.env["bambus.hr.fine.wizard"].with_context(
+            default_line_id=line.id
+        )
+        wizard = wizard_model.create(wizard_model.default_get([
+            "line_id", "fine_hours", "detected_fine_hours",
+            "calculation_type", "rate",
+        ]))
+
+        self.assertEqual(wizard.calculation_type, "salary_minute")
+        self.assertAlmostEqual(wizard.salary_per_minute, 400 / 480, places=4)
+        self.assertAlmostEqual(wizard.fine_amount, 10 * 400 / 480, places=4)
+        wizard.action_save()
+        self.assertEqual(line.fine_calculation_type, "salary_minute")
+        self.assertAlmostEqual(line.fine_rate, 400 / 480, places=4)
+        self.assertAlmostEqual(line.fine_amount, 10 * 400 / 480, places=4)
+
     def test_full_day_leave_can_be_revoked(self):
         employee = self.env["hr.employee"].create({
             "name": "Full Day Leave Employee",

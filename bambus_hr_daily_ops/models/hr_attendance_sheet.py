@@ -894,6 +894,7 @@ class BambusHrAttendanceSheetLine(models.Model):
         ("half_day", "Half Day"),
         ("full_day", "Full Day"),
         ("regularize", "Regularize"),
+        ("salary_minute", "Per Minute from Daily Salary"),
         ("salary_1", "1x Salary"),
         ("salary_1_5", "1.5x Salary"),
         ("salary_2", "2x Salary"),

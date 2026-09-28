@@ -38,6 +38,8 @@ and attendance update wizards. It does not depend on production employee data.
 - [x] Allow HR to update proposed overtime and fine hours.
 - [x] Store HR-saved overtime calculation details.
 - [x] Save a regularized fine with a zero deduction.
+- [x] Derive a monthly employee's late fine per minute from daily salary and
+  date-specific scheduled minutes.
 - [x] Create and revoke half-day absence/leave corrections.
 - [x] Revoke full-day absence and leave corrections.
 - [x] Keep hourly employees out of the absence workflow.
@@ -62,6 +64,10 @@ and attendance update wizards. It does not depend on production employee data.
 | 9,000.00 | 1 hour | 75.00 |
 | 10,000.00 | 1 hour | 100.00 |
 | 13,000.00 | 1 hour | 120.00 |
+
+For a monthly salary of `12,000` on an eight-hour date, daily salary is `400`
+and the per-minute fine rate is `400 / 480`. Ten final fine minutes therefore
+produce a deduction of `8.33` before currency rounding.
 
 The optional minimum is inclusive: `59` overtime minutes are suppressed and
 `60` overtime minutes become `1.00` payable overtime hour when a 60-minute

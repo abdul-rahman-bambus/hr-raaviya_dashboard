@@ -387,6 +387,9 @@
             <field name="calculation_type"/>
             <field name="rate" widget="monetary" options="{'currency_field':'currency_id'}"
                    invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
+            <field name="salary_per_minute" widget="monetary"
+                   options="{'currency_field':'currency_id'}"
+                   invisible="calculation_type != 'salary_minute'" readonly="1"/>
             <field name="fine_amount" string="Calculated Deduction" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
             <field name="reason"/>
             <field name="line_id" invisible="1"/>

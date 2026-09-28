@@ -295,6 +295,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
                 line = self._review_line(employee, contract, 1)
                 wizard = self._default_overtime_wizard(line)
                 self.assertEqual(wizard.automation_template_id, slab_template)
+                self.assertEqual(wizard.calculation_type, "fixed_hour")
                 self.assertEqual(wizard.salary_basis_amount, wage)
                 self.assertEqual(wizard.rate, expected_rate)
                 self.assertEqual(wizard.overtime_amount, expected_rate)

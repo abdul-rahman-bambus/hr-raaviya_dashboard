@@ -79,6 +79,10 @@
                                 <field name="fine_rate" widget="monetary"
                                        options="{'currency_field': 'currency_id'}"
                                        invisible="fine_calculation_type not in ('fixed', 'fixed_hour')"/>
+                                <div class="text-muted" invisible="fine_calculation_type != 'salary_minute'">
+                                    The deduction uses the employee's daily salary divided by
+                                    scheduled working minutes for the attendance date.
+                                </div>
                             </group>
                         </page>
                         <page string="Breaks">
@@ -108,8 +112,12 @@
                                     <field name="overtime_rounding_minutes" invisible="not overtime_enabled"/>
                                 </group>
                                 <group string="Calculation Default">
-                                    <field name="overtime_calculation_type"/>
+                                    <field name="overtime_calculation_type"
+                                           invisible="overtime_rate_policy == 'salary_slab'"/>
                                     <field name="overtime_rate_policy"/>
+                                    <div class="text-muted" invisible="overtime_rate_policy != 'salary_slab'">
+                                        Salary slabs are applied as a fixed amount per OT hour.
+                                    </div>
                                     <field name="overtime_salary_basis"
                                            invisible="overtime_rate_policy != 'salary_slab'"/>
                                     <field name="overtime_rate" widget="monetary"

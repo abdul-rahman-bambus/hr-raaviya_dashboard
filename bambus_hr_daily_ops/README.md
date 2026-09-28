@@ -32,6 +32,9 @@ rate from the contract salary valid for the attendance date. Monthly, daily,
 and hourly contract values are supported as salary bases. Slabs use inclusive
 lower and upper limits; an unchecked **Has Maximum** creates the final
 open-ended range. Overlapping ranges and multiple open-ended slabs are rejected.
+Salary-slab rates are always applied per OT hour, so the template hides the
+otherwise redundant calculation-method choice and the daily update defaults to
+**Fixed Amount per Hour**.
 
 Example: `0–9,000 = 75/hour`, `9,000.01–12,000 = 100/hour`, and
 `12,000.01–No Limit = 120/hour`. Saved entries keep a snapshot of the
@@ -79,6 +82,12 @@ the daily wage is divided by scheduled hours. For monthly contracts, daily pay
 is monthly wage divided by 30 and hourly pay is that result divided by scheduled
 hours. Existing contract overtime and late-fine rates provide the defaults for
 fixed-per-hour updates.
+
+The default **Per Minute from Daily Salary** fine method divides the applicable
+daily salary by the employee's scheduled working minutes for that date, then
+multiplies that rate by the final fine minutes after grace. Monthly salary uses
+the existing 30-day daily-rate basis; daily contracts use their daily wage.
+Hourly contracts produce no late fine under this method.
 
 ### State meanings
 

@@ -13,6 +13,10 @@ CALCULATION_TYPES = [
     ("salary_2", "2x Salary"),
 ]
 
+FINE_CALCULATION_TYPES = CALCULATION_TYPES + [
+    ("salary_minute", "Per Minute from Daily Salary"),
+]
+
 
 class AttendanceAutomationTemplate(models.Model):
     _name = "bambus.attendance.automation.template"
@@ -95,7 +99,7 @@ class AttendanceAutomationTemplate(models.Model):
     )
 
     fine_calculation_type = fields.Selection(
-        CALCULATION_TYPES, required=True, default="fixed_hour"
+        FINE_CALCULATION_TYPES, required=True, default="salary_minute"
     )
     fine_rate = fields.Monetary(currency_field="currency_id")
     currency_id = fields.Many2one(related="company_id.currency_id", readonly=True)
