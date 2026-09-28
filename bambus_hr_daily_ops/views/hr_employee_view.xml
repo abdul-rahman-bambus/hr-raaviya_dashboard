@@ -114,7 +114,7 @@
                                 <div><small>Latest Net Pay</small><strong><field name="latest_payslip_amount" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
                             </div>
                             <div class="o_bso_metric">
-                                <span class="o_bso_metric_icon"><i class="fa fa-line-chart"/></span>
+                                <span class="o_bso_metric_icon"><i class="fa fa-line-chart" title="Salary Overview"/></span>
                                 <div><small>Year-to-date Pay</small><strong><field name="year_to_date_pay" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
                             </div>
                         </div>
