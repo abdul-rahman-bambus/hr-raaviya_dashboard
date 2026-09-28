@@ -8,3 +8,4 @@ access_bambus_hr_fine_wiz,bambus.hr.fine.wizard,model_bambus_hr_fine_wizard,hr.g
 access_bambus_hr_leave_wiz,bambus.hr.leave.quick.wizard,model_bambus_hr_leave_quick_wizard,hr.group_hr_user,1,1,1,0
 access_bambus_hr_att_multi_wiz,bambus.hr.attendance.multi.wizard,model_bambus_hr_attendance_multi_wizard,hr.group_hr_user,1,1,1,0
 access_bambus_hr_att_multi_wiz_line,bambus.hr.attendance.multi.wizard.line,model_bambus_hr_attendance_multi_wizard_line,hr.group_hr_user,1,1,1,0
+access_attendance_automation_assign_wizard,attendance.automation.assign.wizard,model_bambus_attendance_automation_assign_wizard,hr.group_hr_manager,1,1,1,1
