@@ -848,8 +848,8 @@ class BambusHrAttendanceSheetLine(models.Model):
     )
 
     # OT / Fine detected values and HR-saved final values.
-    overtime_hours = fields.Float(string="OT Hours", digits=(16, 2))
-    overtime_detected_hours = fields.Float(string="System OT Hours", digits=(16, 2), readonly=True)
+    overtime_hours = fields.Float(string="OT Hours", digits=(16, 6))
+    overtime_detected_hours = fields.Float(string="System OT Hours", digits=(16, 6), readonly=True)
     overtime_amount = fields.Monetary(string="OT Amount")
     overtime_state = fields.Selection(
         [("draft", "No Exception"), ("submitted", "Needs Review"), ("approved", "Updated"), ("rejected", "Excluded")],
@@ -881,8 +881,8 @@ class BambusHrAttendanceSheetLine(models.Model):
     overtime_updated_by_id = fields.Many2one("res.users", readonly=True)
     overtime_updated_on = fields.Datetime(readonly=True)
 
-    fine_hours = fields.Float(string="Fine Hours", digits=(16, 2))
-    fine_detected_hours = fields.Float(string="System Fine Hours", digits=(16, 2), readonly=True)
+    fine_hours = fields.Float(string="Fine Hours", digits=(16, 6))
+    fine_detected_hours = fields.Float(string="System Fine Hours", digits=(16, 6), readonly=True)
     fine_amount = fields.Monetary(string="Fine Amount")
     fine_state = fields.Selection(
         [("draft", "No Exception"), ("submitted", "Needs Review"), ("approved", "Updated"), ("rejected", "Excluded")],

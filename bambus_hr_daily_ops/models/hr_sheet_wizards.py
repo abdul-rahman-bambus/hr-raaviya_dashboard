@@ -347,8 +347,10 @@ class BambusHrOvertimeWizard(models.TransientModel):
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
-    overtime_hours = fields.Float(digits=(16, 2))
-    detected_overtime_hours = fields.Float(string="System Calculated Hours", readonly=True)
+    overtime_hours = fields.Float(digits=(16, 6))
+    detected_overtime_hours = fields.Float(
+        string="System Calculated Hours", digits=(16, 6), readonly=True
+    )
     calculation_type = fields.Selection([
         ("fixed", "Fixed Amount"),
         ("fixed_hour", "Fixed Amount per Hour"),
@@ -527,8 +529,10 @@ class BambusHrFineWizard(models.TransientModel):
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
-    fine_hours = fields.Float(digits=(16, 2))
-    detected_fine_hours = fields.Float(string="System Calculated Hours", readonly=True)
+    fine_hours = fields.Float(digits=(16, 6))
+    detected_fine_hours = fields.Float(
+        string="System Calculated Hours", digits=(16, 6), readonly=True
+    )
     calculation_type = fields.Selection([
         ("fixed", "Fixed Amount"),
         ("fixed_hour", "Fixed Amount per Hour"),

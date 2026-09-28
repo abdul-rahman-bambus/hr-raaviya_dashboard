@@ -223,7 +223,10 @@ class TestAttendanceDashboard(TransactionCase):
         leave = self.env["hr.leave"].browse(result["leave_id"])
         self.assertEqual(leave.employee_id, employee)
         self.assertIn("unpaid", leave.holiday_status_id.name.lower())
-        self.assertIn(leave.holiday_status_id.company_id, (False, employee.company_id))
+        self.assertTrue(
+            not leave.holiday_status_id.company_id
+            or leave.holiday_status_id.company_id == employee.company_id
+        )
         self.assertTrue(leave.request_unit_half)
         self.assertEqual(leave.request_date_from_period, "am")
         self.assertIn(leave.state, ("confirm", "validate1", "validate"))
@@ -439,11 +442,12 @@ class TestAttendanceDashboard(TransactionCase):
 
         self.assertEqual(wizard.calculation_type, "salary_minute")
         self.assertAlmostEqual(wizard.salary_per_minute, 400 / 480, places=4)
-        self.assertAlmostEqual(wizard.fine_amount, 10 * 400 / 480, places=4)
+        expected_amount = wizard.currency_id.round(10 * 400 / 480)
+        self.assertEqual(wizard.fine_amount, expected_amount)
         wizard.action_save()
         self.assertEqual(line.fine_calculation_type, "salary_minute")
         self.assertAlmostEqual(line.fine_rate, 400 / 480, places=4)
-        self.assertAlmostEqual(line.fine_amount, 10 * 400 / 480, places=4)
+        self.assertEqual(line.fine_amount, expected_amount)
 
     def test_full_day_leave_can_be_revoked(self):
         employee = self.env["hr.employee"].create({
@@ -459,8 +463,6 @@ class TestAttendanceDashboard(TransactionCase):
             "request_date_to": today,
             "name": "Full Day Leave",
         })
-        leave.action_confirm()
-
         self.env["bambus.hr.attendance.sheet"].revoke_dashboard_status(
             employee.id,
             fields.Date.to_string(today),
