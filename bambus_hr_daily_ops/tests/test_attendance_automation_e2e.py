@@ -5,7 +5,7 @@ from odoo.tests.common import TransactionCase
 
 
 class TestAttendanceAutomationEndToEnd(TransactionCase):
-    """Exercise templates from attendance punches through HR approval defaults."""
+    """Exercise templates from attendance punches through HR update defaults."""
 
     @classmethod
     def setUpClass(cls):
@@ -91,7 +91,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             ("adjustment", "=", False),
         ], limit=1)
 
-    def _approval_line(self, employee, contract, hours, day=None):
+    def _review_line(self, employee, contract, hours, day=None):
         day = day or self.test_day
         sheet = self.env["bambus.hr.attendance.sheet"].search([
             ("date", "=", day),
@@ -163,6 +163,71 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(self._base_overtime(employee).duration, 0.75, places=4)
         self.assertEqual(attendance.bambus_late_minutes, 10)
 
+    def test_fixed_overtime_window_uses_exact_minutes_and_caps_at_end(self):
+        window_template = self._create_template(
+            "Configurable OT Window",
+            minimum_overtime_minutes=0,
+            overtime_start_mode="fixed",
+            overtime_start_hour=17.25,
+            overtime_end_mode="fixed",
+            overtime_end_hour=18.0,
+            overtime_rounding_minutes="0",
+        )
+        before, _contract = self._create_employee_contract(
+            "Before Window Employee", template=window_template
+        )
+        inside, _contract = self._create_employee_contract(
+            "Inside Window Employee", template=window_template
+        )
+        capped, _contract = self._create_employee_contract(
+            "Capped Window Employee", template=window_template
+        )
+
+        self._create_attendance(before, (9, 0), (17, 15))
+        self._create_attendance(inside, (9, 0), (17, 30))
+        self._create_attendance(capped, (9, 0), (18, 30))
+
+        self.assertFalse(self._base_overtime(before).duration)
+        self.assertAlmostEqual(self._base_overtime(inside).duration, 0.25, places=4)
+        self.assertAlmostEqual(self._base_overtime(capped).duration, 0.75, places=4)
+
+    def test_weekly_off_policy_proposes_all_worked_hours(self):
+        template = self._create_template(
+            "Weekly Off Work",
+            weekly_off_overtime_policy="all",
+            minimum_overtime_minutes=0,
+        )
+        employee, _contract = self._create_employee_contract(
+            "Weekly Off Employee", template=template
+        )
+        sunday = self.test_day + timedelta(days=6)
+
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+
+        self.assertEqual(self._base_overtime(employee, sunday).duration, 6.0)
+
+    def test_public_holiday_policy_proposes_all_worked_hours(self):
+        template = self._create_template(
+            "Public Holiday Work",
+            public_holiday_overtime_policy="all",
+            minimum_overtime_minutes=0,
+        )
+        employee, _contract = self._create_employee_contract(
+            "Public Holiday Employee", template=template
+        )
+        self.env["resource.calendar.leaves"].create({
+            "name": "Automation Test Holiday",
+            "calendar_id": self.calendar.id,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(
+                self.test_day + timedelta(days=1), datetime.min.time()
+            ),
+        })
+
+        self._create_attendance(employee, (9, 0), (15, 0))
+
+        self.assertEqual(self._base_overtime(employee).duration, 6.0)
+
     def test_expired_employee_template_falls_back_to_company_default(self):
         expired_template = self._create_template(
             "Expired Employee Automation",
@@ -200,7 +265,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(attendance.bambus_fine_hours, 0)
         self.assertEqual(attendance.bambus_fine_amount, 0)
 
-    def test_salary_slabs_drive_approval_after_attendance_detection(self):
+    def test_salary_slabs_drive_saved_update_after_detection(self):
         slab_template = self._create_template(
             "Salary Slab Automation",
             minimum_overtime_minutes=60,
@@ -227,17 +292,17 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
                 self._create_attendance(employee, (9, 0), (18, 0))
                 self.assertEqual(self._base_overtime(employee).duration, 1.0)
 
-                line = self._approval_line(employee, contract, 1)
+                line = self._review_line(employee, contract, 1)
                 wizard = self._default_overtime_wizard(line)
                 self.assertEqual(wizard.automation_template_id, slab_template)
                 self.assertEqual(wizard.salary_basis_amount, wage)
                 self.assertEqual(wizard.rate, expected_rate)
                 self.assertEqual(wizard.overtime_amount, expected_rate)
-                wizard.action_approve()
+                wizard.action_save()
                 self.assertEqual(line.overtime_state, "approved")
                 self.assertEqual(line.overtime_amount, expected_rate)
 
-    def test_salary_change_updates_new_rate_but_not_approved_snapshot(self):
+    def test_salary_change_keeps_saved_snapshot(self):
         slab_template = self._create_template(
             "Salary Change Automation",
             overtime_calculation_type="fixed_hour",
@@ -252,12 +317,12 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         employee, contract = self._create_employee_contract(
             "Salary Change Employee", wage=9000, template=slab_template
         )
-        first_line = self._approval_line(employee, contract, 1)
+        first_line = self._review_line(employee, contract, 1)
         first_wizard = self._default_overtime_wizard(first_line)
-        first_wizard.action_approve()
+        first_wizard.action_save()
 
         contract.wage = 13000
-        second_line = self._approval_line(
+        second_line = self._review_line(
             employee, contract, 1, day=self.test_day + timedelta(days=1)
         )
         second_wizard = self._default_overtime_wizard(second_line)

@@ -14,7 +14,7 @@ Run the module with Odoo's test runner and the `bambus_hr_daily_ops` test tag:
 
 The end-to-end test fixture creates its own UTC work calendar, employees,
 contracts, automation templates, attendance punches, attendance-sheet lines,
-and approval wizards. It does not depend on production employee data.
+and attendance update wizards. It does not depend on production employee data.
 
 - [x] Resolve the company default template when an employee has no template.
 - [x] Prefer an effective employee template over the company default.
@@ -26,15 +26,18 @@ and approval wizards. It does not depend on production employee data.
 - [x] Resolve `0–9,000` salary to `75` per overtime hour.
 - [x] Resolve `9,000.01–12,000` salary to `100` per overtime hour.
 - [x] Resolve salary above `12,000` to `120` per overtime hour.
-- [x] Carry the resolved template, salary basis, slab, rate, and amount into HR
-  approval.
-- [x] Preserve an approved rate/amount snapshot after the contract wage changes.
-- [x] Use the changed contract wage for a new overtime approval.
+- [x] Carry the resolved template, salary basis, slab, rate, and amount into the
+  HR attendance update.
+- [x] Preserve a saved rate/amount snapshot after the contract wage changes.
+- [x] Use the changed contract wage for a new overtime update.
+- [x] Apply a configurable fixed OT start and end window using exact minutes.
+- [x] Propose all worked hours when weekly-off work is configured as payable.
+- [x] Propose all worked hours when public-holiday work is configured as payable.
 - [x] Reject overlapping salary slabs.
 - [x] Assign an automation template to existing employees.
 - [x] Allow HR to update proposed overtime and fine hours.
-- [x] Store manager-approved overtime calculation details.
-- [x] Approve a regularized fine with a zero deduction.
+- [x] Store HR-saved overtime calculation details.
+- [x] Save a regularized fine with a zero deduction.
 - [x] Create and revoke half-day absence/leave corrections.
 - [x] Revoke full-day absence and leave corrections.
 - [x] Keep hourly employees out of the absence workflow.
@@ -43,10 +46,10 @@ and approval wizards. It does not depend on production employee data.
 
 - [ ] Confirm only employees from the selected company appear in the assignment
   wizard and that the selector cannot create employees.
-- [ ] Confirm HR User can review proposals but only HR Manager can approve them.
+- [ ] Confirm authorized HR users can update values while employees remain read-only.
 - [ ] Confirm the dashboard OT and Fine metrics open the correctly filtered rows.
 - [ ] Confirm dates and hours render correctly in the deployment timezone.
-- [ ] Confirm approved overtime and fine values appear once in a generated
+- [ ] Confirm saved overtime and fine values appear once in a generated
   payslip and are not duplicated after recomputation.
 - [ ] Confirm rejected and regularized entries do not affect net pay.
 - [ ] Confirm the employee Salary Overview shows only that employee's payslips.
@@ -54,13 +57,14 @@ and approval wizards. It does not depend on production employee data.
 
 ## Expected client examples
 
-| Contract basic salary | One approved OT hour | Expected amount |
+| Contract basic salary | One saved OT hour | Expected amount |
 | ---: | ---: | ---: |
 | 9,000.00 | 1 hour | 75.00 |
 | 10,000.00 | 1 hour | 100.00 |
 | 13,000.00 | 1 hour | 120.00 |
 
-The configured minimum is inclusive: `59` overtime minutes are suppressed and
-`60` overtime minutes become `1.00` payable overtime hour. Approved records keep
+The optional minimum is inclusive: `59` overtime minutes are suppressed and
+`60` overtime minutes become `1.00` payable overtime hour when a 60-minute
+minimum is configured. Templates can instead use exact-minute OT windows. Saved records keep
 their salary/rate snapshot; a later basic-salary change applies only to new
-proposals and approvals.
+proposals and saved updates.

@@ -74,7 +74,7 @@
                                     <field name="early_exit_grace_minutes" invisible="not early_exit_enabled"/>
                                 </group>
                             </group>
-                            <group string="Late / Fine Approval Default">
+                            <group string="Late / Fine Default">
                                 <field name="fine_calculation_type"/>
                                 <field name="fine_rate" widget="monetary"
                                        options="{'currency_field': 'currency_id'}"
@@ -92,9 +92,22 @@
                                 <group>
                                     <field name="overtime_enabled"/>
                                     <field name="minimum_overtime_minutes" invisible="not overtime_enabled"/>
-                                    <field name="weekend_overtime" invisible="not overtime_enabled"/>
+                                    <field name="weekly_off_overtime_policy" invisible="not overtime_enabled"/>
+                                    <field name="public_holiday_overtime_policy" invisible="not overtime_enabled"/>
+                                    <field name="weekend_overtime" invisible="1"/>
+                                    <field name="overtime_start_mode" invisible="not overtime_enabled"/>
+                                    <field name="overtime_start_offset_minutes"
+                                           invisible="not overtime_enabled or overtime_start_mode != 'offset'"/>
+                                    <field name="overtime_start_hour" widget="float_time"
+                                           invisible="not overtime_enabled or overtime_start_mode != 'fixed'"/>
+                                    <field name="overtime_end_mode" invisible="not overtime_enabled"/>
+                                    <field name="overtime_end_hour" widget="float_time"
+                                           invisible="not overtime_enabled or overtime_end_mode != 'fixed'"/>
+                                    <field name="maximum_overtime_minutes"
+                                           invisible="not overtime_enabled or overtime_end_mode != 'duration'"/>
+                                    <field name="overtime_rounding_minutes" invisible="not overtime_enabled"/>
                                 </group>
-                                <group string="Approval Default">
+                                <group string="Calculation Default">
                                     <field name="overtime_calculation_type"/>
                                     <field name="overtime_rate_policy"/>
                                     <field name="overtime_salary_basis"
@@ -103,6 +116,11 @@
                                            options="{'currency_field': 'currency_id'}"
                                            invisible="overtime_rate_policy != 'fixed'"/>
                                 </group>
+                            </group>
+                            <group string="Attendance Day Classification">
+                                <field name="half_day_hours"/>
+                                <field name="full_day_basis"/>
+                                <field name="full_day_hours" invisible="full_day_basis != 'fixed'"/>
                             </group>
                             <group string="OT Salary Slabs"
                                    invisible="overtime_rate_policy != 'salary_slab'">

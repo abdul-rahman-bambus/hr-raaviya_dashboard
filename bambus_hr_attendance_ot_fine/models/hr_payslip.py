@@ -221,9 +221,9 @@ class HrPayslip(models.Model):
                 if slip.date_from <= d <= slip.date_to:
                     by_day[d] |= a
 
-            # HR-approved daily values are authoritative for payroll.  The
-            # attendance calculation remains the fallback until a manager
-            # explicitly approves an overtime or fine proposal.
+            # HR-saved daily values are authoritative for payroll.  The legacy
+            # technical state value "approved" is retained for upgrade safety;
+            # functionally it means that HR saved the attendance correction.
             approved_lines_by_day = {}
             if "bambus.hr.attendance.sheet.line" in self.env:
                 approved_lines = self.env["bambus.hr.attendance.sheet.line"].sudo().search([
@@ -285,12 +285,22 @@ class HrPayslip(models.Model):
                 if scheduled_today <= 0:
                     scheduled_today = float(full_day_hrs)
 
+                automation = emp._get_attendance_automation_template(d)
+                half_day_target = (
+                    automation.half_day_hours if automation else half_day_hrs
+                )
+                full_day_target = (
+                    scheduled_today
+                    if automation and automation.full_day_basis == "schedule"
+                    else automation.full_day_hours if automation else full_day_hrs
+                )
+
                 # ✅ for DAY COUNT: use effective worked capped by schedule (OT should not reduce day count)
                 effective_worked_for_daycount = min(float(worked or 0.0), float(scheduled_today or 0.0))
 
-                if effective_worked_for_daycount >= float(full_day_hrs):
+                if effective_worked_for_daycount >= float(full_day_target):
                     day_fraction = 1.0
-                elif effective_worked_for_daycount >= float(half_day_hrs):
+                elif effective_worked_for_daycount >= float(half_day_target):
                     day_fraction = 0.5
                 else:
                     day_fraction = 0.0

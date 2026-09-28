@@ -60,7 +60,7 @@ class TestAttendanceDashboard(TransactionCase):
         wizard = wizard_model.create(defaults)
         self.assertEqual(wizard.rate, 100)
         self.assertEqual(wizard.overtime_amount, 200)
-        wizard.action_approve()
+        wizard.action_save()
         self.assertEqual(line.overtime_salary_basis_amount, 10000)
         self.assertEqual(line.overtime_slab_id.rate, 100)
         self.assertEqual(line.overtime_amount, 200)
@@ -274,7 +274,7 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertGreaterEqual(dashboard["metrics"]["overtime"], 1.5)
         self.assertGreaterEqual(dashboard["metrics"]["fine"], 0.25)
 
-    def test_manager_confirms_overtime_calculation_before_approval(self):
+    def test_hr_saves_overtime_calculation(self):
         employee = self.env["hr.employee"].create({
             "name": "Overtime Approval Employee",
             "company_id": self.env.company.id,
@@ -307,12 +307,47 @@ class TestAttendanceDashboard(TransactionCase):
         })
 
         self.assertEqual(wizard.overtime_amount, 150)
-        wizard.action_approve()
+        wizard.action_save()
         self.assertEqual(line.overtime_state, "approved")
         self.assertEqual(line.overtime_calculation_type, "fixed_hour")
         self.assertEqual(line.overtime_amount, 150)
 
-    def test_regularized_fine_approves_zero_deduction(self):
+    def test_hr_user_can_save_overtime_without_approval_role(self):
+        employee = self.env["hr.employee"].create({
+            "name": "HR Update Employee",
+            "company_id": self.env.company.id,
+        })
+        hr_user = self.env["res.users"].with_context(no_reset_password=True).create({
+            "name": "Attendance HR User",
+            "login": "attendance.hr.user@example.test",
+            "email": "attendance.hr.user@example.test",
+            "groups_id": [(6, 0, [self.env.ref("hr.group_hr_user").id])],
+        })
+        today = fields.Date.context_today(employee)
+        sheet = self.env["bambus.hr.attendance.sheet"].create({
+            "date": today,
+            "company_id": self.env.company.id,
+        })
+        line = self.env["bambus.hr.attendance.sheet.line"].create({
+            "sheet_id": sheet.id,
+            "employee_id": employee.id,
+            "overtime_hours": 1,
+            "overtime_state": "submitted",
+        })
+        wizard = self.env["bambus.hr.overtime.wizard"].create({
+            "line_id": line.id,
+            "overtime_hours": 1,
+            "calculation_type": "fixed_hour",
+            "rate": 75,
+        })
+
+        wizard.with_user(hr_user).action_save()
+
+        self.assertEqual(line.overtime_state, "approved")
+        self.assertEqual(line.overtime_amount, 75)
+        self.assertEqual(line.overtime_updated_by_id, hr_user)
+
+    def test_hr_saves_regularized_zero_fine(self):
         employee = self.env["hr.employee"].create({
             "name": "Fine Approval Employee",
             "company_id": self.env.company.id,
@@ -335,7 +370,7 @@ class TestAttendanceDashboard(TransactionCase):
         })
 
         self.assertEqual(wizard.fine_amount, 0)
-        wizard.action_approve()
+        wizard.action_save()
         self.assertEqual(line.fine_state, "approved")
         self.assertEqual(line.fine_calculation_type, "regularize")
         self.assertEqual(line.fine_amount, 0)

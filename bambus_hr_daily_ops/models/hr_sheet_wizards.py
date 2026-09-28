@@ -376,7 +376,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
     rate_resolution_warning = fields.Char(readonly=True)
     overtime_amount = fields.Monetary(
         currency_field="currency_id", compute="_compute_overtime_amount",
-        string="Approved Amount",
+        string="Calculated Amount",
     )
     currency_id = fields.Many2one(related="line_id.currency_id", readonly=True)
     note = fields.Char()
@@ -460,6 +460,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
                 "salary_basis_amount": salary_amount,
                 "overtime_slab_id": slab.id if slab else False,
                 "rate_resolution_warning": warning,
+                "note": line.overtime_note,
             })
         return res
 
@@ -474,24 +475,16 @@ class BambusHrOvertimeWizard(models.TransientModel):
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}
 
-    def action_approve(self):
+    def action_save(self):
         self.ensure_one()
-        if not self.env.user.has_group("hr.group_hr_manager"):
-            raise UserError(_("Only an HR manager can approve overtime."))
         if self.overtime_hours < 0:
-            raise UserError(_("Approved overtime hours cannot be negative."))
+            raise UserError(_("Overtime hours cannot be negative."))
         if (
             self.automation_template_id.overtime_rate_policy == "salary_slab"
             and not self.overtime_slab_id
             and self.calculation_type != "regularize"
         ):
-            raise UserError(_("Configure a matching overtime salary slab before approval."))
-        if (
-            self.calculation_type in ("fixed", "fixed_hour")
-            and self.rate != self.resolved_rate
-            and not self.rate_override_reason
-        ):
-            raise UserError(_("Enter a reason for overriding the resolved overtime rate."))
+            raise UserError(_("Configure a matching overtime salary slab before saving."))
         vals = {
             "overtime_detected_hours": self.detected_overtime_hours,
             "overtime_hours": self.overtime_hours,
@@ -504,6 +497,9 @@ class BambusHrOvertimeWizard(models.TransientModel):
             "overtime_salary_basis_amount": self.salary_basis_amount,
             "overtime_slab_id": self.overtime_slab_id.id or False,
             "overtime_state": "approved",
+            "overtime_note": self.note,
+            "overtime_updated_by_id": self.env.user.id,
+            "overtime_updated_on": fields.Datetime.now(),
         }
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}
@@ -578,6 +574,7 @@ class BambusHrFineWizard(models.TransientModel):
                     template.fine_rate if template and template.fine_rate
                     else getattr(line.contract_id, "late_fine_rate", 0.0)
                 ),
+                "reason": line.fine_note,
             })
         return res
 
@@ -592,12 +589,10 @@ class BambusHrFineWizard(models.TransientModel):
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}
 
-    def action_approve(self):
+    def action_save(self):
         self.ensure_one()
-        if not self.env.user.has_group("hr.group_hr_manager"):
-            raise UserError(_("Only an HR manager can approve a late fine."))
         if self.fine_hours < 0:
-            raise UserError(_("Approved late/fine hours cannot be negative."))
+            raise UserError(_("Late/fine hours cannot be negative."))
         vals = {
             "fine_detected_hours": self.detected_fine_hours,
             "fine_hours": self.fine_hours,
@@ -605,6 +600,9 @@ class BambusHrFineWizard(models.TransientModel):
             "fine_calculation_type": self.calculation_type,
             "fine_rate": self.rate,
             "fine_state": "approved",
+            "fine_note": self.reason,
+            "fine_updated_by_id": self.env.user.id,
+            "fine_updated_on": fields.Datetime.now(),
         }
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}

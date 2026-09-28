@@ -41,6 +41,40 @@ class AttendanceAutomationTemplate(models.Model):
     overtime_enabled = fields.Boolean(string="Overtime Rule", default=True)
     minimum_overtime_minutes = fields.Integer(string="Minimum Overtime (Minutes)", default=0)
     weekend_overtime = fields.Boolean(string="Weekend / Holiday Overtime")
+    weekly_off_overtime_policy = fields.Selection([
+        ("disabled", "Not Payable"),
+        ("all", "All Worked Hours"),
+    ], required=True, default="disabled")
+    public_holiday_overtime_policy = fields.Selection([
+        ("disabled", "Not Payable"),
+        ("all", "All Worked Hours"),
+    ], required=True, default="disabled")
+    overtime_start_mode = fields.Selection([
+        ("shift_end", "At Shift End"),
+        ("offset", "Minutes After Shift End"),
+        ("fixed", "Fixed Time"),
+    ], required=True, default="shift_end")
+    overtime_start_offset_minutes = fields.Integer(string="OT Start Offset (Minutes)")
+    overtime_start_hour = fields.Float(string="Fixed OT Start")
+    overtime_end_mode = fields.Selection([
+        ("none", "No Limit"),
+        ("fixed", "Fixed Time"),
+        ("duration", "Maximum Duration"),
+    ], required=True, default="none")
+    overtime_end_hour = fields.Float(string="Fixed OT End")
+    maximum_overtime_minutes = fields.Integer(string="Maximum OT (Minutes)")
+    overtime_rounding_minutes = fields.Selection([
+        ("0", "Exact Minutes"),
+        ("15", "15 Minutes"),
+        ("30", "30 Minutes"),
+        ("60", "60 Minutes"),
+    ], required=True, default="0")
+    half_day_hours = fields.Float(default=4.0)
+    full_day_basis = fields.Selection([
+        ("schedule", "Assigned Schedule"),
+        ("fixed", "Fixed Worked Hours"),
+    ], required=True, default="schedule")
+    full_day_hours = fields.Float(default=8.0)
     overtime_calculation_type = fields.Selection(
         CALCULATION_TYPES, required=True, default="fixed_hour"
     )
@@ -102,6 +136,8 @@ class AttendanceAutomationTemplate(models.Model):
     @api.constrains(
         "date_from", "date_to", "late_grace_minutes", "early_exit_grace_minutes",
         "allowed_break_minutes", "minimum_overtime_minutes", "overtime_rate", "fine_rate",
+        "overtime_start_offset_minutes", "maximum_overtime_minutes", "half_day_hours",
+        "full_day_hours", "overtime_start_hour", "overtime_end_hour",
     )
     def _check_values(self):
         for template in self:
@@ -114,9 +150,17 @@ class AttendanceAutomationTemplate(models.Model):
                 template.minimum_overtime_minutes,
                 template.overtime_rate,
                 template.fine_rate,
+                template.overtime_start_offset_minutes,
+                template.maximum_overtime_minutes,
+                template.half_day_hours,
+                template.full_day_hours,
             )
             if any(value < 0 for value in values):
                 raise ValidationError("Automation rule values cannot be negative.")
+            if not 0 <= template.overtime_start_hour < 24:
+                raise ValidationError("Fixed OT Start must be between 00:00 and 23:59.")
+            if not 0 <= template.overtime_end_hour < 24:
+                raise ValidationError("Fixed OT End must be between 00:00 and 23:59.")
 
 
 class AttendanceOvertimeRateSlab(models.Model):
