@@ -1,5 +1,5 @@
 import pytz
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, time
 from collections import defaultdict
 
 from odoo import api, fields, models
@@ -75,6 +75,38 @@ class HrAttendanceOvertime(models.Model):
 
     def _ctx_ts(self, tzname, dt_utc):
         return fields.Datetime.context_timestamp(self.with_context(tz=tzname), dt_utc)
+
+    def _automation_overtime_bounds(self, automation, shift_end, tz, day):
+        """Return configurable local OT bounds without customer-specific values."""
+        if not automation or not shift_end:
+            return shift_end, False
+
+        start = shift_end
+        if automation.overtime_start_mode == "offset":
+            start += timedelta(minutes=automation.overtime_start_offset_minutes)
+        elif automation.overtime_start_mode == "fixed":
+            hour = float(automation.overtime_start_hour or 0.0)
+            start = tz.localize(datetime.combine(day, time.min)).replace(
+                hour=int(hour), minute=int(round((hour % 1) * 60))
+            )
+            if start < shift_end:
+                start += timedelta(days=1)
+
+        end = False
+        if automation.overtime_end_mode == "fixed":
+            hour = float(automation.overtime_end_hour or 0.0)
+            end = tz.localize(datetime.combine(day, time.min)).replace(
+                hour=int(hour), minute=int(round((hour % 1) * 60))
+            )
+            while end <= start:
+                end += timedelta(days=1)
+        elif automation.overtime_end_mode == "duration":
+            end = start + timedelta(minutes=automation.maximum_overtime_minutes)
+        return start, end
+
+    def _round_overtime_minutes(self, minutes, automation):
+        block = int(automation.overtime_rounding_minutes or 0) if automation else 0
+        return (minutes // block) * block if block else minutes
 
     def _monthly_scheduled_hours(self, employee, year, month):
         first = date(year, month, 1)
@@ -193,6 +225,22 @@ class HrAttendanceOvertime(models.Model):
 
         return sorted(intervals, key=lambda x: x[0])
 
+    def _is_public_holiday(self, contract, tz, day):
+        if not contract or not contract.resource_calendar_id:
+            return False
+        start = tz.localize(datetime.combine(day, time.min)).astimezone(
+            pytz.UTC
+        ).replace(tzinfo=None)
+        end = (tz.localize(datetime.combine(day, time.min)) + timedelta(days=1)).astimezone(
+            pytz.UTC
+        ).replace(tzinfo=None)
+        return bool(self.env["resource.calendar.leaves"].sudo().search_count([
+            ("calendar_id", "=", contract.resource_calendar_id.id),
+            ("resource_id", "=", False),
+            ("date_from", "<", end),
+            ("date_to", ">", start),
+        ]))
+
 
     # ===========================
     # MAIN: recompute
@@ -253,6 +301,7 @@ class HrAttendanceOvertime(models.Model):
                     by_date[d_local] |= a
 
             for d in days:
+                automation = emp._get_attendance_automation_template(d)
                 day_att = by_date.get(d, Attendance.browse())
                 if not day_att:
                     continue  # no absence fine as per your request
@@ -268,6 +317,8 @@ class HrAttendanceOvertime(models.Model):
                 # --------------------------
                 shifts = self._get_shift_rules_for_employee_on_date(emp, d)
                 bounds = self._shift_bounds_local(tz, d, shifts) if shifts else []
+                is_weekly_off = d.weekday() in weekend_days or not shifts
+                is_public_holiday = self._is_public_holiday(contract, tz, d)
 
                 leave_intervals = self._get_validated_leave_intervals_local(emp, tzname, tz, d) if bounds else []
 
@@ -285,7 +336,7 @@ class HrAttendanceOvertime(models.Model):
                 base_shift_hours = scheduled if scheduled > 0 else 8.0
 
                 # ---> NEW FIX: FORCE GLOBAL WEEKENDS TO BE OFF-DAYS <---
-                if d.weekday() in weekend_days:
+                if is_weekly_off or is_public_holiday:
                     scheduled = 0.0
 
                 # minute-rounded storage (Option B style)
@@ -318,7 +369,19 @@ class HrAttendanceOvertime(models.Model):
 
                     if ot_mode == "custom":
                         # 1. Check if weekend/festival OT is enabled in settings
-                        allow_weekend_ot = Param.get_param("hr_payroll.ot_for_weekend_and_festival") == "True"
+                        if automation:
+                            policy = (
+                                automation.public_holiday_overtime_policy
+                                if is_public_holiday
+                                else automation.weekly_off_overtime_policy
+                            )
+                            allow_weekend_ot = (
+                                policy == "all" or automation.weekend_overtime
+                            )
+                        else:
+                            allow_weekend_ot = (
+                                Param.get_param("hr_payroll.ot_for_weekend_and_festival") == "True"
+                            )
                         
                         # 2. Check if the employee's contract allows OT
                         allow_ot = bool(
@@ -330,8 +393,14 @@ class HrAttendanceOvertime(models.Model):
                         # 3. If both are True, calculate OT ONLY for time worked beyond the standard shift
                         duration_to_store = 0.0
                         if allow_weekend_ot and allow_ot:
-                            # Use the actual base shift (8.0) instead of the 6.0 threshold
-                            duration_to_store = max(0.0, worked - base_shift_hours)
+                            # On configured non-working days every valid worked hour
+                            # is proposed for HR review; HR may still edit it.
+                            duration_to_store = max(0.0, worked)
+                            if (
+                                automation
+                                and duration_to_store * 60 < automation.minimum_overtime_minutes
+                            ):
+                                duration_to_store = 0.0
 
                         base_ot = Overtime.search([
                             ("employee_id", "=", emp.id),
@@ -461,7 +530,10 @@ class HrAttendanceOvertime(models.Model):
                 gap_minutes = max(0, int(shortfall_minutes or 0) - int(late_minutes or 0) - int(early_leave_minutes or 0))
 
                 ot_hours = 0.0
-                if sched_end:
+                ot_start, ot_end = self._automation_overtime_bounds(
+                    automation, sched_end, tz, d
+                )
+                if ot_start:
                     for a in day_att:
                         if not a.check_in or not a.check_out:
                             continue
@@ -473,13 +545,15 @@ class HrAttendanceOvertime(models.Model):
                         if co.tzinfo is None:
                             co = tz.localize(co)
 
-                        start = max(ci, sched_end)
-                        if co > start:
-                            ot_hours += (co - start).total_seconds() / 3600.0
+                        start = max(ci, ot_start)
+                        end = min(co, ot_end) if ot_end else co
+                        if end > start:
+                            ot_hours += (end - start).total_seconds() / 3600.0
 
                 # Option B rounding for OT too
                 # Option B rounding for OT too
                 ot_minutes = int(round((ot_hours or 0.0) * 60.0))
+                ot_minutes = self._round_overtime_minutes(ot_minutes, automation)
                 
                 # Fetch "Tolerance Time In Favor Of Company" from settings
                 company_tolerance = int(getattr(company, 'overtime_company_threshold', 0))
@@ -491,6 +565,12 @@ class HrAttendanceOvertime(models.Model):
                 elif ot_minutes <= company_tolerance:
                     ot_minutes = 0
 
+                if automation:
+                    if not automation.overtime_enabled:
+                        ot_minutes = 0
+                    elif ot_minutes < automation.minimum_overtime_minutes:
+                        ot_minutes = 0
+
                 ot_hours = ot_minutes / 60.0
 
                 # ---- Fine split (simple + always matched)
@@ -498,8 +578,15 @@ class HrAttendanceOvertime(models.Model):
                 worked_minutes = int(round((worked or 0.0) * 60.0))
 
 
-                half_day_threshold = float(Param.get_param("hr_payroll.half_day_hours", 4) or 4)
-                full_day_threshold = float(Param.get_param("hr_payroll.full_day_hours", 8) or 8)
+                half_day_threshold = (
+                    automation.half_day_hours if automation
+                    else float(Param.get_param("hr_payroll.half_day_hours", 4) or 4)
+                )
+                full_day_threshold = (
+                    scheduled if automation and automation.full_day_basis == "schedule"
+                    else automation.full_day_hours if automation
+                    else float(Param.get_param("hr_payroll.full_day_hours", 8) or 8)
+                )
 
                 # Ensure late_minutes and early_leave_minutes are integers
                 late_minutes = int(late_minutes or 0)
@@ -539,7 +626,21 @@ class HrAttendanceOvertime(models.Model):
                     early_leave_minutes = int(min(early_leave_minutes, deficit_minutes - late_minutes))
                     gap_minutes = max(0, deficit_minutes - late_minutes - early_leave_minutes)
 
-                # fine is the sum of the 3 buckets (matches deficit)
+                if automation:
+                    late_minutes = (
+                        max(0, late_minutes - automation.late_grace_minutes)
+                        if automation.late_enabled else 0
+                    )
+                    early_leave_minutes = (
+                        max(0, early_leave_minutes - automation.early_exit_grace_minutes)
+                        if automation.early_exit_enabled else 0
+                    )
+                    if not automation.break_enabled:
+                        gap_minutes = 0
+                    elif automation.allowed_break_minutes:
+                        gap_minutes = max(0, gap_minutes - automation.allowed_break_minutes)
+
+                # fine is the sum of enabled rule buckets
                 fine_minutes = late_minutes + early_leave_minutes + gap_minutes
                 fine_hours = fine_minutes / 60.0
 
@@ -589,6 +690,8 @@ class HrAttendanceOvertime(models.Model):
                         and getattr(contract, "is_overtime_allowed", False)
                     )
                     duration_to_store = ot_hours if allow_ot else 0.0
+                    if automation and not automation.overtime_enabled:
+                        duration_to_store = 0.0
 
                     base_ot = Overtime.search([
                         ("employee_id", "=", emp.id),
