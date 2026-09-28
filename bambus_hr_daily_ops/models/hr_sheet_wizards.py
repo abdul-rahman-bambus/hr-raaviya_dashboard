@@ -545,8 +545,8 @@ class BambusHrFineWizard(models.TransientModel):
         currency_field="currency_id", compute="_compute_fine_amount",
         string="Calculated Deduction",
     )
-    salary_per_minute = fields.Monetary(
-        currency_field="currency_id", compute="_compute_fine_amount",
+    salary_per_minute = fields.Float(
+        digits=(16, 6), compute="_compute_fine_amount",
         string="Salary per Minute",
     )
     currency_id = fields.Many2one(related="line_id.currency_id", readonly=True)

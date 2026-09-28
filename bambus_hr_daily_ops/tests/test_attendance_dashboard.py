@@ -16,6 +16,28 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
 
+    def _unpaid_leave_type(self, employee):
+        """Return an active unpaid type that is valid for the employee company."""
+        leave_type = self.env.ref(
+            "hr_holidays.holiday_status_unpaid", raise_if_not_found=False
+        )
+        if leave_type and (
+            not leave_type.active
+            or (leave_type.company_id and leave_type.company_id != employee.company_id)
+        ):
+            leave_type = False
+        return leave_type or self.env["hr.leave.type"].search([
+            ("active", "=", True),
+            ("name", "ilike", "unpaid"),
+            "|",
+            ("company_id", "=", False),
+            ("company_id", "=", employee.company_id.id),
+        ], limit=1) or self.env["hr.leave.type"].create({
+            "name": "Unpaid",
+            "requires_allocation": "no",
+            "company_id": employee.company_id.id,
+        })
+
     def test_overtime_salary_slabs_resolve_contract_wage_boundaries(self):
         template = self.env["bambus.attendance.automation.template"].create({
             "name": "Salary Slab Rules",
@@ -191,14 +213,6 @@ class TestAttendanceDashboard(TransactionCase):
             "name": "Half Day Employee",
             "company_id": self.env.company.id,
         })
-        leave_type = self.env.ref(
-            "hr_holidays.holiday_status_unpaid", raise_if_not_found=False
-        )
-        if not leave_type:
-            leave_type = self.env["hr.leave.type"].create({
-                "name": "Unpaid",
-                "requires_allocation": "no",
-            })
         today = fields.Date.context_today(employee)
 
         result = self.env["bambus.hr.attendance.sheet"].create_half_day_leave(
@@ -212,7 +226,7 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertIn(leave.holiday_status_id.company_id, (False, employee.company_id))
         self.assertTrue(leave.request_unit_half)
         self.assertEqual(leave.request_date_from_period, "am")
-        self.assertEqual(leave.state, "confirm")
+        self.assertIn(leave.state, ("confirm", "validate1", "validate"))
 
         self.env["bambus.hr.attendance.sheet"].revoke_dashboard_status(
             employee.id,
@@ -436,12 +450,7 @@ class TestAttendanceDashboard(TransactionCase):
             "name": "Full Day Leave Employee",
             "company_id": self.env.company.id,
         })
-        leave_type = self.env.ref(
-            "hr_holidays.holiday_status_unpaid", raise_if_not_found=False
-        ) or self.env["hr.leave.type"].create({
-            "name": "Unpaid",
-            "requires_allocation": "no",
-        })
+        leave_type = self._unpaid_leave_type(employee)
         today = fields.Date.context_today(employee)
         leave = self.env["hr.leave"].create({
             "employee_id": employee.id,

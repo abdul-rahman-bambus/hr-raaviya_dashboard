@@ -899,7 +899,7 @@ class BambusHrAttendanceSheetLine(models.Model):
         ("salary_1_5", "1.5x Salary"),
         ("salary_2", "2x Salary"),
     ], string="Fine Calculation")
-    fine_rate = fields.Monetary(string="Applied Fine Rate")
+    fine_rate = fields.Float(string="Applied Fine Rate", digits=(16, 6))
     fine_note = fields.Char()
     fine_updated_by_id = fields.Many2one("res.users", readonly=True)
     fine_updated_on = fields.Datetime(readonly=True)
