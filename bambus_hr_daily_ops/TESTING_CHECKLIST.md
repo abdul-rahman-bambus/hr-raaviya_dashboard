@@ -20,6 +20,8 @@ and attendance update wizards. It does not depend on production employee data.
 - [x] Prefer an effective employee template over the company default.
 - [x] Fall back to the company default when the employee template is expired.
 - [x] Apply late-entry grace to detected late minutes and fine values.
+- [x] Apply an assigned template without requiring legacy company OT mode or
+  contract OT/fine switches.
 - [x] Suppress overtime below the configured 60-minute minimum.
 - [x] Accept exactly 60 minutes as one payable overtime hour.
 - [x] Disable overtime and late/fine detection when their rules are disabled.

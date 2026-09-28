@@ -134,6 +134,33 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
         self.assertEqual(attendance.bambus_fine_amount, 10)
 
+    def test_assigned_template_drives_ot_and_fine_without_legacy_switches(self):
+        self.company.bambus_ot_mode = "odoo"
+        template = self._create_template(
+            "Template Driven Detection",
+            late_grace_minutes=5,
+            minimum_overtime_minutes=0,
+            overtime_start_mode="fixed",
+            overtime_start_hour=17.0,
+            overtime_end_mode="fixed",
+            overtime_end_hour=18.0,
+            fine_calculation_type="salary_minute",
+        )
+        employee, contract = self._create_employee_contract(
+            "Template Driven Employee", wage=9000, template=template
+        )
+        contract.write({
+            "is_overtime_allowed": False,
+            "is_latefine_applicable": False,
+        })
+
+        attendance = self._create_attendance(employee, (9, 10), (17, 30))
+
+        self.assertAlmostEqual(self._base_overtime(employee).duration, 0.5, places=4)
+        self.assertEqual(attendance.bambus_late_minutes, 5)
+        self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
+        self.assertAlmostEqual(attendance.bambus_fine_amount, 5 * 300 / 480, places=2)
+
     def test_minimum_overtime_is_inclusive_at_sixty_minutes(self):
         below_employee, _contract = self._create_employee_contract("59 Minute Employee")
         exact_employee, _contract = self._create_employee_contract("60 Minute Employee")

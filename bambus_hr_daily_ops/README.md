@@ -17,6 +17,9 @@ wage and statutory rates continue to come from the contract.
 The resolved template affects automatic detection and supplies defaults to the
 HR update dialogs. The system proposes values; authorized HR users may correct
 the hours, method, and rate before saving the final attendance result.
+Assigning an active template is sufficient to activate its OT and fine rules;
+legacy company OT-mode and contract eligibility switches remain fallbacks only
+for employees without a template.
 
 Overtime can start at shift end, after a configurable offset, or at a fixed
 clock time. It can have no end, a fixed end time, or a maximum duration, with
