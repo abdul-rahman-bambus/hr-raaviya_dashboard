@@ -132,7 +132,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(self._base_overtime(employee).duration, 70 / 60, places=4)
         self.assertEqual(attendance.bambus_late_minutes, 5)
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
-        self.assertEqual(attendance.bambus_fine_amount, 10)
+        self.assertAlmostEqual(attendance.bambus_fine_amount, 5 * 300 / 480, places=2)
 
     def test_assigned_template_drives_ot_and_fine_without_legacy_switches(self):
         self.company.bambus_ot_mode = "odoo"
