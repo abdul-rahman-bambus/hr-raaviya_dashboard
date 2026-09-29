@@ -214,7 +214,14 @@ export class AttendanceEditor extends AttendanceDashboard {
                 "open_dashboard_adjustment",
                 [employee.id, this.state.data.date, adjustment]
             );
-            await this.action.doAction(action, {
+            // RPC action dictionaries are not passed through Odoo's stored
+            // action loader. Always provide the view list expected by the
+            // Odoo 18 action service before it calls `.map()` on that value.
+            const normalizedAction = {
+                ...action,
+                views: action.views || [[false, "form"]],
+            };
+            await this.action.doAction(normalizedAction, {
                 onClose: () => this.syncEmployee(employee),
             });
         } catch (error) {

@@ -58,6 +58,8 @@ be resolved separately before production deployment.
 - [x] Allow HR to update proposed overtime and fine hours.
 - [x] Open OT and Fine review dialogs directly from filtered dashboard rows,
   populate detected values, and save the resulting rate/amount snapshots.
+- [x] Filter OT/Fine metric results in place without launching a nested client
+  action or losing the current Odoo action metadata.
 - [x] Store HR-saved overtime calculation details.
 - [x] Save a regularized fine with a zero deduction.
 - [x] Derive a monthly employee's late fine per minute from daily salary and

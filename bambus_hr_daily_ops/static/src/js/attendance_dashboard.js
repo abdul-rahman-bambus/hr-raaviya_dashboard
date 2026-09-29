@@ -203,15 +203,11 @@ export class AttendanceDashboard extends Component {
         if (!["overtime", "fine"].includes(metric)) {
             return;
         }
-        this.action.doAction({
-            type: "ir.actions.client",
-            name: metric === "overtime" ? "Overtime Attendance" : "Late / Fine Attendance",
-            tag: "bambus_attendance_editor",
-            params: {
-                metric_filter: metric,
-                selected_date: this.state.data.date,
-            },
-        });
+        // Filter the already-loaded dashboard in place. Launching another
+        // client action here loses the current action metadata in Odoo 18 and
+        // can fail while the action service tries to map undefined views.
+        this.state.statusFilter = metric;
+        this.state.currentPage = 1;
     }
 
     updatePageSize(ev) {

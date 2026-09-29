@@ -111,6 +111,7 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("applyStatusTransition", editor_source)
         self.assertIn("openAdjustment(employee, adjustment)", editor_source)
         self.assertIn('"open_dashboard_adjustment"', editor_source)
+        self.assertIn('views: action.views || [[false, "form"]]', editor_source)
         self.assertNotIn("await this.load(this.state.data.date);", editor_source)
 
         attendance_sheet_source = (
@@ -119,3 +120,14 @@ class TestBackendAssets(TransactionCase):
         self.assertNotIn("leave.action_draft()", attendance_sheet_source)
         self.assertNotIn('write({"state": "draft"})', attendance_sheet_source)
         self.assertIn('write({"state": "cancel"})', attendance_sheet_source)
+
+    def test_dashboard_metric_cards_filter_in_place(self):
+        module_root = Path(__file__).parents[1]
+        dashboard_source = (
+            module_root / "static/src/js/attendance_dashboard.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("openMetric(metric)", dashboard_source)
+        self.assertIn("this.state.statusFilter = metric;", dashboard_source)
+        self.assertIn("this.state.currentPage = 1;", dashboard_source)
+        self.assertNotIn('tag: "bambus_attendance_editor"', dashboard_source)
