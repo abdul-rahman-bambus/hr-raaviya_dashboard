@@ -1,7 +1,7 @@
+from ast import literal_eval
 from pathlib import Path
 from xml.etree import ElementTree
 
-from odoo.modules.module import load_information_from_description_file
 from odoo.tests.common import TransactionCase
 
 
@@ -9,7 +9,10 @@ class TestBackendAssets(TransactionCase):
     """Guard client actions against silently disappearing from the bundle."""
 
     def test_dashboard_client_actions_are_bundled(self):
-        manifest = load_information_from_description_file("bambus_hr_daily_ops")
+        module_root = Path(__file__).parents[1]
+        manifest = literal_eval(
+            (module_root / "__manifest__.py").read_text(encoding="utf-8")
+        )
         backend_assets = manifest["assets"]["web.assets_backend"]
 
         expected_assets = {
@@ -20,7 +23,6 @@ class TestBackendAssets(TransactionCase):
         }
         self.assertTrue(expected_assets.issubset(set(backend_assets)))
 
-        module_root = Path(__file__).parents[1]
         registrations = {
             "static/src/js/attendance_dashboard.js": "bambus_attendance_dashboard",
             "static/src/js/attendance_editor.js": "bambus_attendance_editor",
@@ -107,6 +109,8 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("this.toggleAbsent(employee)", editor_template)
         self.assertIn("this.toggleLeave(employee)", editor_template)
         self.assertIn("applyStatusTransition", editor_source)
+        self.assertIn("openAdjustment(employee, adjustment)", editor_source)
+        self.assertIn('"open_dashboard_adjustment"', editor_source)
         self.assertNotIn("await this.load(this.state.data.date);", editor_source)
 
         attendance_sheet_source = (

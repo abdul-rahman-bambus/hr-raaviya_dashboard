@@ -12,19 +12,21 @@ export class AttendanceDashboard extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
+        const actionParams = this.props.action?.params || {};
+        this.initialDate = actionParams.selected_date;
         this.state = useState({
             loading: true,
             data: null,
             error: "",
             query: "",
-            statusFilter: "all",
+            statusFilter: actionParams.metric_filter || "all",
             currentPage: 1,
             pageSize: 10,
             collapsedContractTypes: {},
             savingIds: {},
         });
         this.loadSequence = 0;
-        onWillStart(() => this.load());
+        onWillStart(() => this.load(this.initialDate));
     }
 
     async load(date) {
@@ -75,7 +77,10 @@ export class AttendanceDashboard extends Component {
     get filteredDailyEmployees() {
         const query = this.state.query.trim().toLowerCase();
         return (this.state.data?.daily_attendance || []).filter((employee) => {
-            const matchesStatus = this.state.statusFilter === "all" || employee.status === this.state.statusFilter;
+            const matchesStatus = this.state.statusFilter === "all" ||
+                (this.state.statusFilter === "overtime" && employee.overtime_hours > 0) ||
+                (this.state.statusFilter === "fine" && employee.fine_hours > 0) ||
+                employee.status === this.state.statusFilter;
             const matchesQuery = !query || [
                 employee.name,
                 employee.department,
@@ -192,6 +197,21 @@ export class AttendanceDashboard extends Component {
     updateStatusFilter(ev) {
         this.state.statusFilter = ev.target.value;
         this.state.currentPage = 1;
+    }
+
+    openMetric(metric) {
+        if (!["overtime", "fine"].includes(metric)) {
+            return;
+        }
+        this.action.doAction({
+            type: "ir.actions.client",
+            name: metric === "overtime" ? "Overtime Attendance" : "Late / Fine Attendance",
+            tag: "bambus_attendance_editor",
+            params: {
+                metric_filter: metric,
+                selected_date: this.state.data.date,
+            },
+        });
     }
 
     updatePageSize(ev) {

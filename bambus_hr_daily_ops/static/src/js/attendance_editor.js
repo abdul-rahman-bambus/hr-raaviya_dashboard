@@ -204,6 +204,27 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.logEmployee = null;
     }
 
+    async openAdjustment(employee, adjustment) {
+        if (this.state.savingIds[employee.id]) {
+            return;
+        }
+        try {
+            const action = await this.orm.call(
+                "bambus.hr.attendance.sheet",
+                "open_dashboard_adjustment",
+                [employee.id, this.state.data.date, adjustment]
+            );
+            await this.action.doAction(action, {
+                onClose: () => this.syncEmployee(employee),
+            });
+        } catch (error) {
+            this.notification.add(
+                error.cause?.message || error.message || "Unable to open attendance update.",
+                { type: "danger" }
+            );
+        }
+    }
+
     async saveEmployee(employee, rollback = {}) {
         if (this.state.savingIds[employee.id]) {
             return;
