@@ -120,6 +120,16 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         ]
         return wizard_model.create(wizard_model.default_get(field_names))
 
+    def _default_fine_wizard(self, line):
+        wizard_model = self.env["bambus.hr.fine.wizard"].with_context(
+            default_line_id=line.id
+        )
+        field_names = [
+            "line_id", "detected_fine_hours", "fine_hours",
+            "calculation_type", "rate", "salary_per_minute",
+        ]
+        return wizard_model.create(wizard_model.default_get(field_names))
+
     def test_company_default_calculates_overtime_late_and_fine(self):
         employee, _contract = self._create_employee_contract("Company Rule Employee")
 
@@ -407,3 +417,92 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(second_wizard.salary_basis_amount, 13000)
         self.assertEqual(second_wizard.rate, 120)
         self.assertEqual(second_wizard.overtime_amount, 120)
+
+    def test_every_overtime_calculation_option(self):
+        """Every calculation choice shown to HR produces a known amount."""
+        employee, contract = self._create_employee_contract(
+            "OT Calculation Matrix", wage=12000
+        )
+        line = self._review_line(employee, contract, 2)
+        expected = {
+            "fixed": 80,
+            "fixed_hour": 160,
+            "half_day": 200,
+            "full_day": 400,
+            "regularize": 0,
+            "salary_1": 100,
+            "salary_1_5": 150,
+            "salary_2": 200,
+        }
+        for calculation_type, expected_amount in expected.items():
+            with self.subTest(calculation_type=calculation_type):
+                wizard = self._default_overtime_wizard(line)
+                wizard.write({
+                    "overtime_hours": 2,
+                    "calculation_type": calculation_type,
+                    "rate": 80,
+                })
+                self.assertAlmostEqual(wizard.overtime_amount, expected_amount, places=2)
+
+    def test_every_fine_calculation_option(self):
+        """Fine choices include salary-per-minute as the safe default."""
+        employee, contract = self._create_employee_contract(
+            "Fine Calculation Matrix", wage=12000
+        )
+        line = self._review_line(employee, contract, 0)
+        line.write({"fine_hours": 2, "fine_detected_hours": 2})
+        expected = {
+            "fixed": 80,
+            "fixed_hour": 160,
+            "half_day": 200,
+            "full_day": 400,
+            "regularize": 0,
+            "salary_minute": 100,
+            "salary_1": 100,
+            "salary_1_5": 150,
+            "salary_2": 200,
+        }
+        for calculation_type, expected_amount in expected.items():
+            with self.subTest(calculation_type=calculation_type):
+                wizard = self._default_fine_wizard(line)
+                wizard.write({
+                    "fine_hours": 2,
+                    "calculation_type": calculation_type,
+                    "rate": 80,
+                })
+                self.assertAlmostEqual(wizard.fine_amount, expected_amount, places=2)
+
+    def test_every_overtime_rounding_option(self):
+        engine = self.env["hr.attendance.overtime"]
+        expected = {"0": 44, "15": 30, "30": 30, "60": 0}
+        for rounding, expected_minutes in expected.items():
+            with self.subTest(rounding=rounding):
+                template = self._create_template(
+                    "Rounding %s" % rounding,
+                    overtime_rounding_minutes=rounding,
+                )
+                self.assertEqual(
+                    engine._round_overtime_minutes(44, template),
+                    expected_minutes,
+                )
+
+    def test_fixed_contract_and_slab_rate_policies(self):
+        employee, contract = self._create_employee_contract(
+            "Rate Policy Matrix", wage=10000
+        )
+        fixed = self._create_template(
+            "Fixed Rate Policy", overtime_rate_policy="fixed", overtime_rate=90
+        )
+        contract_policy = self._create_template(
+            "Contract Rate Policy", overtime_rate_policy="contract"
+        )
+        slab = self._create_template(
+            "Slab Rate Policy",
+            overtime_rate_policy="salary_slab",
+            overtime_slab_ids=[
+                (0, 0, {"salary_from": 0, "salary_to": 12000, "rate": 110}),
+            ],
+        )
+        self.assertEqual(fixed.resolve_overtime_rate(contract)[0], 90)
+        self.assertEqual(contract_policy.resolve_overtime_rate(contract)[0], 50)
+        self.assertEqual(slab.resolve_overtime_rate(contract)[0], 110)

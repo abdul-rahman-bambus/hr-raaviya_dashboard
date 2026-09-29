@@ -115,3 +115,9 @@ attendance punches, templates, salary slabs, and saved attendance records for
 the main company-default and employee-override scenarios. See
 [`TESTING_CHECKLIST.md`](TESTING_CHECKLIST.md) for automated coverage, expected
 client examples, and the browser/UAT checks to complete before release.
+
+## Plain-language documentation
+
+- [Attendance Automation User Guide](docs/ATTENDANCE_AUTOMATION_USER_GUIDE.md)
+- [Attendance Automation Manual Testing](docs/ATTENDANCE_AUTOMATION_MANUAL_TESTING.md)
+- [Attendance Automation Automated Test Matrix](docs/ATTENDANCE_AUTOMATION_TEST_MATRIX.md)

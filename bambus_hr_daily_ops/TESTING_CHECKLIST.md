@@ -67,6 +67,16 @@ be resolved separately before production deployment.
 - [x] Create and revoke half-day absence/leave corrections.
 - [x] Revoke full-day absence and leave corrections.
 - [x] Keep hourly employees out of the absence workflow.
+- [x] Verify every OT calculation choice: fixed, per hour, half day, full day,
+  regularize, and 1x/1.5x/2x salary.
+- [x] Verify every fine calculation choice, including salary per minute.
+- [x] Verify exact, 15-minute, 30-minute, and 60-minute OT rounding.
+- [x] Verify contract, fixed-template, and salary-slab OT rate policies.
+
+The plain-language [user guide](docs/ATTENDANCE_AUTOMATION_USER_GUIDE.md),
+[manual scenarios](docs/ATTENDANCE_AUTOMATION_MANUAL_TESTING.md), and
+[automated coverage matrix](docs/ATTENDANCE_AUTOMATION_TEST_MATRIX.md) explain
+the inputs and expected results without requiring knowledge of the source code.
 
 ## Required browser/UAT checks
 
