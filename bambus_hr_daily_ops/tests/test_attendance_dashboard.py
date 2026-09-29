@@ -313,12 +313,14 @@ class TestAttendanceDashboard(TransactionCase):
         )
         line_id = overtime_action["context"]["default_line_id"]
         self.assertEqual(overtime_action["res_model"], "bambus.hr.overtime.wizard")
+        self.assertEqual(overtime_action["views"][0][1], "form")
         self.assertTrue(line_id)
 
         fine_action = sheet_model.open_dashboard_adjustment(
             employee.id, fields.Date.to_string(today), "fine"
         )
         self.assertEqual(fine_action["res_model"], "bambus.hr.fine.wizard")
+        self.assertEqual(fine_action["views"][0][1], "form")
         self.assertEqual(fine_action["context"]["default_line_id"], line_id)
 
         with self.assertRaises(UserError):

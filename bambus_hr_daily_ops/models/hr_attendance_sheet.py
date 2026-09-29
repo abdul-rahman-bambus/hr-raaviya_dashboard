@@ -1196,22 +1196,30 @@ class BambusHrAttendanceSheetLine(models.Model):
 
     def action_edit_overtime(self):
         self.ensure_one()
+        form_view = self.env.ref(
+            "bambus_hr_daily_ops.view_bambus_hr_overtime_wizard"
+        )
         return {
             "type": "ir.actions.act_window",
             "name": _("Edit Overtime"),
             "res_model": "bambus.hr.overtime.wizard",
             "view_mode": "form",
+            "views": [(form_view.id, "form")],
             "target": "new",
             "context": {"default_line_id": self.id},
         }
 
     def action_edit_fine(self):
         self.ensure_one()
+        form_view = self.env.ref(
+            "bambus_hr_daily_ops.view_bambus_hr_fine_wizard"
+        )
         return {
             "type": "ir.actions.act_window",
             "name": _("Fine"),
             "res_model": "bambus.hr.fine.wizard",
             "view_mode": "form",
+            "views": [(form_view.id, "form")],
             "target": "new",
             "context": {"default_line_id": self.id},
         }

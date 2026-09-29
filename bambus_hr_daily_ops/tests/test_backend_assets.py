@@ -111,6 +111,7 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("applyStatusTransition", editor_source)
         self.assertIn("openAdjustment(employee, adjustment)", editor_source)
         self.assertIn('"open_dashboard_adjustment"', editor_source)
+        self.assertIn('views: action.views || [[false, "form"]]', editor_source)
         self.assertNotIn("await this.load(this.state.data.date);", editor_source)
 
         attendance_sheet_source = (
