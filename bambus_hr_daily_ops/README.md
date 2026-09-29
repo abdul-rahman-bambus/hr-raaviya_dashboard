@@ -131,3 +131,16 @@ client examples, and the browser/UAT checks to complete before release.
    module directory.
 4. Collect the finished DOCX and PDF files from `docs/output/`. Screenshots are
    embedded in those files; recipients do not need the source image folder.
+
+## Approved values in Attendances and payroll
+
+The standard Attendances list keeps punch-level detected OT/Fine values and now
+also shows read-only **HR Approved** columns. Because one day can contain several
+punch sessions, the approved daily result is displayed only on the final
+attendance row for that employee and date. This prevents list totals and exports
+from multiplying one daily approval across multiple punches.
+
+The daily attendance sheet line remains the authoritative HR snapshot. Payroll
+continues to prefer an approved sheet line and falls back to detected attendance
+values only when there is no approved value. Reports should follow the same
+precedence and use the review-line link shown on the final attendance row.

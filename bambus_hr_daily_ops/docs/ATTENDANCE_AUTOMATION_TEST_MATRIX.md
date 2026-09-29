@@ -20,6 +20,7 @@ records, and salary slabs; they do not depend on demo data.
 | Fine methods | all OT methods plus salary per minute | `test_every_fine_calculation_option` |
 | Snapshot | salary change does not change saved value | `test_salary_change_keeps_saved_snapshot` |
 | Dashboard review | detected values and saved OT/fine amounts | `test_dashboard_review_opens_detected_values_and_saves_snapshots` |
+| Attendances visibility | approved daily values appear once on the final punch | `test_attendance_list_shows_approved_daily_values_once` |
 
 The manual guide additionally covers UI visibility, disabled special-day policies,
 break boundaries, fixed/offset/duration windows, dashboard filtering, and payroll

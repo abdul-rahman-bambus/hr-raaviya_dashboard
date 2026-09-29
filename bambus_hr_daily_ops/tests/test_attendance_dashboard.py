@@ -1,3 +1,5 @@
+from datetime import datetime, time, timedelta
+
 from odoo import fields
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase
@@ -548,3 +550,47 @@ class TestAttendanceDashboard(TransactionCase):
 
         self.assertTrue(leave.exists())
         self.assertEqual(leave.state, "cancel")
+
+    def test_attendance_list_shows_approved_daily_values_once(self):
+        employee = self.env["hr.employee"].create({
+            "name": "Approved Attendance List Employee",
+            "company_id": self.env.company.id,
+        })
+        today = fields.Date.context_today(employee)
+        start = datetime.combine(today, time(hour=9))
+        attendance_model = self.env["hr.attendance"].with_context(
+            bambus_skip_recompute=True, tz="UTC"
+        )
+        first = attendance_model.create({
+            "employee_id": employee.id,
+            "check_in": start,
+            "check_out": start + timedelta(hours=4),
+        })
+        last = attendance_model.create({
+            "employee_id": employee.id,
+            "check_in": start + timedelta(hours=5),
+            "check_out": start + timedelta(hours=9),
+        })
+        sheet = self._sheet_for(today)
+        line = self.env["bambus.hr.attendance.sheet.line"].create({
+            "sheet_id": sheet.id,
+            "employee_id": employee.id,
+            "overtime_hours": 1.5,
+            "overtime_amount": 150,
+            "overtime_state": "approved",
+            "fine_hours": 0.25,
+            "fine_amount": 12.5,
+            "fine_state": "approved",
+        })
+
+        self.assertFalse(first.bambus_review_is_daily_summary)
+        self.assertEqual(first.bambus_approved_overtime_hours, 0)
+        self.assertEqual(first.bambus_approved_fine_hours, 0)
+        self.assertTrue(last.bambus_review_is_daily_summary)
+        self.assertEqual(last.bambus_review_line_id, line)
+        self.assertEqual(last.bambus_overtime_review_state, "approved")
+        self.assertEqual(last.bambus_approved_overtime_hours, 1.5)
+        self.assertEqual(last.bambus_approved_overtime_amount, 150)
+        self.assertEqual(last.bambus_fine_review_state, "approved")
+        self.assertEqual(last.bambus_approved_fine_hours, 0.25)
+        self.assertEqual(last.bambus_approved_fine_amount, 12.5)
