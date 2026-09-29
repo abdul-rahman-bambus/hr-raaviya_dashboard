@@ -452,6 +452,43 @@ class BambusHrAttendanceSheet(models.Model):
         }
 
     @api.model
+    def open_dashboard_adjustment(self, employee_id, selected_date, adjustment):
+        """Open the OT/Fine update dialog directly from the daily dashboard."""
+        if not self.env.user.has_group("hr.group_hr_user"):
+            raise UserError(_("Only HR officers can update employee attendance."))
+        if adjustment not in {"overtime", "fine"}:
+            raise UserError(_("Select either overtime or late/fine."))
+
+        day = fields.Date.to_date(selected_date)
+        employee = self.env["hr.employee"].browse(employee_id).exists()
+        if not employee or employee.company_id != self.env.company:
+            raise UserError(_("The employee is not available for the selected company."))
+
+        sheet = self.search([
+            ("date", "=", day),
+            ("company_id", "=", employee.company_id.id),
+        ], limit=1)
+        if not sheet:
+            sheet = self.create({
+                "date": day,
+                "company_id": employee.company_id.id,
+            })
+
+        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
+        if not line:
+            line = self.env["bambus.hr.attendance.sheet.line"].create({
+                "sheet_id": sheet.id,
+                "employee_id": employee.id,
+            })
+            line._compute_day_data()
+
+        return (
+            line.action_edit_overtime()
+            if adjustment == "overtime"
+            else line.action_edit_fine()
+        )
+
+    @api.model
     def create_half_day_leave(self, employee_id, selected_date):
         """Create and confirm one morning half-day unpaid leave from the editor."""
         if not self.env.user.has_group("hr.group_hr_user"):

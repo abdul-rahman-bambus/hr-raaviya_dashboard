@@ -300,6 +300,32 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertGreaterEqual(dashboard["metrics"]["overtime"], 1.5)
         self.assertGreaterEqual(dashboard["metrics"]["fine"], 0.25)
 
+    def test_dashboard_opens_ot_and_fine_updates_without_history(self):
+        employee = self.env["hr.employee"].create({
+            "name": "Direct Dashboard Review Employee",
+            "company_id": self.env.company.id,
+        })
+        today = fields.Date.context_today(employee)
+        sheet_model = self.env["bambus.hr.attendance.sheet"]
+
+        overtime_action = sheet_model.open_dashboard_adjustment(
+            employee.id, fields.Date.to_string(today), "overtime"
+        )
+        line_id = overtime_action["context"]["default_line_id"]
+        self.assertEqual(overtime_action["res_model"], "bambus.hr.overtime.wizard")
+        self.assertTrue(line_id)
+
+        fine_action = sheet_model.open_dashboard_adjustment(
+            employee.id, fields.Date.to_string(today), "fine"
+        )
+        self.assertEqual(fine_action["res_model"], "bambus.hr.fine.wizard")
+        self.assertEqual(fine_action["context"]["default_line_id"], line_id)
+
+        with self.assertRaises(UserError):
+            sheet_model.open_dashboard_adjustment(
+                employee.id, fields.Date.to_string(today), "unsupported"
+            )
+
     def test_hr_saves_overtime_calculation(self):
         employee = self.env["hr.employee"].create({
             "name": "Overtime Approval Employee",

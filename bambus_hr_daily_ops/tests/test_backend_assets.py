@@ -109,6 +109,8 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("this.toggleAbsent(employee)", editor_template)
         self.assertIn("this.toggleLeave(employee)", editor_template)
         self.assertIn("applyStatusTransition", editor_source)
+        self.assertIn("openAdjustment(employee, adjustment)", editor_source)
+        self.assertIn('"open_dashboard_adjustment"', editor_source)
         self.assertNotIn("await this.load(this.state.data.date);", editor_source)
 
         attendance_sheet_source = (

@@ -7,6 +7,8 @@
 .o_bad_metric { display:flex; align-items:center; flex:1 0 108px; gap:9px; min-height:82px; padding:14px 12px; border-right:1px solid #edf0f3; }.o_bad_metric:last-child { border-right:0; }.o_bad_metric i { color:#557ee8; font-size:18px; width:20px; }.o_bad_metric span,.o_bad_metric strong { display:block; }.o_bad_metric span { color:#768391; font-size:12px; }.o_bad_metric strong { font-size:17px; margin-top:4px; }
 .o_bad_metric_action { cursor:pointer; transition:background-color .15s ease,box-shadow .15s ease; }.o_bad_metric_action:hover,.o_bad_metric_action:focus-within { background:#eef5ff; box-shadow:inset 0 -3px #557ee8; }
 .o_bae_action input[type="number"] { width:72px; min-height:30px; padding:3px 6px; border:1px solid #d9e0e8; border-radius:5px; background:#fff; text-align:center; }
+.o_bae_action.fine,.o_bae_action.overtime { cursor:pointer; }
+.o_bae_action.fine>strong,.o_bae_action.overtime>strong { margin-left:auto; }
 .o_bad_loading { background:white; border:1px solid #e1e6ec; border-radius:10px; margin-top:24px; padding:70px 20px; text-align:center; }
 .o_bad_charts_title { margin:30px 0 14px; font-size:20px; font-weight:700; }
 .o_bad_charts_grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }

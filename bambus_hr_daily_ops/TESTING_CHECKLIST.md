@@ -16,6 +16,24 @@ The end-to-end test fixture creates its own UTC work calendar, employees,
 contracts, automation templates, attendance punches, attendance-sheet lines,
 and attendance update wizards. It does not depend on production employee data.
 
+### Latest verified run
+
+The suite was executed on 28 September 2026 against an Odoo 18 test database
+with both integration modules upgraded:
+
+```bash
+./odoo-bin -c raaviya_automation_test.conf -d raaviya_automation_test \
+  --test-enable --stop-after-init \
+  -u bambus_hr_attendance_ot_fine,bambus_hr_daily_ops \
+  --test-tags /bambus_hr_daily_ops --log-level=test --workers=0
+```
+
+Result: **28 tests, 0 failures, 0 errors**. The database still reported
+unrelated migration/configuration warnings for legacy field parameters,
+duplicate payslip field labels, and the non-installable `bambus_saas_client`
+module; these warnings did not fail the attendance automation suite and should
+be resolved separately before production deployment.
+
 - [x] Resolve the company default template when an employee has no template.
 - [x] Prefer an effective employee template over the company default.
 - [x] Fall back to the company default when the employee template is expired.
@@ -38,6 +56,8 @@ and attendance update wizards. It does not depend on production employee data.
 - [x] Reject overlapping salary slabs.
 - [x] Assign an automation template to existing employees.
 - [x] Allow HR to update proposed overtime and fine hours.
+- [x] Open OT and Fine review dialogs directly from filtered dashboard rows,
+  populate detected values, and save the resulting rate/amount snapshots.
 - [x] Store HR-saved overtime calculation details.
 - [x] Save a regularized fine with a zero deduction.
 - [x] Derive a monthly employee's late fine per minute from daily salary and
@@ -51,7 +71,8 @@ and attendance update wizards. It does not depend on production employee data.
 - [ ] Confirm only employees from the selected company appear in the assignment
   wizard and that the selector cannot create employees.
 - [ ] Confirm authorized HR users can update values while employees remain read-only.
-- [ ] Confirm the dashboard OT and Fine metrics open the correctly filtered rows.
+- [ ] Confirm the dashboard OT and Fine metrics open the correctly filtered rows
+  and each row opens its update dialog without navigating through History.
 - [ ] Confirm dates and hours render correctly in the deployment timezone.
 - [ ] Confirm saved overtime and fine values appear once in a generated
   payslip and are not duplicated after recomputation.

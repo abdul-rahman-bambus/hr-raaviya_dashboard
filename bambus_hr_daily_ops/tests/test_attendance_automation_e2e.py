@@ -134,6 +134,52 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
         self.assertAlmostEqual(attendance.bambus_fine_amount, 5 * 300 / 480, places=2)
 
+    def test_dashboard_review_opens_detected_values_and_saves_snapshots(self):
+        employee, contract = self._create_employee_contract(
+            "Direct Dashboard Review", wage=10000
+        )
+        self._create_attendance(employee, (9, 10), (18, 10))
+        sheet_model = self.env["bambus.hr.attendance.sheet"]
+
+        overtime_action = sheet_model.open_dashboard_adjustment(
+            employee.id, fields.Date.to_string(self.test_day), "overtime"
+        )
+        line = self.env["bambus.hr.attendance.sheet.line"].browse(
+            overtime_action["context"]["default_line_id"]
+        )
+        self.assertEqual(overtime_action["res_model"], "bambus.hr.overtime.wizard")
+        self.assertAlmostEqual(line.overtime_hours, 70 / 60, places=4)
+        self.assertAlmostEqual(line.fine_hours, 5 / 60, places=4)
+
+        overtime_wizard = self._default_overtime_wizard(line)
+        self.assertAlmostEqual(
+            overtime_wizard.detected_overtime_hours, 70 / 60, places=4
+        )
+        self.assertEqual(overtime_wizard.rate, contract.overtime_rate)
+        overtime_wizard.action_save()
+        self.assertEqual(line.overtime_state, "approved")
+        self.assertAlmostEqual(line.overtime_amount, 70 / 60 * 50, places=2)
+
+        fine_action = sheet_model.open_dashboard_adjustment(
+            employee.id, fields.Date.to_string(self.test_day), "fine"
+        )
+        self.assertEqual(fine_action["res_model"], "bambus.hr.fine.wizard")
+        self.assertEqual(fine_action["context"]["default_line_id"], line.id)
+        fine_model = self.env["bambus.hr.fine.wizard"].with_context(
+            default_line_id=line.id
+        )
+        fine_wizard = fine_model.create(fine_model.default_get([
+            "line_id", "detected_fine_hours", "fine_hours",
+            "calculation_type", "rate",
+        ]))
+        self.assertEqual(fine_wizard.calculation_type, "salary_minute")
+        self.assertAlmostEqual(fine_wizard.detected_fine_hours, 5 / 60, places=4)
+        expected_fine = fine_wizard.currency_id.round(5 * (10000 / 30) / 480)
+        self.assertEqual(fine_wizard.fine_amount, expected_fine)
+        fine_wizard.action_save()
+        self.assertEqual(line.fine_state, "approved")
+        self.assertEqual(line.fine_amount, expected_fine)
+
     def test_assigned_template_drives_ot_and_fine_without_legacy_switches(self):
         self.company.bambus_ot_mode = "odoo"
         template = self._create_template(

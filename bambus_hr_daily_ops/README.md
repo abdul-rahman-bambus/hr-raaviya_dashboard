@@ -56,7 +56,8 @@ amounts until HR reviews and saves them.
 
 1. The attendance engine calculates overtime and late/fine hours.
 2. The daily attendance sheet marks the proposal as `Needs Review`.
-3. HR opens **OT** or **Fine** for the employee and date.
+3. HR clicks the dashboard **Overtime** or **Late / Fine** metric to list only
+   affected employees, then opens **OT** or **Fine** directly on the employee row.
 4. The update dialog shows the system-calculated hours separately from the
    editable final hours.
 5. HR selects a calculation method, adjusts the rate when applicable, reviews
