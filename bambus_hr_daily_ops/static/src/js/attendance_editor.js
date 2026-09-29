@@ -204,6 +204,34 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.logEmployee = null;
     }
 
+    async openAdjustment(employee, adjustment) {
+        if (this.state.savingIds[employee.id]) {
+            return;
+        }
+        try {
+            const action = await this.orm.call(
+                "bambus.hr.attendance.sheet",
+                "open_dashboard_adjustment",
+                [employee.id, this.state.data.date, adjustment]
+            );
+            // RPC action dictionaries are not passed through Odoo's stored
+            // action loader. Always provide the view list expected by the
+            // Odoo 18 action service before it calls `.map()` on that value.
+            const normalizedAction = {
+                ...action,
+                views: action.views || [[false, "form"]],
+            };
+            await this.action.doAction(normalizedAction, {
+                onClose: () => this.syncEmployee(employee),
+            });
+        } catch (error) {
+            this.notification.add(
+                error.cause?.message || error.message || "Unable to open attendance update.",
+                { type: "danger" }
+            );
+        }
+    }
+
     async saveEmployee(employee, rollback = {}) {
         if (this.state.savingIds[employee.id]) {
             return;

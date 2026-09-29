@@ -221,6 +221,21 @@ class HrPayslip(models.Model):
                 if slip.date_from <= d <= slip.date_to:
                     by_day[d] |= a
 
+            # HR-saved daily values are authoritative for payroll.  The legacy
+            # technical state value "approved" is retained for upgrade safety;
+            # functionally it means that HR saved the attendance correction.
+            approved_lines_by_day = {}
+            if "bambus.hr.attendance.sheet.line" in self.env:
+                approved_lines = self.env["bambus.hr.attendance.sheet.line"].sudo().search([
+                    ("employee_id", "=", emp.id),
+                    ("date", ">=", slip.date_from),
+                    ("date", "<=", slip.date_to),
+                    "|",
+                    ("overtime_state", "=", "approved"),
+                    ("fine_state", "=", "approved"),
+                ])
+                approved_lines_by_day = {line.date: line for line in approved_lines}
+
             has_ot_amount = ("bambus_overtime_amount" in Attendance._fields)
             has_fine = ("bambus_fine_hours" in Attendance._fields and "bambus_fine_amount" in Attendance._fields)
             has_late = ("bambus_late_minutes" in Attendance._fields)
@@ -254,6 +269,11 @@ class HrPayslip(models.Model):
                     if has_ot_amount:
                         ot_amount = sum((a.bambus_overtime_amount or 0.0) for a in day_att)
 
+                approval_line = approved_lines_by_day.get(d)
+                if approval_line and approval_line.overtime_state == "approved":
+                    ot = approval_line.overtime_hours or 0.0
+                    ot_amount = approval_line.overtime_amount or 0.0
+
                 # last-attendance values (stored values only)
                 scheduled_today = 0.0
                 if day_att:
@@ -265,12 +285,22 @@ class HrPayslip(models.Model):
                 if scheduled_today <= 0:
                     scheduled_today = float(full_day_hrs)
 
+                automation = emp._get_attendance_automation_template(d)
+                half_day_target = (
+                    automation.half_day_hours if automation else half_day_hrs
+                )
+                full_day_target = (
+                    scheduled_today
+                    if automation and automation.full_day_basis == "schedule"
+                    else automation.full_day_hours if automation else full_day_hrs
+                )
+
                 # ✅ for DAY COUNT: use effective worked capped by schedule (OT should not reduce day count)
                 effective_worked_for_daycount = min(float(worked or 0.0), float(scheduled_today or 0.0))
 
-                if effective_worked_for_daycount >= float(full_day_hrs):
+                if effective_worked_for_daycount >= float(full_day_target):
                     day_fraction = 1.0
-                elif effective_worked_for_daycount >= float(half_day_hrs):
+                elif effective_worked_for_daycount >= float(half_day_target):
                     day_fraction = 0.5
                 else:
                     day_fraction = 0.0
@@ -306,11 +336,15 @@ class HrPayslip(models.Model):
                         fine_h = float(last.bambus_fine_hours or 0.0)
                         fine_amt = float(last.bambus_fine_amount or 0.0)
 
-                    # NEW: scheduled + shortfall from last punch (stored on attendance)
+                    # scheduled + shortfall from the last punch
                     if has_sched:
                         sched_h = float(last.bambus_scheduled_hours or 0.0)
                     if has_short:
                         short_h = float(last.bambus_shortfall_hours or 0.0)
+
+                if approval_line and approval_line.fine_state == "approved":
+                    fine_h = approval_line.fine_hours or 0.0
+                    fine_amt = approval_line.fine_amount or 0.0
 
 
                 late_by_month[(d.year, d.month)] += late_mins
