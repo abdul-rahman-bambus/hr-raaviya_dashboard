@@ -10,3 +10,9 @@ htmlcov/
 
 # Local runtime files
 *.log
+
+# Locally captured/generated documentation binaries
+bambus_hr_daily_ops/docs/screenshots/*
+!bambus_hr_daily_ops/docs/screenshots/README.md
+bambus_hr_daily_ops/docs/output/*
+!bambus_hr_daily_ops/docs/output/README.md

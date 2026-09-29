@@ -121,3 +121,13 @@ client examples, and the browser/UAT checks to complete before release.
 - [Attendance Automation User Guide](docs/ATTENDANCE_AUTOMATION_USER_GUIDE.md)
 - [Attendance Automation Manual Testing](docs/ATTENDANCE_AUTOMATION_MANUAL_TESTING.md)
 - [Attendance Automation Automated Test Matrix](docs/ATTENDANCE_AUTOMATION_TEST_MATRIX.md)
+
+### Generate DOCX and PDF with embedded screenshots
+
+1. Save the approved screenshots in `docs/screenshots/` using the names in the
+   manual testing guide.
+2. Install `pandoc` and `libreoffice`.
+3. Run `python3 docs/generate_documentation.py --require-screenshots` from the
+   module directory.
+4. Collect the finished DOCX and PDF files from `docs/output/`. Screenshots are
+   embedded in those files; recipients do not need the source image folder.
