@@ -33,11 +33,16 @@ export class AttendanceEditor extends AttendanceDashboard {
         const previousStatus = employee.status;
         const previousValue = employee[field];
         employee[field] = event.target.value;
-        if (employee.status === "not_marked" && event.target.value) {
+        if (employee.status === "not_marked" && employee.check_in_value && employee.check_out_value) {
             employee.status = "present";
             employee.status_label = "Present";
         }
-        await this.saveEmployee(employee, { previousStatus, field, previousValue });
+        await this.saveEmployee(employee, {
+            previousStatus,
+            field,
+            previousValue,
+            statusManual: Boolean(employee.check_in_value && employee.check_out_value),
+        });
     }
 
     async setStatus(employee, status) {
@@ -49,7 +54,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         employee.status_label = {
             present: "Present", absent: "Absent", halfday: "Half Day", leave: "Leave",
         }[status];
-        await this.saveEmployee(employee, { previousStatus });
+        await this.saveEmployee(employee, { previousStatus, statusManual: true });
     }
 
     applyStatusTransition(employee, previousStatus, nextStatus) {
@@ -243,6 +248,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
                     status: employee.status,
+                    status_manual: Boolean(rollback.statusManual),
                     check_in: employee.check_in_value || false,
                     check_out: employee.check_out_value || false,
                 }]

@@ -137,9 +137,12 @@ class BambusHrAttendanceSheet(models.Model):
         ], limit=1)
         sheet_lines = sheet.line_ids.filtered(lambda line: line.employee_id in employees)
         line_by_employee = {line.employee_id.id: line for line in sheet_lines}
-        # Manager-entered daily-sheet statuses take precedence over calculated
-        # punch/leave statuses throughout the dashboard.
+        # Only an explicit manager status takes precedence. Merely opening an
+        # OT/Fine dialog creates a sheet line and must not turn an employee
+        # with no punches into Absent/Present.
         for line in sheet_lines:
+            if not line.attendance_status_manual:
+                continue
             employee_id = line.employee_id.id
             present_employee_ids.discard(employee_id)
             unmarked_employee_ids.discard(employee_id)
@@ -169,9 +172,13 @@ class BambusHrAttendanceSheet(models.Model):
         for line in sheet_lines:
             overtime_employee_ids.discard(line.employee_id.id)
             fine_employee_ids.discard(line.employee_id.id)
-            if line.overtime_hours > 0:
+            has_attendance_basis = (
+                line.employee_id.id in attendance_employee_ids
+                or line.attendance_status_manual
+            )
+            if has_attendance_basis and line.overtime_hours > 0:
                 overtime_employee_ids.add(line.employee_id.id)
-            if line.fine_hours > 0:
+            if has_attendance_basis and line.fine_hours > 0:
                 fine_employee_ids.add(line.employee_id.id)
         departments = []
         department_groups = {}
@@ -286,7 +293,7 @@ class BambusHrAttendanceSheet(models.Model):
             else:
                 status = "not_marked"
                 status_label = _("Not Marked")
-            if override:
+            if override and override.attendance_status_manual:
                 status = override.status
                 status_label = dict(override._fields["status"].selection).get(status, status)
             contract = contract_by_employee.get(employee.id)
@@ -341,12 +348,15 @@ class BambusHrAttendanceSheet(models.Model):
                 "check_in_value": fields.Datetime.context_timestamp(self, display_check_in).strftime("%H:%M") if display_check_in else "",
                 "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
                 "overtime_hours": round(
-                    override.overtime_hours if override
+                    override.overtime_hours
+                    if override and (employee_attendances or override.attendance_status_manual)
                     else sum(a.overtime_hours for a in employee_attendances),
                     2,
                 ),
                 "fine_hours": round(
-                    override.fine_hours if override else employee_fine_hours,
+                    override.fine_hours
+                    if override and (employee_attendances or override.attendance_status_manual)
+                    else employee_fine_hours,
                     2,
                 ),
                 "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
@@ -409,10 +419,12 @@ class BambusHrAttendanceSheet(models.Model):
                 "employee_id": employee.id,
             })
 
-        status = values.get("status", line.status or "absent")
-        if status not in {"present", "absent", "halfday", "leave"}:
+        requested_status = values.get("status", "not_marked")
+        status_manual = bool(values.get("status_manual", "status" in values))
+        if requested_status not in {"present", "absent", "halfday", "leave", "not_marked"}:
             raise UserError(_("Select a valid attendance status."))
-        if status == "absent" and contract and "wage_type" in contract._fields and contract.wage_type == "hourly":
+        status = requested_status if requested_status != "not_marked" else "absent"
+        if requested_status == "absent" and contract and "wage_type" in contract._fields and contract.wage_type == "hourly":
             raise UserError(_("Hourly employees cannot be marked absent."))
         timezone = pytz.timezone(self.env.user.tz or "UTC")
 
@@ -435,6 +447,7 @@ class BambusHrAttendanceSheet(models.Model):
             raise UserError(_("Overtime and late/fine hours cannot be negative."))
         line.write({
             "status": status,
+            "attendance_status_manual": status_manual,
             "check_in": check_in,
             "check_out": check_out,
             "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
@@ -447,7 +460,7 @@ class BambusHrAttendanceSheet(models.Model):
         })
         return {
             "line_id": line.id,
-            "status": line.status,
+            "status": line.status if line.attendance_status_manual else "not_marked",
             "worked_hours": line.worked_hours,
         }
 
@@ -882,6 +895,10 @@ class BambusHrAttendanceSheetLine(models.Model):
         default="absent",
         required=True,
         index=True,
+    )
+    attendance_status_manual = fields.Boolean(
+        string="Attendance Status Set by HR",
+        help="Distinguishes an explicit HR status from a line created only to review OT/Fine.",
     )
 
     # OT / Fine detected values and HR-saved final values.

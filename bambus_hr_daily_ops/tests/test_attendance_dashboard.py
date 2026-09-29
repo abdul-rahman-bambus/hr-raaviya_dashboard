@@ -179,6 +179,55 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertGreaterEqual(dashboard["metrics"]["not_marked"], 1)
         self.assertEqual(dashboard["metrics"]["absent"], 0)
 
+    def test_review_line_without_punch_does_not_create_presence_or_fine(self):
+        employee = self.env["hr.employee"].create({
+            "name": "Review Only Employee",
+            "company_id": self.env.company.id,
+        })
+        today = fields.Date.context_today(employee)
+        sheet_model = self.env["bambus.hr.attendance.sheet"]
+
+        action = sheet_model.open_dashboard_adjustment(
+            employee.id, fields.Date.to_string(today), "fine"
+        )
+        line = self.env["bambus.hr.attendance.sheet.line"].browse(
+            action["context"]["default_line_id"]
+        )
+        # Simulate stale values from a previously opened/incomplete review.
+        line.write({"status": "present", "fine_hours": 8})
+
+        dashboard = sheet_model.get_attendance_dashboard(fields.Date.to_string(today))
+        row = next(item for item in dashboard["daily_attendance"] if item["id"] == employee.id)
+        self.assertEqual(row["status"], "not_marked")
+        self.assertFalse(row["has_attendance"])
+        self.assertEqual(row["fine_hours"], 0)
+
+    def test_incomplete_manual_time_is_not_present_or_fined(self):
+        employee = self.env["hr.employee"].create({
+            "name": "Incomplete Manual Time Employee",
+            "company_id": self.env.company.id,
+        })
+        today = fields.Date.context_today(employee)
+        sheet_model = self.env["bambus.hr.attendance.sheet"]
+
+        result = sheet_model.update_dashboard_attendance(
+            employee.id,
+            fields.Date.to_string(today),
+            {
+                "status": "not_marked",
+                "status_manual": False,
+                "check_in": "14:46",
+            },
+        )
+        self.assertEqual(result["status"], "not_marked")
+
+        dashboard = sheet_model.get_attendance_dashboard(fields.Date.to_string(today))
+        row = next(item for item in dashboard["daily_attendance"] if item["id"] == employee.id)
+        self.assertEqual(row["status"], "not_marked")
+        self.assertEqual(row["check_in_value"], "14:46")
+        self.assertFalse(row["check_out_value"])
+        self.assertEqual(row["fine_hours"], 0)
+
     def test_hourly_employee_cannot_be_marked_absent(self):
         contract_model = self.env["hr.contract"]
         if "wage_type" not in contract_model._fields:
