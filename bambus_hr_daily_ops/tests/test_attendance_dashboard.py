@@ -45,6 +45,10 @@ class TestAttendanceDashboard(TransactionCase):
             "name": "Salary Slab Rules",
             "company_id": self.env.company.id,
             "overtime_rate_policy": "salary_slab",
+            # Keep the wizard assertion deterministic on populated databases
+            # where today's date may already be configured as a public holiday.
+            "public_holiday_rate_policy": "salary_slab",
+            "public_holiday_calculation_type": "fixed_hour",
             "overtime_salary_basis": "monthly",
             "overtime_slab_ids": [
                 (0, 0, {"salary_from": 0, "salary_to": 9000, "rate": 75}),

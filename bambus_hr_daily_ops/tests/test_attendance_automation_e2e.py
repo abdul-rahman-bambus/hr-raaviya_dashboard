@@ -295,7 +295,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             public_holiday_overtime_policy="all",
             minimum_overtime_minutes=0,
         )
-        employee, _contract = self._create_employee_contract(
+        employee, contract = self._create_employee_contract(
             "Public Holiday Employee", template=template
         )
         self.env["resource.calendar.leaves"].create({
@@ -311,7 +311,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
         payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
-            employee.contract_id, self.test_day, self.test_day, "UTC"
+            contract, self.test_day, self.test_day, "UTC"
         )
         self.assertIn(self.test_day, payroll_holidays)
 
@@ -371,7 +371,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
         payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
-            employee.contract_id, self.test_day, self.test_day, "UTC"
+            contract, self.test_day, self.test_day, "UTC"
         )
         self.assertIn(self.test_day, payroll_holidays)
         line = self._review_line(employee, contract, 6.0)
