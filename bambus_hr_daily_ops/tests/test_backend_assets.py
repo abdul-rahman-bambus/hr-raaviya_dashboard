@@ -194,3 +194,21 @@ class TestBackendAssets(TransactionCase):
         self.assertIsNone(
             overtime_page.find(".//field[@name='public_holiday_overtime_policy']")
         )
+
+    def test_automation_form_has_hourly_pay_review_page(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(
+            module_root / "views/attendance_automation_template_views.xml"
+        )
+        hourly_page = tree.find(
+            ".//record[@id='view_attendance_automation_template_form']"
+            "/field[@name='arch']/form//page[@string='Hourly Pay']"
+        )
+
+        self.assertIsNotNone(hourly_page)
+        self.assertIsNotNone(
+            hourly_page.find(".//field[@name='hourly_pay_enabled']")
+        )
+        self.assertIsNotNone(
+            hourly_page.find(".//field[@name='hourly_pay_calculation_type']")
+        )

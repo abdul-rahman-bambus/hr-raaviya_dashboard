@@ -300,7 +300,7 @@ export class AttendanceEditor extends AttendanceDashboard {
             this.state.adjustment = null;
             await this.syncEmployee(employee);
             this.notification.add(
-                `${adjustment.adjustment === "overtime" ? "Overtime" : "Late / fine"} saved for ${adjustment.employee}.`,
+                `${adjustment.adjustment === "overtime" ? "Overtime" : (adjustment.adjustment === "hourly_pay" ? "Hourly pay" : "Late / fine")} saved for ${adjustment.employee}.`,
                 { type: "success" }
             );
         } catch (error) {
