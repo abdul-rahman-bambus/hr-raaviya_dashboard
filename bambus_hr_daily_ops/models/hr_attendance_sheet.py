@@ -300,6 +300,7 @@ class BambusHrAttendanceSheet(models.Model):
             calendar = contract.resource_calendar_id if contract else False
             contract_type = contract.contract_type_id if contract else False
             wage_type = contract.wage_type if contract and "wage_type" in contract._fields else ""
+            automation = employee._get_attendance_automation_template(day)
             employee_fine_hours = 0.0
             if "bambus_fine_hours" in attendances._fields:
                 employee_fine_hours = sum(
@@ -435,9 +436,11 @@ class BambusHrAttendanceSheet(models.Model):
                 "contract_type": contract_type.display_name if contract_type else _("No Contract Type"),
                 "wage_type": wage_type,
                 "is_hourly": wage_type == "hourly",
+                "fine_enabled": bool(automation and automation.late_enabled),
+                "overtime_enabled": bool(automation and automation.overtime_enabled),
                 "hourly_pay_enabled": bool(
                     wage_type == "hourly"
-                    and employee._get_attendance_automation_template(day).hourly_pay_enabled
+                    and automation.hourly_pay_enabled
                 ),
                 "hourly_pay_hours": round(
                     override.hourly_pay_hours
@@ -518,8 +521,6 @@ class BambusHrAttendanceSheet(models.Model):
         if requested_status not in {"present", "absent", "halfday", "leave", "not_marked"}:
             raise UserError(_("Select a valid attendance status."))
         status = requested_status if requested_status != "not_marked" else "absent"
-        if requested_status == "absent" and contract and "wage_type" in contract._fields and contract.wage_type == "hourly":
-            raise UserError(_("Hourly employees cannot be marked absent."))
         timezone = pytz.timezone(self.env.user.tz or "UTC")
 
         def parse_time(value):
@@ -589,8 +590,7 @@ class BambusHrAttendanceSheet(models.Model):
             ("date_start", "<=", day),
             "|", ("date_end", "=", False), ("date_end", ">=", day),
         ], order="date_start desc, id desc", limit=1)
-        if contract and contract.wage_type == "hourly" and adjustment != "hourly_pay":
-            raise UserError(_("Hourly contracts do not use overtime or late/fine updates."))
+        template = employee._get_attendance_automation_template(day)
 
         sheet = self.search([
             ("date", "=", day),
@@ -616,7 +616,6 @@ class BambusHrAttendanceSheet(models.Model):
             return line.action_edit_fine()
         if not contract or contract.wage_type != "hourly":
             raise UserError(_("Hourly pay review is only available for hourly contracts."))
-        template = employee._get_attendance_automation_template(day)
         if not template.hourly_pay_enabled:
             raise UserError(_("Enable Hourly Pay Review on the employee's automation template."))
         return line.action_edit_hourly_pay()

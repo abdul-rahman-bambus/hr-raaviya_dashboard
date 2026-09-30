@@ -35,6 +35,10 @@ class TestBackendAssets(TransactionCase):
 
         editor_template = (module_root / "static/src/xml/attendance_editor.xml").read_text(encoding="utf-8")
         self.assertIn('t-if="!employee.is_hourly"', editor_template)
+        self.assertIn('t-att-disabled="!employee.fine_enabled"', editor_template)
+        self.assertIn('t-att-disabled="!employee.overtime_enabled"', editor_template)
+        self.assertIn("openTimingAdjustment(employee)", editor_template)
+        self.assertIn("Update Punch Times", editor_template)
 
     def test_employee_dashboard_is_nested_under_hrms(self):
         module_root = Path(__file__).parents[1]

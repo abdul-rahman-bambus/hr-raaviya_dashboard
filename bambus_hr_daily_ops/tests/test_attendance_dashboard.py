@@ -234,7 +234,7 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertFalse(row["check_out_value"])
         self.assertEqual(row["fine_hours"], 0)
 
-    def test_hourly_employee_cannot_be_marked_absent(self):
+    def test_hourly_employee_can_be_marked_absent(self):
         contract_model = self.env["hr.contract"]
         if "wage_type" not in contract_model._fields:
             self.skipTest("The installed payroll module does not provide contract wage types.")
@@ -256,12 +256,57 @@ class TestAttendanceDashboard(TransactionCase):
         )
         roster = {item["id"]: item for item in dashboard["daily_attendance"]}
         self.assertTrue(roster[employee.id]["is_hourly"])
-        with self.assertRaisesRegex(UserError, "Hourly employees cannot be marked absent"):
-            self.env["bambus.hr.attendance.sheet"].update_dashboard_attendance(
-                employee.id,
-                fields.Date.to_string(today),
-                {"status": "absent"},
-            )
+        result = self.env["bambus.hr.attendance.sheet"].update_dashboard_attendance(
+            employee.id,
+            fields.Date.to_string(today),
+            {"status": "absent"},
+        )
+        self.assertEqual(result["status"], "absent")
+
+    def test_hourly_template_enables_pay_review_with_contract_rate(self):
+        today = fields.Date.context_today(self.env.user)
+        template = self.env["bambus.attendance.automation.template"].create({
+            "name": "Hourly Pay Review",
+            "company_id": self.env.company.id,
+            "hourly_pay_enabled": True,
+            "hourly_pay_calculation_type": "salary_1",
+        })
+        employee = self.env["hr.employee"].create({
+            "name": "Hourly Pay Review Employee",
+            "company_id": self.env.company.id,
+            "attendance_automation_template_id": template.id,
+        })
+        contract = self.env["hr.contract"].create({
+            "name": "Hourly Pay Review Contract",
+            "employee_id": employee.id,
+            "company_id": self.env.company.id,
+            "date_start": today,
+            "wage_type": "hourly",
+            "hourly_rate": 25,
+            "wage": 0,
+        })
+        line = self.env["bambus.hr.attendance.sheet.line"].create({
+            "sheet_id": self._sheet_for(today).id,
+            "employee_id": employee.id,
+            "contract_id": contract.id,
+            "worked_hours": 7.5,
+        })
+        wizard_model = self.env["bambus.hr.hourly.pay.wizard"].with_context(
+            default_line_id=line.id
+        )
+        wizard = wizard_model.create(wizard_model.default_get([
+            "line_id", "detected_hourly_pay_hours", "hourly_pay_hours",
+            "calculation_type", "rate", "note",
+        ]))
+
+        self.assertEqual(wizard.detected_hourly_pay_hours, 7.5)
+        self.assertEqual(wizard.calculation_type, "salary_1")
+        self.assertEqual(wizard.hourly_pay_amount, 187.5)
+        wizard.hourly_pay_hours = 7
+        wizard.action_save()
+        self.assertEqual(line.hourly_pay_state, "approved")
+        self.assertEqual(line.hourly_pay_hours, 7)
+        self.assertEqual(line.hourly_pay_amount, 175)
 
     def test_hourly_template_enables_pay_review_with_contract_rate(self):
         today = fields.Date.context_today(self.env.user)

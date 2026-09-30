@@ -13,6 +13,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.savingIds = {};
         this.state.logEmployee = null;
         this.state.adjustment = null;
+        this.state.timingAdjustment = null;
     }
 
     get filteredDailyGroups() {
@@ -43,6 +44,43 @@ export class AttendanceEditor extends AttendanceDashboard {
             field,
             previousValue,
             statusManual: Boolean(employee.check_in_value && employee.check_out_value),
+        });
+    }
+
+    openTimingAdjustment(employee) {
+        if (this.state.savingIds[employee.id]) return;
+        this.state.timingAdjustment = {
+            employee,
+            checkIn: employee.check_in_value || "",
+            checkOut: employee.check_out_value || "",
+            saving: false,
+        };
+    }
+
+    closeTimingAdjustment() {
+        if (!this.state.timingAdjustment?.saving) this.state.timingAdjustment = null;
+    }
+
+    updateTimingField(field, event) {
+        this.state.timingAdjustment[field] = event.target.value;
+    }
+
+    async saveTimingAdjustment() {
+        const timing = this.state.timingAdjustment;
+        if (!timing || timing.saving) return;
+        timing.saving = true;
+        const employee = timing.employee;
+        const previousStatus = employee.status;
+        employee.check_in_value = timing.checkIn;
+        employee.check_out_value = timing.checkOut;
+        if (timing.checkIn && timing.checkOut) {
+            employee.status = "present";
+            employee.status_label = "Present";
+        }
+        this.state.timingAdjustment = null;
+        await this.saveEmployee(employee, {
+            previousStatus,
+            statusManual: Boolean(timing.checkIn && timing.checkOut),
         });
     }
 
