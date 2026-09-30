@@ -556,7 +556,7 @@ class TestAttendanceDashboard(TransactionCase):
         })
         wizard = self.env["bambus.hr.fine.wizard"].create({
             "line_id": line.id,
-            "fine_hours": 1,
+            "fine_hours": 0.5,
             "calculation_type": "regularize",
         })
 
@@ -575,7 +575,7 @@ class TestAttendanceDashboard(TransactionCase):
             if log["type"] == "hr_update" and log["label"] == "Late / Fine adjusted"
         )
         self.assertEqual(fine_log["actor"], self.env.user.name)
-        self.assertEqual(fine_log["details"], "01:00 hrs")
+        self.assertEqual(fine_log["details"], "01:00 → 00:30 hrs")
         self.assertEqual(line.fine_calculation_type, "regularize")
         self.assertEqual(line.fine_amount, 0)
 

@@ -341,17 +341,28 @@ class BambusHrAttendanceSheet(models.Model):
             for update in hr_updates:
                 adjusted_times = []
                 if update.adjustment_type == "attendance":
-                    if update.check_in:
-                        adjusted_times.append(_("In %s", format_time(update.check_in)))
-                    if update.check_out:
-                        adjusted_times.append(_("Out %s", format_time(update.check_out)))
+                    if update.previous_check_in or update.check_in:
+                        adjusted_times.append(_(
+                            "In %s → %s",
+                            format_time(update.previous_check_in) or _("Not set"),
+                            format_time(update.check_in) or _("Not set"),
+                        ))
+                    if update.previous_check_out or update.check_out:
+                        adjusted_times.append(_(
+                            "Out %s → %s",
+                            format_time(update.previous_check_out) or _("Not set"),
+                            format_time(update.check_out) or _("Not set"),
+                        ))
                     label = _("Attendance time adjusted")
                 else:
                     hours = max(update.adjusted_hours or 0.0, 0.0)
                     total_minutes = round(hours * 60)
-                    adjusted_times.append(
-                        _("%02d:%02d hrs", total_minutes // 60, total_minutes % 60)
-                    )
+                    previous_minutes = round(max(update.previous_hours or 0.0, 0.0) * 60)
+                    adjusted_times.append(_(
+                        "%02d:%02d → %02d:%02d hrs",
+                        previous_minutes // 60, previous_minutes % 60,
+                        total_minutes // 60, total_minutes % 60,
+                    ))
                     label = dict(
                         update._fields["adjustment_type"]._description_selection(self.env)
                     ).get(update.adjustment_type)
@@ -372,18 +383,19 @@ class BambusHrAttendanceSheet(models.Model):
             # updater metadata. Surface their latest adjustment once so an
             # existing HR update does not disappear from the Logs popup.
             legacy_updates = (
-                ("overtime", _("Overtime adjusted"), "overtime_hours",
+                ("overtime", _("Overtime adjusted"), "overtime_detected_hours", "overtime_hours",
                  "overtime_updated_by_id", "overtime_updated_on"),
-                ("fine", _("Late / Fine adjusted"), "fine_hours",
+                ("fine", _("Late / Fine adjusted"), "fine_detected_hours", "fine_hours",
                  "fine_updated_by_id", "fine_updated_on"),
-                ("hourly_pay", _("Hourly pay adjusted"), "hourly_pay_hours",
+                ("hourly_pay", _("Hourly pay adjusted"), "hourly_pay_detected_hours", "hourly_pay_hours",
                  "hourly_pay_updated_by_id", "hourly_pay_updated_on"),
             )
-            for kind, label, hours_field, user_field, date_field in legacy_updates:
+            for kind, label, detected_field, hours_field, user_field, date_field in legacy_updates:
                 updated_on = override and override[date_field]
                 if not updated_on or kind in logged_adjustment_types:
                     continue
                 total_minutes = round(max(override[hours_field] or 0.0, 0.0) * 60)
+                detected_minutes = round(max(override[detected_field] or 0.0, 0.0) * 60)
                 attendance_logs.append({
                     "id": f"hr-line-{override.id}-{kind}",
                     "type": "hr_update",
@@ -393,7 +405,9 @@ class BambusHrAttendanceSheet(models.Model):
                     ).strftime("%I:%M %p").lstrip("0"),
                     "mode": _("HR Update"),
                     "details": _(
-                        "%02d:%02d hrs", total_minutes // 60, total_minutes % 60
+                        "%02d:%02d → %02d:%02d hrs",
+                        detected_minutes // 60, detected_minutes % 60,
+                        total_minutes // 60, total_minutes % 60,
                     ),
                     "address": "",
                     "image_url": False,
@@ -525,6 +539,8 @@ class BambusHrAttendanceSheet(models.Model):
         fine_hours = float(values.get("fine_hours", line.fine_hours) or 0.0)
         if overtime_hours < 0 or fine_hours < 0:
             raise UserError(_("Overtime and late/fine hours cannot be negative."))
+        previous_check_in = line.check_in
+        previous_check_out = line.check_out
         line.write({
             "status": status,
             "attendance_status_manual": status_manual,
@@ -543,6 +559,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "employee_id": employee.id,
                 "date": day,
                 "adjustment_type": "attendance",
+                "previous_check_in": previous_check_in,
+                "previous_check_out": previous_check_out,
                 "check_in": check_in,
                 "check_out": check_out,
                 "updated_by_id": self.env.user.id,
@@ -1515,6 +1533,9 @@ class BambusHrAttendanceTimeAudit(models.Model):
         ("hourly_pay", "Hourly pay adjusted"),
     ], required=True, default="attendance", index=True)
     adjusted_hours = fields.Float(digits=(16, 6))
+    previous_hours = fields.Float(digits=(16, 6))
+    previous_check_in = fields.Datetime(string="Previous Check In")
+    previous_check_out = fields.Datetime(string="Previous Check Out")
     check_in = fields.Datetime(string="Adjusted Check In")
     check_out = fields.Datetime(string="Adjusted Check Out")
     updated_by_id = fields.Many2one(
