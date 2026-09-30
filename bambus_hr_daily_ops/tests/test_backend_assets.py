@@ -90,6 +90,17 @@ class TestBackendAssets(TransactionCase):
         self.assertIsNotNone(holiday_action)
         holiday_model = holiday_action.find("./field[@name='res_model']")
         self.assertEqual(holiday_model.text, "resource.calendar.leaves")
+        holiday_domain = holiday_action.find("./field[@name='domain']")
+        self.assertIn("('calendar_id', '=', False)", holiday_domain.text)
+
+        holiday_form = navigation_tree.find(
+            ".//record[@id='view_bambus_hrms_public_holiday_form']"
+        )
+        holiday_form_arch = holiday_form.find("./field[@name='arch']")
+        visible_fields = {
+            field.get("name") for field in holiday_form_arch.findall(".//field")
+        }
+        self.assertEqual(visible_fields, {"name", "date_from", "date_to"})
 
         for menu_id in {
             "menu_bambus_hrms_attendance_history",

@@ -311,6 +311,29 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
 
+    def test_global_public_holiday_applies_without_work_schedule(self):
+        template = self._create_template(
+            "Global Public Holiday Work",
+            public_holiday_overtime_policy="all",
+            minimum_overtime_minutes=0,
+        )
+        employee, _contract = self._create_employee_contract(
+            "Global Holiday Employee", template=template
+        )
+        self.env["resource.calendar.leaves"].create({
+            "name": "All Companies Holiday",
+            "calendar_id": False,
+            "resource_id": False,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(
+                self.test_day + timedelta(days=1), datetime.min.time()
+            ),
+        })
+
+        self._create_attendance(employee, (9, 0), (15, 0))
+
+        self.assertEqual(self._base_overtime(employee).duration, 6.0)
+
     def test_expired_employee_template_falls_back_to_company_default(self):
         expired_template = self._create_template(
             "Expired Employee Automation",

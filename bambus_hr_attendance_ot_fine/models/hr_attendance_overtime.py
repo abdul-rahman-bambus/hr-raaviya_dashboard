@@ -235,8 +235,10 @@ class HrAttendanceOvertime(models.Model):
             pytz.UTC
         ).replace(tzinfo=None)
         return bool(self.env["resource.calendar.leaves"].sudo().search_count([
-            ("calendar_id", "=", contract.resource_calendar_id.id),
             ("resource_id", "=", False),
+            "|",
+            ("calendar_id", "=", contract.resource_calendar_id.id),
+            ("calendar_id", "=", False),
             ("date_from", "<", end),
             ("date_to", ">", start),
         ]))
