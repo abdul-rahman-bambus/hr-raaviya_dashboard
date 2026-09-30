@@ -331,6 +331,18 @@ class BambusHrAttendanceSheet(models.Model):
                         "address": optional_value(attendance, "checkout_reverse_address"),
                         "image_url": attendance_image_url(attendance, "recognized_face_checkout"),
                     })
+            employee_overtime_hours = max(
+                override.overtime_hours
+                if override and (employee_attendances or override.attendance_status_manual)
+                else sum(a.overtime_hours for a in employee_attendances),
+                0.0,
+            )
+            employee_fine_hours = max(
+                override.fine_hours
+                if override and (employee_attendances or override.attendance_status_manual)
+                else employee_fine_hours,
+                0.0,
+            )
             daily_attendance.append({
                 "id": employee.id,
                 "name": employee.display_name,
@@ -347,18 +359,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "check_out": format_time(display_check_out),
                 "check_in_value": fields.Datetime.context_timestamp(self, display_check_in).strftime("%H:%M") if display_check_in else "",
                 "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
-                "overtime_hours": round(
-                    override.overtime_hours
-                    if override and (employee_attendances or override.attendance_status_manual)
-                    else sum(a.overtime_hours for a in employee_attendances),
-                    2,
-                ),
-                "fine_hours": round(
-                    override.fine_hours
-                    if override and (employee_attendances or override.attendance_status_manual)
-                    else employee_fine_hours,
-                    2,
-                ),
+                "overtime_hours": round(employee_overtime_hours, 2),
+                "fine_hours": round(employee_fine_hours, 2),
                 "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
                 "has_attendance": bool(employee_attendances),
                 "line_id": override.id if override else False,

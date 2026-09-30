@@ -65,7 +65,10 @@ export class AttendanceDashboard extends Component {
     }
 
     formatHours(value) {
-        const minutes = Math.round((value || 0) * 60);
+        // Native Odoo overtime can be negative when worked hours are below a
+        // schedule. A shortfall is not overtime and must never be displayed as
+        // a negative HH:MM value on the OT/Fine review dashboard.
+        const minutes = Math.round(Math.max(Number(value) || 0, 0) * 60);
         return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
     }
 

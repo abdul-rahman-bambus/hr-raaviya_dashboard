@@ -132,4 +132,5 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("openMetric(metric)", dashboard_source)
         self.assertIn("this.state.statusFilter = metric;", dashboard_source)
         self.assertIn("this.state.currentPage = 1;", dashboard_source)
+        self.assertIn("Math.max(Number(value) || 0, 0)", dashboard_source)
         self.assertNotIn('tag: "bambus_attendance_editor"', dashboard_source)
