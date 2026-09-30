@@ -174,6 +174,21 @@
                                 </group>
                             </group>
                         </page>
+                        <page string="Hourly Pay">
+                            <div class="alert alert-info" role="alert">
+                                Hourly contracts do not use overtime, late/fine, or public-holiday
+                                calculations. Enable this option to let HR review payable worked
+                                hours using the contract hourly rate or another calculation type.
+                            </div>
+                            <group>
+                                <field name="hourly_pay_enabled"/>
+                                <field name="hourly_pay_calculation_type"
+                                       invisible="not hourly_pay_enabled"/>
+                                <field name="hourly_pay_rate" widget="monetary"
+                                       options="{'currency_field': 'currency_id'}"
+                                       invisible="not hourly_pay_enabled or hourly_pay_calculation_type not in ('fixed', 'fixed_hour')"/>
+                            </group>
+                        </page>
                         <page string="Assigned Employees">
                             <button name="%(action_attendance_automation_assign_wizard)d"
                                     type="action" string="Assign Existing Employees"

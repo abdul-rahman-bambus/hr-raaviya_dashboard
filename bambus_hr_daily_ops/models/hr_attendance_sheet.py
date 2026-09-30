@@ -353,6 +353,16 @@ class BambusHrAttendanceSheet(models.Model):
                 "contract_type": contract_type.display_name if contract_type else _("No Contract Type"),
                 "wage_type": wage_type,
                 "is_hourly": wage_type == "hourly",
+                "hourly_pay_enabled": bool(
+                    wage_type == "hourly"
+                    and employee._get_attendance_automation_template(day).hourly_pay_enabled
+                ),
+                "hourly_pay_hours": round(
+                    override.hourly_pay_hours
+                    if override and override.hourly_pay_state == "approved"
+                    else (override.worked_hours if override else sum(a.worked_hours for a in employee_attendances)),
+                    2,
+                ),
                 "status": status,
                 "status_label": status_label,
                 "check_in": format_time(display_check_in),
@@ -468,16 +478,24 @@ class BambusHrAttendanceSheet(models.Model):
 
     @api.model
     def open_dashboard_adjustment(self, employee_id, selected_date, adjustment):
-        """Open the OT/Fine update dialog directly from the daily dashboard."""
+        """Open an overtime, fine, or hourly-pay review from the dashboard."""
         if not self.env.user.has_group("hr.group_hr_user"):
             raise UserError(_("Only HR officers can update employee attendance."))
-        if adjustment not in {"overtime", "fine"}:
-            raise UserError(_("Select either overtime or late/fine."))
+        if adjustment not in {"overtime", "fine", "hourly_pay"}:
+            raise UserError(_("Select overtime, late/fine, or hourly pay."))
 
         day = fields.Date.to_date(selected_date)
         employee = self.env["hr.employee"].browse(employee_id).exists()
         if not employee or employee.company_id != self.env.company:
             raise UserError(_("The employee is not available for the selected company."))
+        contract = self.env["hr.contract"].search([
+            ("employee_id", "=", employee.id),
+            ("state", "!=", "cancel"),
+            ("date_start", "<=", day),
+            "|", ("date_end", "=", False), ("date_end", ">=", day),
+        ], order="date_start desc, id desc", limit=1)
+        if contract and contract.wage_type == "hourly" and adjustment != "hourly_pay":
+            raise UserError(_("Hourly contracts do not use overtime or late/fine updates."))
 
         sheet = self.search([
             ("date", "=", day),
@@ -497,15 +515,20 @@ class BambusHrAttendanceSheet(models.Model):
             })
             line._compute_day_data()
 
-        return (
-            line.action_edit_overtime()
-            if adjustment == "overtime"
-            else line.action_edit_fine()
-        )
+        if adjustment == "overtime":
+            return line.action_edit_overtime()
+        if adjustment == "fine":
+            return line.action_edit_fine()
+        if not contract or contract.wage_type != "hourly":
+            raise UserError(_("Hourly pay review is only available for hourly contracts."))
+        template = employee._get_attendance_automation_template(day)
+        if not template.hourly_pay_enabled:
+            raise UserError(_("Enable Hourly Pay Review on the employee's automation template."))
+        return line.action_edit_hourly_pay()
 
     @api.model
     def get_dashboard_adjustment(self, employee_id, selected_date, adjustment):
-        """Return the small, dashboard-facing OT/Fine editor payload."""
+        """Return the small dashboard-facing adjustment editor payload."""
         action = self.open_dashboard_adjustment(
             employee_id, selected_date, adjustment
         )
@@ -516,14 +539,11 @@ class BambusHrAttendanceSheet(models.Model):
         if not wizard:
             raise UserError(_("The attendance adjustment could not be prepared."))
 
-        hours_field = "overtime_hours" if adjustment == "overtime" else "fine_hours"
-        detected_field = (
-            "detected_overtime_hours"
-            if adjustment == "overtime"
-            else "detected_fine_hours"
-        )
-        amount_field = "overtime_amount" if adjustment == "overtime" else "fine_amount"
-        note_field = "note" if adjustment == "overtime" else "reason"
+        prefix = {"overtime": "overtime", "fine": "fine", "hourly_pay": "hourly_pay"}[adjustment]
+        hours_field = f"{prefix}_hours"
+        detected_field = f"detected_{prefix}_hours"
+        amount_field = f"{prefix}_amount"
+        note_field = "reason" if adjustment == "fine" else "note"
         currency = wizard.currency_id
         rate_helper = self.env["bambus.hr.overtime.wizard"]
         daily_rate, hourly_rate = rate_helper._contract_rates(wizard.line_id)
@@ -559,20 +579,23 @@ class BambusHrAttendanceSheet(models.Model):
         """Validate and save a dashboard adjustment through its existing wizard."""
         if not self.env.user.has_group("hr.group_hr_user"):
             raise UserError(_("Only HR officers can update employee attendance."))
-        if adjustment not in {"overtime", "fine"}:
-            raise UserError(_("Select either overtime or late/fine."))
+        if adjustment not in {"overtime", "fine", "hourly_pay"}:
+            raise UserError(_("Select overtime, late/fine, or hourly pay."))
 
-        model_name = (
-            "bambus.hr.overtime.wizard"
-            if adjustment == "overtime"
-            else "bambus.hr.fine.wizard"
-        )
+        model_name = {
+            "overtime": "bambus.hr.overtime.wizard",
+            "fine": "bambus.hr.fine.wizard",
+            "hourly_pay": "bambus.hr.hourly.pay.wizard",
+        }[adjustment]
         wizard = self.env[model_name].browse(wizard_id).exists()
         if not wizard or wizard.create_uid != self.env.user:
             raise UserError(_("This attendance adjustment has expired. Open it again."))
 
-        hours_field = "overtime_hours" if adjustment == "overtime" else "fine_hours"
-        note_field = "note" if adjustment == "overtime" else "reason"
+        hours_field = {
+            "overtime": "overtime_hours", "fine": "fine_hours",
+            "hourly_pay": "hourly_pay_hours",
+        }[adjustment]
+        note_field = "reason" if adjustment == "fine" else "note"
         allowed_types = dict(
             wizard._fields["calculation_type"]._description_selection(self.env)
         )
@@ -597,7 +620,8 @@ class BambusHrAttendanceSheet(models.Model):
             "amount": (
                 wizard.overtime_amount
                 if adjustment == "overtime"
-                else wizard.fine_amount
+                else wizard.fine_amount if adjustment == "fine"
+                else wizard.hourly_pay_amount
             ),
         }
 
@@ -1035,6 +1059,23 @@ class BambusHrAttendanceSheetLine(models.Model):
     overtime_updated_by_id = fields.Many2one("res.users", readonly=True)
     overtime_updated_on = fields.Datetime(readonly=True)
 
+    hourly_pay_detected_hours = fields.Float(string="Detected Payable Hours", digits=(16, 6))
+    hourly_pay_hours = fields.Float(string="Payable Hours", digits=(16, 6))
+    hourly_pay_amount = fields.Monetary(string="Hourly Pay Amount")
+    hourly_pay_calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"), ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"), ("full_day", "Full Day"),
+        ("regularize", "Regularize"), ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"), ("salary_2", "2x Salary"),
+    ], string="Hourly Pay Calculation")
+    hourly_pay_rate = fields.Monetary(string="Hourly Pay Rate")
+    hourly_pay_state = fields.Selection([
+        ("draft", "Not Reviewed"), ("approved", "Updated"),
+    ], default="draft")
+    hourly_pay_note = fields.Char()
+    hourly_pay_updated_by_id = fields.Many2one("res.users", readonly=True)
+    hourly_pay_updated_on = fields.Datetime(readonly=True)
+
     fine_hours = fields.Float(string="Fine Hours", digits=(16, 6))
     fine_detected_hours = fields.Float(string="System Fine Hours", digits=(16, 6), readonly=True)
     fine_amount = fields.Monetary(string="Fine Amount")
@@ -1335,6 +1376,19 @@ class BambusHrAttendanceSheetLine(models.Model):
             "type": "ir.actions.act_window",
             "name": _("Fine"),
             "res_model": "bambus.hr.fine.wizard",
+            "view_mode": "form",
+            "views": [(form_view.id, "form")],
+            "target": "new",
+            "context": {"default_line_id": self.id},
+        }
+
+    def action_edit_hourly_pay(self):
+        self.ensure_one()
+        form_view = self.env.ref("bambus_hr_daily_ops.view_bambus_hr_hourly_pay_wizard")
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Hourly Pay"),
+            "res_model": "bambus.hr.hourly.pay.wizard",
             "view_mode": "form",
             "views": [(form_view.id, "form")],
             "target": "new",
