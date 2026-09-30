@@ -1,6 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="view_hr_attendance_list_hr_review" model="ir.ui.view">
+        <field name="name">hr.attendance.list.hr.review</field>
+        <field name="model">hr.attendance</field>
+        <field name="inherit_id" ref="bambus_hr_attendance_ot_fine.view_hr_attendance_tree_inherit_bambus_ot_fine"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='bambus_fine_amount']" position="after">
+                <field name="bambus_overtime_review_state" optional="show"/>
+                <field name="bambus_approved_overtime_hours" widget="float_time" optional="show"/>
+                <field name="bambus_approved_overtime_amount" widget="monetary" optional="show"/>
+                <field name="bambus_fine_review_state" optional="show"/>
+                <field name="bambus_approved_fine_hours" widget="float_time" optional="show"/>
+                <field name="bambus_approved_fine_amount" widget="monetary" optional="show"/>
+                <field name="bambus_review_line_id" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_hr_attendance_form_hr_review" model="ir.ui.view">
+        <field name="name">hr.attendance.form.hr.review</field>
+        <field name="model">hr.attendance</field>
+        <field name="inherit_id" ref="bambus_hr_attendance_ot_fine.view_hr_attendance_form_inherit_bambus_ot_fine"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <group string="HR Approved Daily Result" invisible="not bambus_review_is_daily_summary">
+                    <group>
+                        <field name="bambus_overtime_review_state" readonly="1"/>
+                        <field name="bambus_approved_overtime_hours" widget="float_time" readonly="1"/>
+                        <field name="bambus_approved_overtime_amount" widget="monetary" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="bambus_fine_review_state" readonly="1"/>
+                        <field name="bambus_approved_fine_hours" widget="float_time" readonly="1"/>
+                        <field name="bambus_approved_fine_amount" widget="monetary" readonly="1"/>
+                        <field name="bambus_review_line_id" readonly="1"/>
+                    </group>
+                    <field name="bambus_review_is_daily_summary" invisible="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
     <record id="hr_attendance.menu_hr_attendance_view_attendances_management" model="ir.ui.menu">
         <field name="active" eval="False"/>
     </record>
