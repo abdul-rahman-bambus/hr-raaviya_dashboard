@@ -97,7 +97,6 @@
                                     <field name="overtime_enabled"/>
                                     <field name="minimum_overtime_minutes" invisible="not overtime_enabled"/>
                                     <field name="weekly_off_overtime_policy" invisible="not overtime_enabled"/>
-                                    <field name="public_holiday_overtime_policy" invisible="not overtime_enabled"/>
                                     <field name="weekend_overtime" invisible="1"/>
                                     <field name="overtime_start_mode" invisible="not overtime_enabled"/>
                                     <field name="overtime_start_offset_minutes"
@@ -145,6 +144,27 @@
                                         <field name="currency_id" column_invisible="True"/>
                                     </list>
                                 </field>
+                            </group>
+                        </page>
+                        <page string="Public Holiday Policy">
+                            <div class="alert alert-info" role="alert">
+                                A date configured in HRMS Public Holidays is a paid holiday.
+                                When an employee works on that date, all worked hours are
+                                proposed as overtime by default and remain subject to HR review.
+                            </div>
+                            <group>
+                                <group string="Holiday Work">
+                                    <field name="overtime_enabled"/>
+                                    <field name="public_holiday_overtime_policy"
+                                           invisible="not overtime_enabled"/>
+                                </group>
+                                <group string="Payroll Treatment">
+                                    <div class="text-muted">
+                                        Regular worked hours are classified in the Public Holidays
+                                        payroll bucket. Approved overtime hours and amounts are
+                                        stored separately for payroll and reporting.
+                                    </div>
+                                </group>
                             </group>
                         </page>
                         <page string="Assigned Employees">

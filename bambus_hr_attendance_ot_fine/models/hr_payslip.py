@@ -104,6 +104,36 @@ class HrPayslip(models.Model):
             segs.append((time(h1, m1), time(h2, m2)))
         return segs
 
+    def _get_public_holiday_dates(self, contract, date_from, date_to, tzname):
+        """Return schedule-specific and database-wide public holiday dates."""
+        if not contract or not contract.resource_calendar_id:
+            return set()
+        leaves = self.env["resource.calendar.leaves"].sudo().search([
+            ("resource_id", "=", False),
+            "|",
+            ("calendar_id", "=", contract.resource_calendar_id.id),
+            ("calendar_id", "=", False),
+            ("date_from", "<=", fields.Datetime.to_string(
+                datetime.combine(date_to, time.max)
+            )),
+            ("date_to", ">=", fields.Datetime.to_string(
+                datetime.combine(date_from, time.min)
+            )),
+        ])
+        dates = set()
+        for leave in leaves:
+            if not (leave.date_from and leave.date_to):
+                continue
+            context = self.with_context(tz=tzname)
+            start = fields.Datetime.context_timestamp(context, leave.date_from).date()
+            end = fields.Datetime.context_timestamp(context, leave.date_to).date()
+            current = start
+            while current <= end:
+                if date_from <= current <= date_to:
+                    dates.add(current)
+                current += timedelta(days=1)
+        return dates
+
 
 
     # ---------------------------
@@ -131,8 +161,6 @@ class HrPayslip(models.Model):
         grace_minutes = int(Param.get_param("custom_hr_payroll.late_login_grace_minutes", 0) or 0)
 
         Attendance = self.env["hr.attendance"].sudo()
-        CalendarLeave = self.env["resource.calendar.leaves"].sudo()
-
         for slip in self:
             # defaults
             slip.total_working_days = 0.0
@@ -182,24 +210,9 @@ class HrPayslip(models.Model):
             tzname = (contract.resource_calendar_id.tz if contract and contract.resource_calendar_id and contract.resource_calendar_id.tz else (self.env.user.tz or "UTC"))
 
             # public holidays for this employee calendar (resource_id=False only)
-            public_holidays = set()
-            if contract and contract.resource_calendar_id:
-                leaves = CalendarLeave.search([
-                    ("calendar_id", "=", contract.resource_calendar_id.id),
-                    ("resource_id", "=", False),
-                    ("date_from", "<=", fields.Datetime.to_string(datetime.combine(slip.date_to, time.max))),
-                    ("date_to", ">=", fields.Datetime.to_string(datetime.combine(slip.date_from, time.min))),
-                ])
-                for lv in leaves:
-                    if not (lv.date_from and lv.date_to):
-                        continue
-                    s_local = fields.Datetime.context_timestamp(self.with_context(tz=tzname), lv.date_from).date()
-                    e_local = fields.Datetime.context_timestamp(self.with_context(tz=tzname), lv.date_to).date()
-                    cur = s_local
-                    while cur <= e_local:
-                        if slip.date_from <= cur <= slip.date_to:
-                            public_holidays.add(cur)
-                        cur += timedelta(days=1)
+            public_holidays = slip._get_public_holiday_dates(
+                contract, slip.date_from, slip.date_to, tzname
+            )
 
             # fetch attendances in range
             start_dt = datetime.combine(slip.date_from, time.min)
@@ -387,10 +400,32 @@ class HrPayslip(models.Model):
         # for each slip
         for slip in self:
             contract = slip.contract_id
+            template_handles_holidays = False
+            if slip.employee_id and slip.date_from and slip.date_to and slip.holiday_days:
+                tzname = (
+                    contract.resource_calendar_id.tz
+                    if contract and contract.resource_calendar_id
+                    else self.env.user.tz or "UTC"
+                )
+                public_holiday_dates = slip._get_public_holiday_dates(
+                    contract, slip.date_from, slip.date_to, tzname
+                )
+                for holiday_date in public_holiday_dates:
+                    template = slip.employee_id._get_attendance_automation_template(
+                        holiday_date
+                    )
+                    if (
+                        template
+                        and template.public_holiday_overtime_policy != "disabled"
+                    ):
+                        template_handles_holidays = True
+                        break
 
             # Case A: no weekend working + no public holiday working
             # OR wage type = hourly
-            if (not contract.weekend_special_working and not contract.public_holidays_working) \
+            if (not contract.weekend_special_working
+                    and not contract.public_holidays_working
+                    and not template_handles_holidays) \
                 or contract.wage_type == 'hourly':
 
                 return default_res   # <-- RETURN ORIGINAL ODOO OUTPUT
@@ -420,7 +455,10 @@ class HrPayslip(models.Model):
                 })
 
             # PUBLIC HOLIDAYS worked ONLY IF enabled
-            if slip.holiday_worked > 0 and contract.public_holidays_working:
+            if (
+                slip.holiday_worked > 0
+                and (contract.public_holidays_working or template_handles_holidays)
+            ):
                 res.append({
                     'name': 'Public Holidays',
                     'sequence': 10,

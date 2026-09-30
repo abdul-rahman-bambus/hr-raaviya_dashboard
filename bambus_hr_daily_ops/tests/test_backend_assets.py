@@ -169,3 +169,22 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("this.state.currentPage = 1;", dashboard_source)
         self.assertIn("Math.max(Number(value) || 0, 0)", dashboard_source)
         self.assertNotIn('tag: "bambus_attendance_editor"', dashboard_source)
+
+    def test_automation_form_has_public_holiday_policy_page(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(
+            module_root / "views/attendance_automation_template_views.xml"
+        )
+        form = tree.find(
+            ".//record[@id='view_attendance_automation_template_form']"
+            "/field[@name='arch']/form"
+        )
+        holiday_page = form.find(".//page[@string='Public Holiday Policy']")
+        self.assertIsNotNone(holiday_page)
+        self.assertIsNotNone(
+            holiday_page.find(".//field[@name='public_holiday_overtime_policy']")
+        )
+        overtime_page = form.find(".//page[@string='Overtime']")
+        self.assertIsNone(
+            overtime_page.find(".//field[@name='public_holiday_overtime_policy']")
+        )

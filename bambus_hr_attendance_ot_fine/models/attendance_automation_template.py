@@ -50,9 +50,11 @@ class AttendanceAutomationTemplate(models.Model):
         ("all", "All Worked Hours"),
     ], required=True, default="disabled")
     public_holiday_overtime_policy = fields.Selection([
-        ("disabled", "Not Payable"),
-        ("all", "All Worked Hours"),
-    ], required=True, default="disabled")
+        ("all", "All Worked Hours as Overtime"),
+        ("disabled", "No Additional Overtime"),
+    ], string="Public Holiday Policy", required=True, default="all",
+       help="Controls how attendance worked on a configured public holiday is treated. "
+            "By default, every worked hour is proposed as overtime for HR review.")
     overtime_start_mode = fields.Selection([
         ("shift_end", "At Shift End"),
         ("offset", "Minutes After Shift End"),

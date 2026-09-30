@@ -310,6 +310,15 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self._create_attendance(employee, (9, 0), (15, 0))
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
+        payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
+            employee.contract_id, self.test_day, self.test_day, "UTC"
+        )
+        self.assertIn(self.test_day, payroll_holidays)
+
+    def test_public_holiday_policy_defaults_to_all_worked_hours(self):
+        template = self._create_template("Default Public Holiday Policy")
+
+        self.assertEqual(template.public_holiday_overtime_policy, "all")
 
     def test_global_public_holiday_applies_without_work_schedule(self):
         template = self._create_template(
@@ -333,6 +342,10 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self._create_attendance(employee, (9, 0), (15, 0))
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
+        payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
+            employee.contract_id, self.test_day, self.test_day, "UTC"
+        )
+        self.assertIn(self.test_day, payroll_holidays)
 
     def test_expired_employee_template_falls_back_to_company_default(self):
         expired_template = self._create_template(
