@@ -33,11 +33,16 @@ export class AttendanceEditor extends AttendanceDashboard {
         const previousStatus = employee.status;
         const previousValue = employee[field];
         employee[field] = event.target.value;
-        if (employee.status === "not_marked" && event.target.value) {
+        if (employee.status === "not_marked" && employee.check_in_value && employee.check_out_value) {
             employee.status = "present";
             employee.status_label = "Present";
         }
-        await this.saveEmployee(employee, { previousStatus, field, previousValue });
+        await this.saveEmployee(employee, {
+            previousStatus,
+            field,
+            previousValue,
+            statusManual: Boolean(employee.check_in_value && employee.check_out_value),
+        });
     }
 
     async setStatus(employee, status) {
@@ -49,7 +54,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         employee.status_label = {
             present: "Present", absent: "Absent", halfday: "Half Day", leave: "Leave",
         }[status];
-        await this.saveEmployee(employee, { previousStatus });
+        await this.saveEmployee(employee, { previousStatus, statusManual: true });
     }
 
     applyStatusTransition(employee, previousStatus, nextStatus) {
@@ -204,6 +209,34 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.logEmployee = null;
     }
 
+    async openAdjustment(employee, adjustment) {
+        if (this.state.savingIds[employee.id]) {
+            return;
+        }
+        try {
+            const action = await this.orm.call(
+                "bambus.hr.attendance.sheet",
+                "open_dashboard_adjustment",
+                [employee.id, this.state.data.date, adjustment]
+            );
+            // RPC action dictionaries are not passed through Odoo's stored
+            // action loader. Always provide the view list expected by the
+            // Odoo 18 action service before it calls `.map()` on that value.
+            const normalizedAction = {
+                ...action,
+                views: action.views || [[false, "form"]],
+            };
+            await this.action.doAction(normalizedAction, {
+                onClose: () => this.syncEmployee(employee),
+            });
+        } catch (error) {
+            this.notification.add(
+                error.cause?.message || error.message || "Unable to open attendance update.",
+                { type: "danger" }
+            );
+        }
+    }
+
     async saveEmployee(employee, rollback = {}) {
         if (this.state.savingIds[employee.id]) {
             return;
@@ -215,6 +248,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
                     status: employee.status,
+                    status_manual: Boolean(rollback.statusManual),
                     check_in: employee.check_in_value || false,
                     check_out: employee.check_out_value || false,
                 }]

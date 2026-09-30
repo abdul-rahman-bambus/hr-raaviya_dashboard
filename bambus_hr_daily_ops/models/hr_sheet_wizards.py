@@ -5,6 +5,45 @@ from datetime import datetime, time, timedelta
 import pytz
 
 
+class AttendanceAutomationAssignWizard(models.TransientModel):
+    _name = "bambus.attendance.automation.assign.wizard"
+    _description = "Assign Employees to Attendance Automation"
+
+    template_id = fields.Many2one(
+        "bambus.attendance.automation.template", required=True, readonly=True
+    )
+    company_id = fields.Many2one(related="template_id.company_id", readonly=True)
+    employee_ids = fields.Many2many(
+        "hr.employee",
+        string="Employees",
+        domain="[('company_id', '=', company_id), ('active', '=', True)]",
+    )
+
+    @api.model
+    def default_get(self, fields_list):
+        values = super().default_get(fields_list)
+        template = self.env["bambus.attendance.automation.template"].browse(
+            self.env.context.get("default_template_id")
+        ).exists()
+        if template:
+            values.update({
+                "template_id": template.id,
+                "employee_ids": [(6, 0, template.employee_ids.ids)],
+            })
+        return values
+
+    def action_assign(self):
+        self.ensure_one()
+        if not self.env.user.has_group("hr.group_hr_manager"):
+            raise UserError(_("Only an HR manager can assign automation rules."))
+        removed_employees = self.template_id.employee_ids - self.employee_ids
+        removed_employees.write({"attendance_automation_template_id": False})
+        self.employee_ids.write({
+            "attendance_automation_template_id": self.template_id.id,
+        })
+        return {"type": "ir.actions.client", "tag": "reload"}
+
+
 class BambusHrAttendanceMultiWizard(models.TransientModel):
     _name = "bambus.hr.attendance.multi.wizard"
     _description = "Edit Daily Punches"
@@ -308,27 +347,143 @@ class BambusHrOvertimeWizard(models.TransientModel):
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
-    overtime_hours = fields.Float(digits=(16, 2))
-    overtime_amount = fields.Monetary(currency_field="currency_id")
+    overtime_hours = fields.Float(digits=(16, 6))
+    detected_overtime_hours = fields.Float(
+        string="System Calculated Hours", digits=(16, 6), readonly=True
+    )
+    calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"),
+        ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"),
+        ("full_day", "Full Day"),
+        ("regularize", "Regularize"),
+        ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"),
+        ("salary_2", "2x Salary"),
+    ], required=True, default="fixed_hour")
+    rate = fields.Monetary(currency_field="currency_id", string="Rate / Amount")
+    resolved_rate = fields.Monetary(
+        currency_field="currency_id", string="Resolved OT Rate", readonly=True
+    )
+    rate_override_reason = fields.Char()
+    automation_template_id = fields.Many2one(
+        "bambus.attendance.automation.template", readonly=True
+    )
+    salary_basis_amount = fields.Monetary(
+        currency_field="currency_id", string="Contract Salary Used", readonly=True
+    )
+    overtime_slab_id = fields.Many2one(
+        "bambus.attendance.overtime.rate.slab", string="Matched Salary Slab", readonly=True
+    )
+    rate_resolution_warning = fields.Char(readonly=True)
+    overtime_amount = fields.Monetary(
+        currency_field="currency_id", compute="_compute_overtime_amount",
+        string="Calculated Amount",
+    )
     currency_id = fields.Many2one(related="line_id.currency_id", readonly=True)
     note = fields.Char()
     send_sms = fields.Boolean()
+
+    def _contract_rates(self, line):
+        contract = line.contract_id
+        if not contract:
+            return 0.0, 0.0
+        hours_per_day = contract.resource_calendar_id.hours_per_day or 8.0
+        wage_type = getattr(contract, "wage_type", "monthly") or "monthly"
+        if wage_type == "hourly":
+            hourly_rate = contract.hourly_rate or 0.0
+            return hourly_rate * hours_per_day, hourly_rate
+        if wage_type == "daily":
+            daily_rate = contract.daily_wage or 0.0
+            return daily_rate, daily_rate / hours_per_day if hours_per_day else 0.0
+        daily_rate = (contract.wage or 0.0) / 30.0
+        return daily_rate, daily_rate / hours_per_day if hours_per_day else 0.0
+
+    def _scheduled_hours_on_date(self, line):
+        contract = line.contract_id
+        calendar = contract.resource_calendar_id if contract else False
+        if not calendar or not line.date:
+            return (calendar.hours_per_day if calendar else 0.0) or 8.0
+        weekday = str(line.date.weekday())
+        rules = calendar.attendance_ids.filtered(
+            lambda rule: rule.dayofweek is not None
+            and str(int(float(rule.dayofweek))) == weekday
+            and (rule.day_period or "").lower() not in ("lunch", "break")
+        )
+        scheduled = sum(max((rule.hour_to or 0.0) - (rule.hour_from or 0.0), 0.0) for rule in rules)
+        return scheduled or calendar.hours_per_day or 8.0
+
+    @api.depends("overtime_hours", "calculation_type", "rate", "line_id.contract_id")
+    def _compute_overtime_amount(self):
+        for wizard in self:
+            daily_rate, hourly_rate = wizard._contract_rates(wizard.line_id)
+            hours = max(wizard.overtime_hours or 0.0, 0.0)
+            if wizard.calculation_type == "fixed":
+                amount = wizard.rate
+            elif wizard.calculation_type == "fixed_hour":
+                amount = hours * wizard.rate
+            elif wizard.calculation_type == "half_day":
+                amount = daily_rate / 2.0
+            elif wizard.calculation_type == "full_day":
+                amount = daily_rate
+            elif wizard.calculation_type == "regularize":
+                amount = 0.0
+            else:
+                multiplier = {"salary_1": 1.0, "salary_1_5": 1.5, "salary_2": 2.0}.get(
+                    wizard.calculation_type, 0.0
+                )
+                amount = hours * hourly_rate * multiplier
+            wizard.overtime_amount = max(amount or 0.0, 0.0)
 
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         line = self.env["bambus.hr.attendance.sheet.line"].browse(self.env.context.get("default_line_id"))
         if line and line.exists():
+            template = (
+                line.overtime_template_id
+                or line.employee_id._get_attendance_automation_template(line.date)
+            )
+            resolved_rate = getattr(line.contract_id, "overtime_rate", 0.0)
+            salary_amount = 0.0
+            slab = self.env["bambus.attendance.overtime.rate.slab"]
+            warning = False
+            if line.overtime_state == "approved" and line.overtime_template_id:
+                salary_amount = line.overtime_salary_basis_amount
+                slab = line.overtime_slab_id
+                resolved_rate = line.overtime_rate
+            elif template:
+                resolved_rate, salary_amount, slab = template.resolve_overtime_rate(
+                    line.contract_id
+                )
+                if template.overtime_rate_policy == "salary_slab" and not slab:
+                    warning = _(
+                        "No overtime salary slab matches the contract salary of %s.",
+                        salary_amount,
+                    )
             res.update({
                 "line_id": line.id,
+                "detected_overtime_hours": line.overtime_detected_hours or line.overtime_hours,
                 "overtime_hours": line.overtime_hours,
-                "overtime_amount": line.overtime_amount,
+                "calculation_type": line.overtime_calculation_type or (
+                    "fixed_hour" if template and template.overtime_rate_policy == "salary_slab"
+                    else template.overtime_calculation_type if template else "fixed_hour"
+                ),
+                "rate": line.overtime_rate or resolved_rate,
+                "resolved_rate": line.overtime_resolved_rate or resolved_rate,
+                "rate_override_reason": line.overtime_rate_override_reason,
+                "automation_template_id": template.id if template else False,
+                "salary_basis_amount": salary_amount,
+                "overtime_slab_id": slab.id if slab else False,
+                "rate_resolution_warning": warning,
+                "note": line.overtime_note,
             })
         return res
 
     def action_apply(self):
         self.ensure_one()
         vals = {
+            "overtime_detected_hours": self.detected_overtime_hours,
             "overtime_hours": self.overtime_hours,
             "overtime_amount": self.overtime_amount,
             "overtime_state": "submitted" if (self.overtime_hours or 0.0) > 0 or (self.overtime_amount or 0.0) > 0 else "draft",
@@ -336,12 +491,31 @@ class BambusHrOvertimeWizard(models.TransientModel):
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}
 
-    def action_approve(self):
+    def action_save(self):
         self.ensure_one()
+        if self.overtime_hours < 0:
+            raise UserError(_("Overtime hours cannot be negative."))
+        if (
+            self.automation_template_id.overtime_rate_policy == "salary_slab"
+            and not self.overtime_slab_id
+            and self.calculation_type != "regularize"
+        ):
+            raise UserError(_("Configure a matching overtime salary slab before saving."))
         vals = {
+            "overtime_detected_hours": self.detected_overtime_hours,
             "overtime_hours": self.overtime_hours,
             "overtime_amount": self.overtime_amount,
+            "overtime_calculation_type": self.calculation_type,
+            "overtime_rate": self.rate,
+            "overtime_resolved_rate": self.resolved_rate,
+            "overtime_rate_override_reason": self.rate_override_reason,
+            "overtime_template_id": self.automation_template_id.id or False,
+            "overtime_salary_basis_amount": self.salary_basis_amount,
+            "overtime_slab_id": self.overtime_slab_id.id or False,
             "overtime_state": "approved",
+            "overtime_note": self.note,
+            "overtime_updated_by_id": self.env.user.id,
+            "overtime_updated_on": fields.Datetime.now(),
         }
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}
@@ -355,27 +529,92 @@ class BambusHrFineWizard(models.TransientModel):
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
-    fine_hours = fields.Float(digits=(16, 2))
-    fine_amount = fields.Monetary(currency_field="currency_id")
+    fine_hours = fields.Float(digits=(16, 6))
+    detected_fine_hours = fields.Float(
+        string="System Calculated Hours", digits=(16, 6), readonly=True
+    )
+    calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"),
+        ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"),
+        ("full_day", "Full Day"),
+        ("regularize", "Regularize"),
+        ("salary_minute", "Per Minute from Daily Salary"),
+        ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"),
+        ("salary_2", "2x Salary"),
+    ], required=True, default="salary_minute")
+    rate = fields.Monetary(currency_field="currency_id", string="Rate / Amount")
+    fine_amount = fields.Monetary(
+        currency_field="currency_id", compute="_compute_fine_amount",
+        string="Calculated Deduction",
+    )
+    salary_per_minute = fields.Float(
+        digits=(16, 6), compute="_compute_fine_amount",
+        string="Salary per Minute",
+    )
     currency_id = fields.Many2one(related="line_id.currency_id", readonly=True)
     reason = fields.Char()
     send_sms = fields.Boolean()
+
+    @api.depends("fine_hours", "calculation_type", "rate", "line_id.contract_id")
+    def _compute_fine_amount(self):
+        overtime_wizard = self.env["bambus.hr.overtime.wizard"]
+        for wizard in self:
+            daily_rate, hourly_rate = overtime_wizard._contract_rates(wizard.line_id)
+            scheduled_hours = overtime_wizard._scheduled_hours_on_date(wizard.line_id)
+            contract = wizard.line_id.contract_id
+            wage_type = getattr(contract, "wage_type", "monthly") if contract else ""
+            salary_per_minute = (
+                daily_rate / (scheduled_hours * 60.0)
+                if scheduled_hours and wage_type != "hourly" else 0.0
+            )
+            hours = max(wizard.fine_hours or 0.0, 0.0)
+            if wizard.calculation_type == "fixed":
+                amount = wizard.rate
+            elif wizard.calculation_type == "fixed_hour":
+                amount = hours * wizard.rate
+            elif wizard.calculation_type == "half_day":
+                amount = daily_rate / 2.0
+            elif wizard.calculation_type == "full_day":
+                amount = daily_rate
+            elif wizard.calculation_type == "regularize":
+                amount = 0.0
+            elif wizard.calculation_type == "salary_minute":
+                amount = hours * 60.0 * salary_per_minute
+            else:
+                multiplier = {"salary_1": 1.0, "salary_1_5": 1.5, "salary_2": 2.0}.get(
+                    wizard.calculation_type, 0.0
+                )
+                amount = hours * hourly_rate * multiplier
+            wizard.fine_amount = max(amount or 0.0, 0.0)
+            wizard.salary_per_minute = salary_per_minute
 
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         line = self.env["bambus.hr.attendance.sheet.line"].browse(self.env.context.get("default_line_id"))
         if line and line.exists():
+            template = line.employee_id._get_attendance_automation_template(line.date)
             res.update({
                 "line_id": line.id,
+                "detected_fine_hours": line.fine_detected_hours or line.fine_hours,
                 "fine_hours": line.fine_hours,
-                "fine_amount": line.fine_amount,
+                "calculation_type": line.fine_calculation_type or (
+                    template.fine_calculation_type if template else "salary_minute"
+                ),
+                "rate": line.fine_rate or (
+                    template.fine_rate if template and template.fine_rate
+                    else getattr(line.contract_id, "late_fine_rate", 0.0)
+                ),
+                "reason": line.fine_note,
             })
         return res
 
     def action_apply(self):
         self.ensure_one()
         vals = {
+            "fine_detected_hours": self.detected_fine_hours,
             "fine_hours": self.fine_hours,
             "fine_amount": self.fine_amount,
             "fine_state": "submitted" if (self.fine_hours or 0.0) > 0 or (self.fine_amount or 0.0) > 0 else "draft",
@@ -383,12 +622,23 @@ class BambusHrFineWizard(models.TransientModel):
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}
 
-    def action_approve(self):
+    def action_save(self):
         self.ensure_one()
+        if self.fine_hours < 0:
+            raise UserError(_("Late/fine hours cannot be negative."))
         vals = {
+            "fine_detected_hours": self.detected_fine_hours,
             "fine_hours": self.fine_hours,
             "fine_amount": self.fine_amount,
+            "fine_calculation_type": self.calculation_type,
+            "fine_rate": (
+                self.salary_per_minute
+                if self.calculation_type == "salary_minute" else self.rate
+            ),
             "fine_state": "approved",
+            "fine_note": self.reason,
+            "fine_updated_by_id": self.env.user.id,
+            "fine_updated_on": fields.Datetime.now(),
         }
         self.line_id.sudo().write(vals)
         return {"type": "ir.actions.client", "tag": "reload"}

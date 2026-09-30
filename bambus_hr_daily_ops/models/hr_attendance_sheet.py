@@ -137,9 +137,12 @@ class BambusHrAttendanceSheet(models.Model):
         ], limit=1)
         sheet_lines = sheet.line_ids.filtered(lambda line: line.employee_id in employees)
         line_by_employee = {line.employee_id.id: line for line in sheet_lines}
-        # Manager-entered daily-sheet statuses take precedence over calculated
-        # punch/leave statuses throughout the dashboard.
+        # Only an explicit manager status takes precedence. Merely opening an
+        # OT/Fine dialog creates a sheet line and must not turn an employee
+        # with no punches into Absent/Present.
         for line in sheet_lines:
+            if not line.attendance_status_manual:
+                continue
             employee_id = line.employee_id.id
             present_employee_ids.discard(employee_id)
             unmarked_employee_ids.discard(employee_id)
@@ -166,6 +169,17 @@ class BambusHrAttendanceSheet(models.Model):
                     lambda attendance: attendance.bambus_fine_hours > 0
                 ).employee_id.ids
             )
+        for line in sheet_lines:
+            overtime_employee_ids.discard(line.employee_id.id)
+            fine_employee_ids.discard(line.employee_id.id)
+            has_attendance_basis = (
+                line.employee_id.id in attendance_employee_ids
+                or line.attendance_status_manual
+            )
+            if has_attendance_basis and line.overtime_hours > 0:
+                overtime_employee_ids.add(line.employee_id.id)
+            if has_attendance_basis and line.fine_hours > 0:
+                fine_employee_ids.add(line.employee_id.id)
         departments = []
         department_groups = {}
         for employee in employees:
@@ -279,7 +293,7 @@ class BambusHrAttendanceSheet(models.Model):
             else:
                 status = "not_marked"
                 status_label = _("Not Marked")
-            if override:
+            if override and override.attendance_status_manual:
                 status = override.status
                 status_label = dict(override._fields["status"].selection).get(status, status)
             contract = contract_by_employee.get(employee.id)
@@ -333,8 +347,18 @@ class BambusHrAttendanceSheet(models.Model):
                 "check_out": format_time(display_check_out),
                 "check_in_value": fields.Datetime.context_timestamp(self, display_check_in).strftime("%H:%M") if display_check_in else "",
                 "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
-                "overtime_hours": round(sum(a.overtime_hours for a in employee_attendances), 2),
-                "fine_hours": round(employee_fine_hours, 2),
+                "overtime_hours": round(
+                    override.overtime_hours
+                    if override and (employee_attendances or override.attendance_status_manual)
+                    else sum(a.overtime_hours for a in employee_attendances),
+                    2,
+                ),
+                "fine_hours": round(
+                    override.fine_hours
+                    if override and (employee_attendances or override.attendance_status_manual)
+                    else employee_fine_hours,
+                    2,
+                ),
                 "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
                 "has_attendance": bool(employee_attendances),
                 "line_id": override.id if override else False,
@@ -358,8 +382,8 @@ class BambusHrAttendanceSheet(models.Model):
                 "punched_out": len(set(attendances.filtered("check_out").employee_id.ids)),
                 "not_marked": len(unmarked_employee_ids),
                 "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
-                "overtime": round(sum(attendances.mapped("overtime_hours")), 2),
-                "fine": round(fine_hours, 2),
+                "overtime": round(sum(row["overtime_hours"] for row in daily_attendance), 2),
+                "fine": round(sum(row["fine_hours"] for row in daily_attendance), 2),
                 "fine_amount": round(fine_amount, 2),
                 "on_duty": 0,
                 "upcoming_on_duty": 0,
@@ -388,8 +412,6 @@ class BambusHrAttendanceSheet(models.Model):
         sheet = self.search([("date", "=", day), ("company_id", "=", self.env.company.id)], limit=1)
         if not sheet:
             sheet = self.create({"date": day, "company_id": self.env.company.id})
-        if sheet.state == "approved":
-            raise UserError(_("This attendance day is approved and cannot be changed."))
         line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
         if not line:
             line = self.env["bambus.hr.attendance.sheet.line"].create({
@@ -397,10 +419,12 @@ class BambusHrAttendanceSheet(models.Model):
                 "employee_id": employee.id,
             })
 
-        status = values.get("status", line.status or "absent")
-        if status not in {"present", "absent", "halfday", "leave"}:
+        requested_status = values.get("status", "not_marked")
+        status_manual = bool(values.get("status_manual", "status" in values))
+        if requested_status not in {"present", "absent", "halfday", "leave", "not_marked"}:
             raise UserError(_("Select a valid attendance status."))
-        if status == "absent" and contract and "wage_type" in contract._fields and contract.wage_type == "hourly":
+        status = requested_status if requested_status != "not_marked" else "absent"
+        if requested_status == "absent" and contract and "wage_type" in contract._fields and contract.wage_type == "hourly":
             raise UserError(_("Hourly employees cannot be marked absent."))
         timezone = pytz.timezone(self.env.user.tz or "UTC")
 
@@ -417,17 +441,65 @@ class BambusHrAttendanceSheet(models.Model):
         check_out = parse_time(values.get("check_out"))
         if check_in and check_out and check_out < check_in:
             check_out += timedelta(days=1)
+        overtime_hours = float(values.get("overtime_hours", line.overtime_hours) or 0.0)
+        fine_hours = float(values.get("fine_hours", line.fine_hours) or 0.0)
+        if overtime_hours < 0 or fine_hours < 0:
+            raise UserError(_("Overtime and late/fine hours cannot be negative."))
         line.write({
             "status": status,
+            "attendance_status_manual": status_manual,
             "check_in": check_in,
             "check_out": check_out,
             "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
+            "overtime_hours": overtime_hours,
+            "overtime_detected_hours": overtime_hours,
+            "overtime_state": "submitted" if overtime_hours else "draft",
+            "fine_hours": fine_hours,
+            "fine_detected_hours": fine_hours,
+            "fine_state": "submitted" if fine_hours else "draft",
         })
         return {
             "line_id": line.id,
-            "status": line.status,
+            "status": line.status if line.attendance_status_manual else "not_marked",
             "worked_hours": line.worked_hours,
         }
+
+    @api.model
+    def open_dashboard_adjustment(self, employee_id, selected_date, adjustment):
+        """Open the OT/Fine update dialog directly from the daily dashboard."""
+        if not self.env.user.has_group("hr.group_hr_user"):
+            raise UserError(_("Only HR officers can update employee attendance."))
+        if adjustment not in {"overtime", "fine"}:
+            raise UserError(_("Select either overtime or late/fine."))
+
+        day = fields.Date.to_date(selected_date)
+        employee = self.env["hr.employee"].browse(employee_id).exists()
+        if not employee or employee.company_id != self.env.company:
+            raise UserError(_("The employee is not available for the selected company."))
+
+        sheet = self.search([
+            ("date", "=", day),
+            ("company_id", "=", employee.company_id.id),
+        ], limit=1)
+        if not sheet:
+            sheet = self.create({
+                "date": day,
+                "company_id": employee.company_id.id,
+            })
+
+        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
+        if not line:
+            line = self.env["bambus.hr.attendance.sheet.line"].create({
+                "sheet_id": sheet.id,
+                "employee_id": employee.id,
+            })
+            line._compute_day_data()
+
+        return (
+            line.action_edit_overtime()
+            if adjustment == "overtime"
+            else line.action_edit_fine()
+        )
 
     @api.model
     def create_half_day_leave(self, employee_id, selected_date):
@@ -488,8 +560,6 @@ class BambusHrAttendanceSheet(models.Model):
         ], limit=1)
         if not sheet:
             sheet = self.create({"date": day, "company_id": employee.company_id.id})
-        if sheet.state == "approved":
-            raise UserError(_("This attendance day is approved and cannot be changed."))
         line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
         if not line:
             line = self.env["bambus.hr.attendance.sheet.line"].create({
@@ -519,8 +589,6 @@ class BambusHrAttendanceSheet(models.Model):
             ("date", "=", day),
             ("company_id", "=", employee.company_id.id),
         ], limit=1)
-        if sheet and sheet.state == "approved":
-            raise UserError(_("This attendance day is approved and cannot be changed."))
 
         leave = self.env["hr.leave"].sudo().search([
             ("employee_id", "=", employee.id),
@@ -632,23 +700,14 @@ class BambusHrAttendanceSheet(models.Model):
         return True
 
     def _bambus_check_sheet_locked(self, vals=None):
-        """Lock edits after approval, but allow filter fields."""
-        vals = vals or {}
-        allowed_when_approved = {"kpi_filter", "employee_search"}  # allow viewing filters
-        for sheet in self:
-            if sheet.state == "approved":
-                illegal = set(vals.keys()) - allowed_when_approved
-                if illegal:
-                    raise UserError(_("This Attendance Sheet is approved and cannot be edited."))
+        """Legacy compatibility hook; daily attendance remains editable by HR."""
+        return True
 
     def write(self, vals):
         self._bambus_check_sheet_locked(vals)
         return super().write(vals)
 
     def unlink(self):
-        for sheet in self:
-            if sheet.state == "approved":
-                raise UserError(_("Approved sheets cannot be deleted."))
         return super().unlink()
 
 
@@ -666,8 +725,6 @@ class BambusHrAttendanceSheet(models.Model):
     def action_generate_lines(self):
         """Create/refresh lines for employees for that date."""
         for sheet in self:
-            if sheet.state == "approved":
-                raise UserError(_("Approved sheet cannot be regenerated."))
             if not sheet.date:
                 raise UserError(_("Select a date."))
 
@@ -839,21 +896,67 @@ class BambusHrAttendanceSheetLine(models.Model):
         required=True,
         index=True,
     )
+    attendance_status_manual = fields.Boolean(
+        string="Attendance Status Set by HR",
+        help="Distinguishes an explicit HR status from a line created only to review OT/Fine.",
+    )
 
-    # OT / Fine editable values (and approvals)
-    overtime_hours = fields.Float(string="OT Hours", digits=(16, 2))
+    # OT / Fine detected values and HR-saved final values.
+    overtime_hours = fields.Float(string="OT Hours", digits=(16, 6))
+    overtime_detected_hours = fields.Float(string="System OT Hours", digits=(16, 6), readonly=True)
     overtime_amount = fields.Monetary(string="OT Amount")
     overtime_state = fields.Selection(
-        [("draft", "Draft"), ("submitted", "Submitted"), ("approved", "Approved"), ("rejected", "Rejected")],
+        [("draft", "No Exception"), ("submitted", "Needs Review"), ("approved", "Updated"), ("rejected", "Excluded")],
         default="draft",
     )
+    overtime_calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"),
+        ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"),
+        ("full_day", "Full Day"),
+        ("regularize", "Regularize"),
+        ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"),
+        ("salary_2", "2x Salary"),
+    ], string="OT Calculation")
+    overtime_rate = fields.Monetary(string="Applied OT Rate")
+    overtime_resolved_rate = fields.Monetary(string="Resolved OT Rate", readonly=True)
+    overtime_rate_override_reason = fields.Char(string="OT Rate Override Reason", readonly=True)
+    overtime_template_id = fields.Many2one(
+        "bambus.attendance.automation.template", string="OT Automation Template", readonly=True
+    )
+    overtime_salary_basis_amount = fields.Monetary(
+        string="OT Salary Basis", readonly=True
+    )
+    overtime_slab_id = fields.Many2one(
+        "bambus.attendance.overtime.rate.slab", string="OT Salary Slab", readonly=True
+    )
+    overtime_note = fields.Char()
+    overtime_updated_by_id = fields.Many2one("res.users", readonly=True)
+    overtime_updated_on = fields.Datetime(readonly=True)
 
-    fine_hours = fields.Float(string="Fine Hours", digits=(16, 2))
+    fine_hours = fields.Float(string="Fine Hours", digits=(16, 6))
+    fine_detected_hours = fields.Float(string="System Fine Hours", digits=(16, 6), readonly=True)
     fine_amount = fields.Monetary(string="Fine Amount")
     fine_state = fields.Selection(
-        [("draft", "Draft"), ("submitted", "Submitted"), ("approved", "Approved"), ("rejected", "Rejected")],
+        [("draft", "No Exception"), ("submitted", "Needs Review"), ("approved", "Updated"), ("rejected", "Excluded")],
         default="draft",
     )
+    fine_calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"),
+        ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"),
+        ("full_day", "Full Day"),
+        ("regularize", "Regularize"),
+        ("salary_minute", "Per Minute from Daily Salary"),
+        ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"),
+        ("salary_2", "2x Salary"),
+    ], string="Fine Calculation")
+    fine_rate = fields.Float(string="Applied Fine Rate", digits=(16, 6))
+    fine_note = fields.Char()
+    fine_updated_by_id = fields.Many2one("res.users", readonly=True)
+    fine_updated_on = fields.Datetime(readonly=True)
 
     currency_id = fields.Many2one("res.currency", related="company_id.currency_id", store=False)
 
@@ -902,21 +1005,14 @@ class BambusHrAttendanceSheetLine(models.Model):
 
 
     def _bambus_check_line_locked(self, vals=None):
-        for rec in self:
-            if rec.sheet_id and rec.sheet_id.state == "approved":
-                raise UserError(_("This sheet is approved; line cannot be edited."))
+        return True
 
     @api.model_create_multi
     def create(self, vals_list):
-        recs = super().create(vals_list)
-        # block adding new lines into approved sheet
-        for r in recs:
-            if r.sheet_id and r.sheet_id.state == "approved":
-                raise UserError(_("Cannot add lines to an approved sheet."))
-        return recs
+        return super().create(vals_list)
 
     def write(self, vals):
-        # allow compute refresh while not approved; block all edits after approved
+        # Preserve the legacy hook while allowing HR attendance maintenance
         self._bambus_check_line_locked(vals)
         return super().write(vals)
 
@@ -1104,8 +1200,6 @@ class BambusHrAttendanceSheetLine(models.Model):
     # --- Buttons (open popup wizards) ---
     def action_edit_attendance(self):
         self.ensure_one()
-        if self.sheet_id.state == "approved":
-            raise UserError(_("This sheet is approved. You cannot modify punches."))
         return {
             "type": "ir.actions.act_window",
             "name": _("Punches"),
@@ -1119,34 +1213,36 @@ class BambusHrAttendanceSheetLine(models.Model):
 
     def action_edit_overtime(self):
         self.ensure_one()
-        if self.sheet_id.state == "approved":
-            raise UserError(_("This sheet is approved. You cannot modify punches."))
+        form_view = self.env.ref(
+            "bambus_hr_daily_ops.view_bambus_hr_overtime_wizard"
+        )
         return {
             "type": "ir.actions.act_window",
             "name": _("Edit Overtime"),
             "res_model": "bambus.hr.overtime.wizard",
             "view_mode": "form",
+            "views": [(form_view.id, "form")],
             "target": "new",
             "context": {"default_line_id": self.id},
         }
 
     def action_edit_fine(self):
         self.ensure_one()
-        if self.sheet_id.state == "approved":
-            raise UserError(_("This sheet is approved. You cannot modify punches."))
+        form_view = self.env.ref(
+            "bambus_hr_daily_ops.view_bambus_hr_fine_wizard"
+        )
         return {
             "type": "ir.actions.act_window",
             "name": _("Fine"),
             "res_model": "bambus.hr.fine.wizard",
             "view_mode": "form",
+            "views": [(form_view.id, "form")],
             "target": "new",
             "context": {"default_line_id": self.id},
         }
 
     def action_mark_halfday_leave(self):
         self.ensure_one()
-        if self.sheet_id.state == "approved":
-            raise UserError(_("This sheet is approved. You cannot modify punches."))
         return {
             "type": "ir.actions.act_window",
             "name": _("Mark Half Day Leave"),
@@ -1158,8 +1254,6 @@ class BambusHrAttendanceSheetLine(models.Model):
 
     def action_mark_full_leave(self):
         self.ensure_one()
-        if self.sheet_id.state == "approved":
-            raise UserError(_("This sheet is approved. You cannot modify punches."))
         return {
             "type": "ir.actions.act_window",
             "name": _("Mark Leave"),
@@ -1171,7 +1265,5 @@ class BambusHrAttendanceSheetLine(models.Model):
 
     def action_force_absent(self):
         self.ensure_one()
-        if self.sheet_id.state == "approved":
-            raise UserError(_("This sheet is approved. You cannot modify punches."))
         self.status = "absent"
         return True
