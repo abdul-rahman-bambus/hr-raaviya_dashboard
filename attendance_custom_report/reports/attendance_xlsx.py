@@ -88,7 +88,7 @@ class AttendanceXlsxReport(models.AbstractModel):
         return by_day
 
     def _get_public_holidays_for_emp(self, emp, start_date, end_date, tzname):
-        """Calendar global leaves (resource_id=False) for employee's calendar only."""
+        """Schedule-specific and database-wide holidays for the employee."""
         contract = emp.contract_id or (emp.contract_ids[:1] if emp.contract_ids else False)
         cal = contract.resource_calendar_id if contract else False
         if not cal:
@@ -96,8 +96,10 @@ class AttendanceXlsxReport(models.AbstractModel):
 
         CalendarLeave = self.env["resource.calendar.leaves"].sudo()
         leaves = CalendarLeave.search([
-            ("calendar_id", "=", cal.id),
             ("resource_id", "=", False),
+            "|",
+            ("calendar_id", "=", cal.id),
+            ("calendar_id", "=", False),
             ("date_from", "<=", fields.Datetime.to_string(datetime.combine(end_date, time.max))),
             ("date_to", ">=", fields.Datetime.to_string(datetime.combine(start_date, time.min))),
         ])
