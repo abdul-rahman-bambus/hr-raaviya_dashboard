@@ -120,12 +120,13 @@ class HrAttendance(models.Model):
             line = line_by_key.get(key)
             if not line:
                 continue
-            last = records.sorted(
-                key=lambda item: (
-                    (item.check_out or item.check_in),
-                    item._origin.id or 0,
-                )
-            )[-1]
+            # Do not use ``recordset.sorted`` here. During an onchange Odoo
+            # can keep an integer database ID and a NewId pseudo-record in the
+            # same recordset; recordset.sorted rebuilds the result from those
+            # IDs and may try to compare the incompatible ID types. We only
+            # need the session with the latest attendance time, so Python's
+            # max can return that record directly without sorting record IDs.
+            last = max(records, key=lambda item: item.check_out or item.check_in)
             if last not in self:
                 continue
             last.bambus_review_line_id = line
