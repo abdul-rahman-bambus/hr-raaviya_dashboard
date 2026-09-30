@@ -12,19 +12,21 @@ export class AttendanceDashboard extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
+        const actionParams = this.props.action?.params || {};
+        this.initialDate = actionParams.selected_date;
         this.state = useState({
             loading: true,
             data: null,
             error: "",
             query: "",
-            statusFilter: "all",
+            statusFilter: actionParams.metric_filter || "all",
             currentPage: 1,
             pageSize: 10,
             collapsedContractTypes: {},
             savingIds: {},
         });
         this.loadSequence = 0;
-        onWillStart(() => this.load());
+        onWillStart(() => this.load(this.initialDate));
     }
 
     async load(date) {
@@ -63,7 +65,10 @@ export class AttendanceDashboard extends Component {
     }
 
     formatHours(value) {
-        const minutes = Math.round((value || 0) * 60);
+        // Native Odoo overtime can be negative when worked hours are below a
+        // schedule. A shortfall is not overtime and must never be displayed as
+        // a negative HH:MM value on the OT/Fine review dashboard.
+        const minutes = Math.round(Math.max(Number(value) || 0, 0) * 60);
         return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
     }
 
@@ -75,7 +80,10 @@ export class AttendanceDashboard extends Component {
     get filteredDailyEmployees() {
         const query = this.state.query.trim().toLowerCase();
         return (this.state.data?.daily_attendance || []).filter((employee) => {
-            const matchesStatus = this.state.statusFilter === "all" || employee.status === this.state.statusFilter;
+            const matchesStatus = this.state.statusFilter === "all" ||
+                (this.state.statusFilter === "overtime" && employee.overtime_hours > 0) ||
+                (this.state.statusFilter === "fine" && employee.fine_hours > 0) ||
+                employee.status === this.state.statusFilter;
             const matchesQuery = !query || [
                 employee.name,
                 employee.department,
@@ -191,6 +199,17 @@ export class AttendanceDashboard extends Component {
 
     updateStatusFilter(ev) {
         this.state.statusFilter = ev.target.value;
+        this.state.currentPage = 1;
+    }
+
+    openMetric(metric) {
+        if (!["overtime", "fine"].includes(metric)) {
+            return;
+        }
+        // Filter the already-loaded dashboard in place. Launching another
+        // client action here loses the current action metadata in Odoo 18 and
+        // can fail while the action service tries to map undefined views.
+        this.state.statusFilter = metric;
         this.state.currentPage = 1;
     }
 
