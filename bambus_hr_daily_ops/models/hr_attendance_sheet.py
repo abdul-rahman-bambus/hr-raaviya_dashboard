@@ -337,16 +337,28 @@ class BambusHrAttendanceSheet(models.Model):
                 ("employee_id", "=", employee.id),
                 ("date", "=", day),
             ], order="create_date, id")
+            logged_adjustment_types = set(hr_updates.mapped("adjustment_type"))
             for update in hr_updates:
                 adjusted_times = []
-                if update.check_in:
-                    adjusted_times.append(_("In %s", format_time(update.check_in)))
-                if update.check_out:
-                    adjusted_times.append(_("Out %s", format_time(update.check_out)))
+                if update.adjustment_type == "attendance":
+                    if update.check_in:
+                        adjusted_times.append(_("In %s", format_time(update.check_in)))
+                    if update.check_out:
+                        adjusted_times.append(_("Out %s", format_time(update.check_out)))
+                    label = _("Attendance time adjusted")
+                else:
+                    hours = max(update.adjusted_hours or 0.0, 0.0)
+                    total_minutes = round(hours * 60)
+                    adjusted_times.append(
+                        _("%02d:%02d hrs", total_minutes // 60, total_minutes % 60)
+                    )
+                    label = dict(
+                        update._fields["adjustment_type"]._description_selection(self.env)
+                    ).get(update.adjustment_type)
                 attendance_logs.append({
                     "id": f"hr-{update.id}",
                     "type": "hr_update",
-                    "label": _("Attendance time adjusted"),
+                    "label": label,
                     "time": fields.Datetime.context_timestamp(
                         self, update.create_date
                     ).strftime("%I:%M %p").lstrip("0"),
@@ -355,6 +367,37 @@ class BambusHrAttendanceSheet(models.Model):
                     "address": "",
                     "image_url": False,
                     "actor": update.updated_by_id.name,
+                })
+            # Lines approved before the audit model was introduced still have
+            # updater metadata. Surface their latest adjustment once so an
+            # existing HR update does not disappear from the Logs popup.
+            legacy_updates = (
+                ("overtime", _("Overtime adjusted"), "overtime_hours",
+                 "overtime_updated_by_id", "overtime_updated_on"),
+                ("fine", _("Late / Fine adjusted"), "fine_hours",
+                 "fine_updated_by_id", "fine_updated_on"),
+                ("hourly_pay", _("Hourly pay adjusted"), "hourly_pay_hours",
+                 "hourly_pay_updated_by_id", "hourly_pay_updated_on"),
+            )
+            for kind, label, hours_field, user_field, date_field in legacy_updates:
+                updated_on = override and override[date_field]
+                if not updated_on or kind in logged_adjustment_types:
+                    continue
+                total_minutes = round(max(override[hours_field] or 0.0, 0.0) * 60)
+                attendance_logs.append({
+                    "id": f"hr-line-{override.id}-{kind}",
+                    "type": "hr_update",
+                    "label": label,
+                    "time": fields.Datetime.context_timestamp(
+                        self, updated_on
+                    ).strftime("%I:%M %p").lstrip("0"),
+                    "mode": _("HR Update"),
+                    "details": _(
+                        "%02d:%02d hrs", total_minutes // 60, total_minutes % 60
+                    ),
+                    "address": "",
+                    "image_url": False,
+                    "actor": override[user_field].name,
                 })
             employee_overtime_hours = max(
                 override.overtime_hours
@@ -499,6 +542,7 @@ class BambusHrAttendanceSheet(models.Model):
             self.env["bambus.hr.attendance.time.audit"].create({
                 "employee_id": employee.id,
                 "date": day,
+                "adjustment_type": "attendance",
                 "check_in": check_in,
                 "check_out": check_out,
                 "updated_by_id": self.env.user.id,
@@ -1464,6 +1508,13 @@ class BambusHrAttendanceTimeAudit(models.Model):
     employee_id = fields.Many2one("hr.employee", required=True, index=True, ondelete="cascade")
     company_id = fields.Many2one(related="employee_id.company_id", store=True, index=True)
     date = fields.Date(required=True, index=True)
+    adjustment_type = fields.Selection([
+        ("attendance", "Attendance time adjusted"),
+        ("overtime", "Overtime adjusted"),
+        ("fine", "Late / Fine adjusted"),
+        ("hourly_pay", "Hourly pay adjusted"),
+    ], required=True, default="attendance", index=True)
+    adjusted_hours = fields.Float(digits=(16, 6))
     check_in = fields.Datetime(string="Adjusted Check In")
     check_out = fields.Datetime(string="Adjusted Check Out")
     updated_by_id = fields.Many2one(

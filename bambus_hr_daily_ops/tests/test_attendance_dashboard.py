@@ -563,6 +563,19 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertEqual(wizard.fine_amount, 0)
         wizard.action_save()
         self.assertEqual(line.fine_state, "approved")
+        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+            fields.Date.to_string(today)
+        )
+        row = next(
+            item for item in dashboard["daily_attendance"]
+            if item["id"] == employee.id
+        )
+        fine_log = next(
+            log for log in row["logs"]
+            if log["type"] == "hr_update" and log["label"] == "Late / Fine adjusted"
+        )
+        self.assertEqual(fine_log["actor"], self.env.user.name)
+        self.assertEqual(fine_log["details"], "01:00 hrs")
         self.assertEqual(line.fine_calculation_type, "regularize")
         self.assertEqual(line.fine_amount, 0)
 
