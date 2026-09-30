@@ -594,3 +594,10 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertEqual(last.bambus_fine_review_state, "approved")
         self.assertEqual(last.bambus_approved_fine_hours, 0.25)
         self.assertEqual(last.bambus_approved_fine_amount, 12.5)
+
+        # Odoo form onchange uses a NewId record. It must not be sorted against
+        # the persisted integer ID of the same attendance.
+        editing = last.new(last.copy_data()[0], origin=last)
+        editing.check_out = last.check_out + timedelta(minutes=1)
+        self.assertTrue(editing.bambus_review_is_daily_summary)
+        self.assertEqual(editing.bambus_approved_overtime_hours, 1.5)

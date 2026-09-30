@@ -95,7 +95,13 @@ class HrAttendance(models.Model):
             ("check_in", ">=", search_start),
             ("check_in", "<", search_end),
         ])
+        # During a form onchange ``self`` contains NewId pseudo-records while
+        # the search returns their persisted origins. Keep the edited version
+        # and do not mix it with the database version of the same attendance.
+        candidate_origin_ids = set(candidates._origin.ids)
         for attendance in day_records:
+            if attendance.id in candidate_origin_ids:
+                continue
             key = (
                 attendance.employee_id.id,
                 attendance._bambus_local_day(attendance.check_in),
@@ -115,7 +121,10 @@ class HrAttendance(models.Model):
             if not line:
                 continue
             last = records.sorted(
-                key=lambda item: ((item.check_out or item.check_in), item.id)
+                key=lambda item: (
+                    (item.check_out or item.check_in),
+                    item._origin.id or 0,
+                )
             )[-1]
             if last not in self:
                 continue
