@@ -400,6 +400,30 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertGreaterEqual(dashboard["metrics"]["overtime"], 1.5)
         self.assertGreaterEqual(dashboard["metrics"]["fine"], 0.25)
 
+    def test_attendance_logs_include_hr_time_updates(self):
+        employee = self.env["hr.employee"].create({
+            "name": "HR Time Update Employee",
+            "company_id": self.env.company.id,
+        })
+        today = fields.Date.context_today(employee)
+        sheet_model = self.env["bambus.hr.attendance.sheet"]
+
+        sheet_model.update_dashboard_attendance(
+            employee.id,
+            fields.Date.to_string(today),
+            {"status": "present", "check_in": "09:15", "check_out": "17:45"},
+        )
+        dashboard = sheet_model.get_attendance_dashboard(fields.Date.to_string(today))
+        row = next(
+            item for item in dashboard["daily_attendance"]
+            if item["id"] == employee.id
+        )
+        hr_log = next(log for log in row["logs"] if log["type"] == "hr_update")
+
+        self.assertEqual(hr_log["actor"], self.env.user.name)
+        self.assertIn("In ", hr_log["details"])
+        self.assertIn("Out ", hr_log["details"])
+
     def test_dashboard_opens_ot_and_fine_updates_without_history(self):
         employee = self.env["hr.employee"].create({
             "name": "Direct Dashboard Review Employee",

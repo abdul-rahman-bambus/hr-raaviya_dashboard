@@ -212,3 +212,24 @@ class TestBackendAssets(TransactionCase):
         self.assertIsNotNone(
             hourly_page.find(".//field[@name='hourly_pay_calculation_type']")
         )
+
+    def test_disabled_automation_rules_hide_irrelevant_configuration(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(
+            module_root / "views/attendance_automation_template_views.xml"
+        )
+        form = tree.find(
+            ".//record[@id='view_attendance_automation_template_form']"
+            "/field[@name='arch']/form"
+        )
+
+        fine_defaults = form.find(".//group[@string='Late / Fine Default']")
+        calculation_defaults = form.find(".//group[@string='Calculation Default']")
+        day_classification = form.find(
+            ".//group[@string='Attendance Day Classification']"
+        )
+        salary_slabs = form.find(".//group[@string='OT Salary Slabs']")
+        self.assertEqual(fine_defaults.get("invisible"), "not late_enabled")
+        self.assertEqual(calculation_defaults.get("invisible"), "not overtime_enabled")
+        self.assertEqual(day_classification.get("invisible"), "not overtime_enabled")
+        self.assertIn("not overtime_enabled", salary_slabs.get("invisible"))
