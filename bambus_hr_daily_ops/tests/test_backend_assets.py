@@ -102,6 +102,17 @@ class TestBackendAssets(TransactionCase):
         }
         self.assertEqual(visible_fields, {"name", "date_from", "date_to"})
 
+        holiday_calendar = navigation_tree.find(
+            ".//record[@id='view_bambus_hrms_public_holiday_calendar']"
+        )
+        self.assertIsNotNone(holiday_calendar)
+        calendar_arch = holiday_calendar.find("./field[@name='arch']/calendar")
+        self.assertEqual(calendar_arch.get("date_start"), "date_from")
+        self.assertEqual(calendar_arch.get("date_stop"), "date_to")
+        self.assertEqual(calendar_arch.get("mode"), "month")
+        view_mode = holiday_action.find("./field[@name='view_mode']")
+        self.assertEqual(view_mode.text, "calendar,list,form")
+
         for menu_id in {
             "menu_bambus_hrms_attendance_history",
             "menu_bambus_hrms_punch_logs",
