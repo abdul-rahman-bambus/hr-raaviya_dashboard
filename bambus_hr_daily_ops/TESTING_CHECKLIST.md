@@ -72,6 +72,10 @@ be resolved separately before production deployment.
 - [x] Verify every fine calculation choice, including salary per minute.
 - [x] Verify exact, 15-minute, 30-minute, and 60-minute OT rounding.
 - [x] Verify contract, fixed-template, and salary-slab OT rate policies.
+- [x] Verify public-holiday all-hours and no-additional-OT policies.
+- [x] Verify every public-holiday calculation choice and its saved sheet snapshot.
+- [x] Verify contract, fixed-template, salary-multiplier, and salary-slab
+  public-holiday rate policies.
 
 The plain-language [user guide](docs/ATTENDANCE_AUTOMATION_USER_GUIDE.md),
 [manual scenarios](docs/ATTENDANCE_AUTOMATION_MANUAL_TESTING.md), and

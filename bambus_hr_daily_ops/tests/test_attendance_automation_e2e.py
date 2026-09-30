@@ -319,6 +319,31 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         template = self._create_template("Default Public Holiday Policy")
 
         self.assertEqual(template.public_holiday_overtime_policy, "all")
+        self.assertEqual(template.public_holiday_calculation_type, "salary_2")
+        self.assertEqual(template.public_holiday_rate_policy, "salary_multiplier")
+
+    def test_public_holiday_disabled_policy_does_not_propose_overtime(self):
+        template = self._create_template(
+            "No Public Holiday Overtime",
+            public_holiday_overtime_policy="disabled",
+            minimum_overtime_minutes=0,
+        )
+        employee, _contract = self._create_employee_contract(
+            "No Holiday OT Employee", template=template
+        )
+        self.env["resource.calendar.leaves"].create({
+            "name": "No OT Holiday",
+            "calendar_id": False,
+            "resource_id": False,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(
+                self.test_day + timedelta(days=1), datetime.min.time()
+            ),
+        })
+
+        self._create_attendance(employee, (9, 0), (15, 0))
+
+        self.assertFalse(self._base_overtime(employee).duration)
 
     def test_global_public_holiday_applies_without_work_schedule(self):
         template = self._create_template(
@@ -492,6 +517,54 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
                 })
                 self.assertAlmostEqual(wizard.overtime_amount, expected_amount, places=2)
 
+    def test_every_public_holiday_calculation_option_saves_snapshot(self):
+        """Every holiday calculation default reaches the approved sheet snapshot."""
+        self.env["resource.calendar.leaves"].create({
+            "name": "Holiday Calculation Matrix",
+            "calendar_id": False,
+            "resource_id": False,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(
+                self.test_day + timedelta(days=1), datetime.min.time()
+            ),
+        })
+        expected = {
+            "fixed": 80,
+            "fixed_hour": 160,
+            "half_day": 200,
+            "full_day": 400,
+            "regularize": 0,
+            "salary_1": 100,
+            "salary_1_5": 150,
+            "salary_2": 200,
+        }
+        for calculation_type, expected_amount in expected.items():
+            with self.subTest(calculation_type=calculation_type):
+                template = self._create_template(
+                    "Holiday Calculation %s" % calculation_type,
+                    public_holiday_calculation_type=calculation_type,
+                    public_holiday_rate_policy="fixed",
+                    public_holiday_rate=80,
+                )
+                employee, contract = self._create_employee_contract(
+                    "Holiday %s Employee" % calculation_type,
+                    wage=12000,
+                    template=template,
+                )
+                line = self._review_line(employee, contract, 2)
+                wizard = self._default_overtime_wizard(line)
+
+                self.assertTrue(wizard.is_public_holiday)
+                self.assertEqual(wizard.calculation_type, calculation_type)
+                self.assertEqual(wizard.rate, 80)
+                self.assertAlmostEqual(
+                    wizard.overtime_amount, expected_amount, places=2
+                )
+                wizard.action_save()
+                self.assertEqual(line.overtime_calculation_type, calculation_type)
+                self.assertEqual(line.overtime_rate, 80)
+                self.assertAlmostEqual(line.overtime_amount, expected_amount, places=2)
+
     def test_every_fine_calculation_option(self):
         """Fine choices include salary-per-minute as the safe default."""
         employee, contract = self._create_employee_contract(
@@ -554,3 +627,32 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(fixed.resolve_overtime_rate(contract)[0], 90)
         self.assertEqual(contract_policy.resolve_overtime_rate(contract)[0], 50)
         self.assertEqual(slab.resolve_overtime_rate(contract)[0], 110)
+
+    def test_every_public_holiday_rate_policy(self):
+        _employee, contract = self._create_employee_contract(
+            "Holiday Rate Policy Matrix", wage=10000
+        )
+        fixed = self._create_template(
+            "Holiday Fixed Rate",
+            public_holiday_rate_policy="fixed",
+            public_holiday_rate=95,
+        )
+        contract_policy = self._create_template(
+            "Holiday Contract Rate", public_holiday_rate_policy="contract"
+        )
+        multiplier = self._create_template(
+            "Holiday Salary Multiplier",
+            public_holiday_rate_policy="salary_multiplier",
+        )
+        slab = self._create_template(
+            "Holiday Slab Rate",
+            public_holiday_rate_policy="salary_slab",
+            overtime_slab_ids=[
+                (0, 0, {"salary_from": 0, "salary_to": 12000, "rate": 115}),
+            ],
+        )
+
+        self.assertEqual(fixed.resolve_public_holiday_rate(contract)[0], 95)
+        self.assertEqual(contract_policy.resolve_public_holiday_rate(contract)[0], 50)
+        self.assertEqual(multiplier.resolve_public_holiday_rate(contract)[0], 50)
+        self.assertEqual(slab.resolve_public_holiday_rate(contract)[0], 115)
