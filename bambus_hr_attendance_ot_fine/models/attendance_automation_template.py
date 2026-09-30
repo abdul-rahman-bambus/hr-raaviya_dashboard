@@ -119,6 +119,21 @@ class AttendanceAutomationTemplate(models.Model):
         FINE_CALCULATION_TYPES, required=True, default="salary_minute"
     )
     fine_rate = fields.Monetary(currency_field="currency_id")
+
+    hourly_pay_enabled = fields.Boolean(
+        string="Enable Hourly Pay Review",
+        help="Allow HR to review payable hours for employees whose contract wage type is Hourly.",
+    )
+    hourly_pay_calculation_type = fields.Selection(
+        CALCULATION_TYPES,
+        string="Hourly Pay Calculation Type",
+        required=True,
+        default="salary_1",
+        help="1x Salary uses the hourly rate configured on the employee's contract.",
+    )
+    hourly_pay_rate = fields.Monetary(
+        string="Hourly Pay Rate / Amount", currency_field="currency_id"
+    )
     currency_id = fields.Many2one(related="company_id.currency_id", readonly=True)
 
     @api.depends("employee_ids")
@@ -176,7 +191,7 @@ class AttendanceAutomationTemplate(models.Model):
     @api.constrains(
         "date_from", "date_to", "late_grace_minutes", "early_exit_grace_minutes",
         "allowed_break_minutes", "minimum_overtime_minutes", "overtime_rate",
-        "public_holiday_rate", "fine_rate",
+        "public_holiday_rate", "fine_rate", "hourly_pay_rate",
         "overtime_start_offset_minutes", "maximum_overtime_minutes", "half_day_hours",
         "full_day_hours", "overtime_start_hour", "overtime_end_hour",
     )
@@ -192,6 +207,7 @@ class AttendanceAutomationTemplate(models.Model):
                 template.overtime_rate,
                 template.public_holiday_rate,
                 template.fine_rate,
+                template.hourly_pay_rate,
                 template.overtime_start_offset_minutes,
                 template.maximum_overtime_minutes,
                 template.half_day_hours,
