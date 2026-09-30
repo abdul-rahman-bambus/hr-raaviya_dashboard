@@ -118,6 +118,20 @@
         <field name="res_model">resource.calendar</field>
         <field name="view_mode">list,form</field>
     </record>
+    <record id="action_bambus_hrms_public_holidays" model="ir.actions.act_window">
+        <field name="name">Public Holidays</field>
+        <field name="res_model">resource.calendar.leaves</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('resource_id', '=', False)]</field>
+        <field name="context">{'default_resource_id': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Add a public holiday</p>
+            <p>
+                Public holidays entered here are used by work schedules and
+                attendance automation when checking holiday overtime rules.
+            </p>
+        </field>
+    </record>
     <menuitem id="menu_bambus_hrms_departments"
               name="Departments"
               parent="menu_bambus_hrms_configuration"
@@ -135,5 +149,11 @@
               parent="menu_bambus_hrms_configuration"
               action="action_bambus_hrms_work_schedules"
               sequence="30"
+              groups="hr.group_hr_manager"/>
+    <menuitem id="menu_bambus_hrms_public_holidays"
+              name="Public Holidays"
+              parent="menu_bambus_hrms_configuration"
+              action="action_bambus_hrms_public_holidays"
+              sequence="40"
               groups="hr.group_hr_manager"/>
 </odoo>

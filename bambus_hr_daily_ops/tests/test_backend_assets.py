@@ -69,6 +69,7 @@ class TestBackendAssets(TransactionCase):
             "menu_bambus_hrms_time_off",
             "menu_bambus_hrms_payroll",
             "menu_bambus_hrms_configuration",
+            "menu_bambus_hrms_public_holidays",
         }
         menu_ids = {
             menu.get("id") for menu in navigation_tree.findall(".//menuitem")
@@ -76,7 +77,19 @@ class TestBackendAssets(TransactionCase):
         self.assertTrue(expected_menus.issubset(menu_ids))
         for menu_id in expected_menus:
             menu = navigation_tree.find(f".//menuitem[@id='{menu_id}']")
-            self.assertEqual(menu.get("parent"), "menu_bambus_hrms_root")
+            expected_parent = (
+                "menu_bambus_hrms_configuration"
+                if menu_id == "menu_bambus_hrms_public_holidays"
+                else "menu_bambus_hrms_root"
+            )
+            self.assertEqual(menu.get("parent"), expected_parent)
+
+        holiday_action = navigation_tree.find(
+            ".//record[@id='action_bambus_hrms_public_holidays']"
+        )
+        self.assertIsNotNone(holiday_action)
+        holiday_model = holiday_action.find("./field[@name='res_model']")
+        self.assertEqual(holiday_model.text, "resource.calendar.leaves")
 
         for menu_id in {
             "menu_bambus_hrms_attendance_history",
