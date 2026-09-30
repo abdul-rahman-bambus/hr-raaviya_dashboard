@@ -12,6 +12,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.notification = useService("notification");
         this.state.savingIds = {};
         this.state.logEmployee = null;
+        this.state.adjustment = null;
     }
 
     get filteredDailyGroups() {
@@ -214,26 +215,97 @@ export class AttendanceEditor extends AttendanceDashboard {
             return;
         }
         try {
-            const action = await this.orm.call(
+            const data = await this.orm.call(
                 "bambus.hr.attendance.sheet",
-                "open_dashboard_adjustment",
+                "get_dashboard_adjustment",
                 [employee.id, this.state.data.date, adjustment]
             );
-            // RPC action dictionaries are not passed through Odoo's stored
-            // action loader. Always provide the view list expected by the
-            // Odoo 18 action service before it calls `.map()` on that value.
-            const normalizedAction = {
-                ...action,
-                views: action.views || [[false, "form"]],
-            };
-            await this.action.doAction(normalizedAction, {
-                onClose: () => this.syncEmployee(employee),
-            });
+            this.state.adjustment = { ...data, employeeRecord: employee, saving: false };
         } catch (error) {
             this.notification.add(
                 error.cause?.message || error.message || "Unable to open attendance update.",
                 { type: "danger" }
             );
+        }
+    }
+
+    closeAdjustment() {
+        if (!this.state.adjustment?.saving) {
+            this.state.adjustment = null;
+        }
+    }
+
+    adjustmentHours(value) {
+        const hours = Math.max(Number(value) || 0, 0);
+        const whole = Math.floor(hours);
+        const minutes = Math.round((hours - whole) * 60);
+        return `${String(whole + Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+    }
+
+    updateAdjustmentHours(event) {
+        const match = /^\s*(\d+):([0-5]\d)\s*$/.exec(event.target.value);
+        if (!match) {
+            event.target.setCustomValidity("Use HH:MM, for example 01:30.");
+            return;
+        }
+        event.target.setCustomValidity("");
+        this.state.adjustment.hours = Number(match[1]) + Number(match[2]) / 60;
+    }
+
+    updateAdjustmentField(field, event) {
+        this.state.adjustment[field] = field === "rate" ? Number(event.target.value) || 0 : event.target.value;
+    }
+
+    formatAdjustmentAmount(amount) {
+        const currency = this.state.adjustment.currency;
+        const value = Number(amount || 0).toFixed(currency.decimal_places ?? 2);
+        return currency.position === "after" ? `${value} ${currency.symbol}` : `${currency.symbol} ${value}`;
+    }
+
+    get adjustmentAmount() {
+        const item = this.state.adjustment;
+        if (!item) {
+            return 0;
+        }
+        const hours = Math.max(Number(item.hours) || 0, 0);
+        const rate = Math.max(Number(item.rate) || 0, 0);
+        const multipliers = { salary_1: 1, salary_1_5: 1.5, salary_2: 2 };
+        if (item.calculation_type === "fixed") return rate;
+        if (item.calculation_type === "fixed_hour") return hours * rate;
+        if (item.calculation_type === "half_day") return item.daily_rate / 2;
+        if (item.calculation_type === "full_day") return item.daily_rate;
+        if (item.calculation_type === "regularize") return 0;
+        if (item.calculation_type === "salary_minute") return hours * 60 * item.salary_per_minute;
+        return hours * item.hourly_rate * (multipliers[item.calculation_type] || 0);
+    }
+
+    async saveAdjustment() {
+        const adjustment = this.state.adjustment;
+        if (!adjustment || adjustment.saving) {
+            return;
+        }
+        adjustment.saving = true;
+        try {
+            await this.orm.call(
+                "bambus.hr.attendance.sheet",
+                "save_dashboard_adjustment",
+                [adjustment.wizard_id, adjustment.adjustment, {
+                    hours: adjustment.hours,
+                    calculation_type: adjustment.calculation_type,
+                    rate: adjustment.rate,
+                    note: adjustment.note,
+                }]
+            );
+            const employee = adjustment.employeeRecord;
+            this.state.adjustment = null;
+            await this.syncEmployee(employee);
+            this.notification.add(
+                `${adjustment.adjustment === "overtime" ? "Overtime" : "Late / fine"} saved for ${adjustment.employee}.`,
+                { type: "success" }
+            );
+        } catch (error) {
+            adjustment.saving = false;
+            this.notification.add(error.cause?.message || error.message || "Unable to save attendance update.", { type: "danger" });
         }
     }
 

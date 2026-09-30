@@ -502,6 +502,104 @@ class BambusHrAttendanceSheet(models.Model):
         )
 
     @api.model
+    def get_dashboard_adjustment(self, employee_id, selected_date, adjustment):
+        """Return the small, dashboard-facing OT/Fine editor payload."""
+        action = self.open_dashboard_adjustment(
+            employee_id, selected_date, adjustment
+        )
+        wizard_model = action.get("res_model")
+        wizard = self.env[wizard_model].with_context(
+            **action.get("context", {})
+        ).create({})
+        if not wizard:
+            raise UserError(_("The attendance adjustment could not be prepared."))
+
+        hours_field = "overtime_hours" if adjustment == "overtime" else "fine_hours"
+        detected_field = (
+            "detected_overtime_hours"
+            if adjustment == "overtime"
+            else "detected_fine_hours"
+        )
+        amount_field = "overtime_amount" if adjustment == "overtime" else "fine_amount"
+        note_field = "note" if adjustment == "overtime" else "reason"
+        currency = wizard.currency_id
+        rate_helper = self.env["bambus.hr.overtime.wizard"]
+        daily_rate, hourly_rate = rate_helper._contract_rates(wizard.line_id)
+        return {
+            "wizard_id": wizard.id,
+            "adjustment": adjustment,
+            "employee": wizard.employee_id.name,
+            "date": fields.Date.to_string(wizard.date),
+            "detected_hours": wizard[detected_field],
+            "hours": wizard[hours_field],
+            "calculation_type": wizard.calculation_type,
+            "calculation_options": wizard._fields["calculation_type"]._description_selection(
+                self.env
+            ),
+            "rate": wizard.rate,
+            "resolved_rate": wizard.resolved_rate if adjustment == "overtime" else 0.0,
+            "salary_per_minute": (
+                wizard.salary_per_minute if adjustment == "fine" else 0.0
+            ),
+            "daily_rate": daily_rate,
+            "hourly_rate": hourly_rate,
+            "amount": wizard[amount_field],
+            "note": wizard[note_field] or "",
+            "currency": {
+                "symbol": currency.symbol or "",
+                "position": currency.position or "before",
+                "decimal_places": currency.decimal_places,
+            },
+        }
+
+    @api.model
+    def save_dashboard_adjustment(self, wizard_id, adjustment, values):
+        """Validate and save a dashboard adjustment through its existing wizard."""
+        if not self.env.user.has_group("hr.group_hr_user"):
+            raise UserError(_("Only HR officers can update employee attendance."))
+        if adjustment not in {"overtime", "fine"}:
+            raise UserError(_("Select either overtime or late/fine."))
+
+        model_name = (
+            "bambus.hr.overtime.wizard"
+            if adjustment == "overtime"
+            else "bambus.hr.fine.wizard"
+        )
+        wizard = self.env[model_name].browse(wizard_id).exists()
+        if not wizard or wizard.create_uid != self.env.user:
+            raise UserError(_("This attendance adjustment has expired. Open it again."))
+
+        hours_field = "overtime_hours" if adjustment == "overtime" else "fine_hours"
+        note_field = "note" if adjustment == "overtime" else "reason"
+        allowed_types = dict(
+            wizard._fields["calculation_type"]._description_selection(self.env)
+        )
+        calculation_type = values.get("calculation_type")
+        if calculation_type not in allowed_types:
+            raise UserError(_("Select a valid calculation type."))
+        try:
+            hours = float(values.get("hours", 0.0))
+            rate = float(values.get("rate", 0.0))
+        except (TypeError, ValueError):
+            raise UserError(_("Enter valid hours and rate values."))
+
+        wizard.write({
+            hours_field: hours,
+            "calculation_type": calculation_type,
+            "rate": rate,
+            note_field: values.get("note") or False,
+        })
+        wizard.action_save()
+        return {
+            "hours": wizard[hours_field],
+            "amount": (
+                wizard.overtime_amount
+                if adjustment == "overtime"
+                else wizard.fine_amount
+            ),
+        }
+
+    @api.model
     def create_half_day_leave(self, employee_id, selected_date):
         """Create and confirm one morning half-day unpaid leave from the editor."""
         if not self.env.user.has_group("hr.group_hr_user"):

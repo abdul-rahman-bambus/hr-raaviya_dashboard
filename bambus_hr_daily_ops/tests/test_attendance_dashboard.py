@@ -374,6 +374,28 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertEqual(fine_action["views"][0][1], "form")
         self.assertEqual(fine_action["context"]["default_line_id"], line_id)
 
+        editor = sheet_model.get_dashboard_adjustment(
+            employee.id, fields.Date.to_string(today), "overtime"
+        )
+        self.assertEqual(editor["employee"], employee.name)
+        self.assertEqual(editor["adjustment"], "overtime")
+        self.assertTrue(editor["wizard_id"])
+        self.assertNotIn("sheet_id", editor)
+        self.assertNotIn("template_id", editor)
+        sheet_model.save_dashboard_adjustment(
+            editor["wizard_id"],
+            "overtime",
+            {
+                "hours": 0,
+                "calculation_type": "regularize",
+                "rate": 0,
+                "note": "Reviewed from dashboard",
+            },
+        )
+        line = self.env["bambus.hr.attendance.sheet.line"].browse(line_id)
+        self.assertEqual(line.overtime_state, "approved")
+        self.assertEqual(line.overtime_note, "Reviewed from dashboard")
+
         with self.assertRaises(UserError):
             sheet_model.open_dashboard_adjustment(
                 employee.id, fields.Date.to_string(today), "unsupported"
