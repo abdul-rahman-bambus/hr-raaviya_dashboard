@@ -369,6 +369,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
     automation_template_id = fields.Many2one(
         "bambus.attendance.automation.template", readonly=True
     )
+    is_public_holiday = fields.Boolean(readonly=True)
     salary_basis_amount = fields.Monetary(
         currency_field="currency_id", string="Contract Salary Used", readonly=True
     )
@@ -448,15 +449,31 @@ class BambusHrOvertimeWizard(models.TransientModel):
             salary_amount = 0.0
             slab = self.env["bambus.attendance.overtime.rate.slab"]
             warning = False
+            calendar = line.contract_id.resource_calendar_id
+            tzname = calendar.tz if calendar and calendar.tz else self.env.user.tz or "UTC"
+            is_public_holiday = bool(
+                line.contract_id
+                and self.env["hr.attendance.overtime"]._is_public_holiday(
+                    line.contract_id, pytz.timezone(tzname), line.date
+                )
+            )
             if line.overtime_state == "approved" and line.overtime_template_id:
                 salary_amount = line.overtime_salary_basis_amount
                 slab = line.overtime_slab_id
                 resolved_rate = line.overtime_rate
             elif template:
-                resolved_rate, salary_amount, slab = template.resolve_overtime_rate(
-                    line.contract_id
+                resolver = (
+                    template.resolve_public_holiday_rate
+                    if is_public_holiday
+                    else template.resolve_overtime_rate
                 )
-                if template.overtime_rate_policy == "salary_slab" and not slab:
+                resolved_rate, salary_amount, slab = resolver(line.contract_id)
+                rate_policy = (
+                    template.public_holiday_rate_policy
+                    if is_public_holiday
+                    else template.overtime_rate_policy
+                )
+                if rate_policy == "salary_slab" and not slab:
                     warning = _(
                         "No overtime salary slab matches the contract salary of %s.",
                         salary_amount,
@@ -466,13 +483,19 @@ class BambusHrOvertimeWizard(models.TransientModel):
                 "detected_overtime_hours": line.overtime_detected_hours or line.overtime_hours,
                 "overtime_hours": line.overtime_hours,
                 "calculation_type": line.overtime_calculation_type or (
-                    "fixed_hour" if template and template.overtime_rate_policy == "salary_slab"
+                    "fixed_hour" if template and (
+                        template.public_holiday_rate_policy
+                        if is_public_holiday else template.overtime_rate_policy
+                    ) == "salary_slab"
+                    else template.public_holiday_calculation_type
+                    if template and is_public_holiday
                     else template.overtime_calculation_type if template else "fixed_hour"
                 ),
                 "rate": line.overtime_rate or resolved_rate,
                 "resolved_rate": line.overtime_resolved_rate or resolved_rate,
                 "rate_override_reason": line.overtime_rate_override_reason,
                 "automation_template_id": template.id if template else False,
+                "is_public_holiday": is_public_holiday,
                 "salary_basis_amount": salary_amount,
                 "overtime_slab_id": slab.id if slab else False,
                 "rate_resolution_warning": warning,
@@ -496,7 +519,11 @@ class BambusHrOvertimeWizard(models.TransientModel):
         if self.overtime_hours < 0:
             raise UserError(_("Overtime hours cannot be negative."))
         if (
-            self.automation_template_id.overtime_rate_policy == "salary_slab"
+            (
+                self.automation_template_id.public_holiday_rate_policy
+                if self.is_public_holiday
+                else self.automation_template_id.overtime_rate_policy
+            ) == "salary_slab"
             and not self.overtime_slab_id
             and self.calculation_type != "regularize"
         ):

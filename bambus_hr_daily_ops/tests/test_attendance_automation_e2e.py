@@ -115,7 +115,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         field_names = [
             "line_id", "detected_overtime_hours", "overtime_hours",
             "calculation_type", "rate", "resolved_rate",
-            "automation_template_id", "salary_basis_amount",
+            "automation_template_id", "is_public_holiday", "salary_basis_amount",
             "overtime_slab_id", "rate_resolution_warning",
         ]
         return wizard_model.create(wizard_model.default_get(field_names))
@@ -324,9 +324,12 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         template = self._create_template(
             "Global Public Holiday Work",
             public_holiday_overtime_policy="all",
+            public_holiday_calculation_type="fixed_hour",
+            public_holiday_rate_policy="fixed",
+            public_holiday_rate=125,
             minimum_overtime_minutes=0,
         )
-        employee, _contract = self._create_employee_contract(
+        employee, contract = self._create_employee_contract(
             "Global Holiday Employee", template=template
         )
         self.env["resource.calendar.leaves"].create({
@@ -346,6 +349,15 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             employee.contract_id, self.test_day, self.test_day, "UTC"
         )
         self.assertIn(self.test_day, payroll_holidays)
+        line = self._review_line(employee, contract, 6.0)
+        wizard = self._default_overtime_wizard(line)
+        self.assertTrue(wizard.is_public_holiday)
+        self.assertEqual(wizard.calculation_type, "fixed_hour")
+        self.assertEqual(wizard.rate, 125)
+        self.assertEqual(wizard.overtime_amount, 750)
+        wizard.action_save()
+        self.assertEqual(line.overtime_rate, 125)
+        self.assertEqual(line.overtime_amount, 750)
 
     def test_expired_employee_template_falls_back_to_company_default(self):
         expired_template = self._create_template(

@@ -55,6 +55,21 @@ class AttendanceAutomationTemplate(models.Model):
     ], string="Public Holiday Policy", required=True, default="all",
        help="Controls how attendance worked on a configured public holiday is treated. "
             "By default, every worked hour is proposed as overtime for HR review.")
+    public_holiday_calculation_type = fields.Selection(
+        CALCULATION_TYPES,
+        string="Public Holiday Calculation Type",
+        required=True,
+        default="salary_2",
+    )
+    public_holiday_rate_policy = fields.Selection([
+        ("contract", "Contract OT Rate"),
+        ("fixed", "Fixed Template Rate"),
+        ("salary_slab", "Salary Range / Slab"),
+        ("salary_multiplier", "Salary Multiplier"),
+    ], string="Public Holiday Rate Policy", required=True, default="salary_multiplier")
+    public_holiday_rate = fields.Monetary(
+        string="Public Holiday Rate", currency_field="currency_id"
+    )
     overtime_start_mode = fields.Selection([
         ("shift_end", "At Shift End"),
         ("offset", "Minutes After Shift End"),
@@ -139,9 +154,29 @@ class AttendanceAutomationTemplate(models.Model):
             "bambus.attendance.overtime.rate.slab"
         ]
 
+    def resolve_public_holiday_rate(self, contract):
+        """Return the public-holiday rate using its independent default policy."""
+        self.ensure_one()
+        salary_amount = self._salary_basis_amount(contract)
+        empty_slab = self.env["bambus.attendance.overtime.rate.slab"]
+        if self.public_holiday_rate_policy == "fixed":
+            return self.public_holiday_rate or 0.0, salary_amount, empty_slab
+        if self.public_holiday_rate_policy == "salary_slab":
+            slab = self.overtime_slab_ids.filtered(
+                lambda item: item.salary_from <= salary_amount
+                and (not item.has_maximum or salary_amount <= item.salary_to)
+            )[:1]
+            return (slab.rate or 0.0) if slab else 0.0, salary_amount, slab
+        return (
+            float(getattr(contract, "overtime_rate", 0.0) or 0.0),
+            salary_amount,
+            empty_slab,
+        )
+
     @api.constrains(
         "date_from", "date_to", "late_grace_minutes", "early_exit_grace_minutes",
-        "allowed_break_minutes", "minimum_overtime_minutes", "overtime_rate", "fine_rate",
+        "allowed_break_minutes", "minimum_overtime_minutes", "overtime_rate",
+        "public_holiday_rate", "fine_rate",
         "overtime_start_offset_minutes", "maximum_overtime_minutes", "half_day_hours",
         "full_day_hours", "overtime_start_hour", "overtime_end_hour",
     )
@@ -155,6 +190,7 @@ class AttendanceAutomationTemplate(models.Model):
                 template.allowed_break_minutes,
                 template.minimum_overtime_minutes,
                 template.overtime_rate,
+                template.public_holiday_rate,
                 template.fine_rate,
                 template.overtime_start_offset_minutes,
                 template.maximum_overtime_minutes,

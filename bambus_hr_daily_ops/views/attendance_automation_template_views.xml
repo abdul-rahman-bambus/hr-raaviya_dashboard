@@ -157,6 +157,13 @@
                                     <field name="overtime_enabled"/>
                                     <field name="public_holiday_overtime_policy"
                                            invisible="not overtime_enabled"/>
+                                    <field name="public_holiday_calculation_type"
+                                           invisible="not overtime_enabled or public_holiday_rate_policy == 'salary_slab'"/>
+                                    <field name="public_holiday_rate_policy"
+                                           invisible="not overtime_enabled"/>
+                                    <field name="public_holiday_rate" widget="monetary"
+                                           options="{'currency_field': 'currency_id'}"
+                                           invisible="not overtime_enabled or public_holiday_rate_policy != 'fixed'"/>
                                 </group>
                                 <group string="Payroll Treatment">
                                     <div class="text-muted">

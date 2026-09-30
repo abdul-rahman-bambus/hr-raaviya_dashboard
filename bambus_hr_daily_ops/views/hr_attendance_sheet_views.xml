@@ -349,6 +349,7 @@
             <field name="overtime_hours" widget="float_time" string="Final OT Hours"/>
             <field name="calculation_type"/>
             <field name="automation_template_id"/>
+            <field name="is_public_holiday" invisible="1"/>
             <field name="salary_basis_amount" widget="monetary"
                    options="{'currency_field':'currency_id'}"
                    invisible="not overtime_slab_id"/>

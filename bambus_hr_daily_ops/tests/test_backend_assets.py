@@ -184,6 +184,12 @@ class TestBackendAssets(TransactionCase):
         self.assertIsNotNone(
             holiday_page.find(".//field[@name='public_holiday_overtime_policy']")
         )
+        self.assertIsNotNone(
+            holiday_page.find(".//field[@name='public_holiday_rate_policy']")
+        )
+        self.assertIsNotNone(
+            holiday_page.find(".//field[@name='public_holiday_calculation_type']")
+        )
         overtime_page = form.find(".//page[@string='Overtime']")
         self.assertIsNone(
             overtime_page.find(".//field[@name='public_holiday_overtime_policy']")
