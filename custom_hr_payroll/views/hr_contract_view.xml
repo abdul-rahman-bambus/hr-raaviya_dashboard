@@ -38,6 +38,12 @@
 		<field name="model">hr.payslip</field>
 		<field name="inherit_id" ref="hr_payroll_community.hr_payslip_view_form"/>
 		<field name="arch" type="xml">
+			<header position="inside">
+				<button name="action_open_salary_revision" type="object"
+						string="Revise Salary" class="btn-secondary"
+						groups="hr.group_hr_manager"
+						invisible="state != 'draft' or not contract_id"/>
+			</header>
 			<xpath expr="//notebook/page[1]" position="before">
 				<page name="worked_details" string="Attendance Details">
 					<field name="employee_type" invisible="1"/>
@@ -72,6 +78,29 @@
 						    <field name="total_late_after_grace" widget="float_time"/>
 						</group>
 					</group>
+				</page>
+			</xpath>
+		</field>
+	</record>
+
+	<record id="view_hr_contract_form_salary_revision" model="ir.ui.view">
+		<field name="name">hr.contract.form.salary.revision</field>
+		<field name="model">hr.contract</field>
+		<field name="inherit_id" ref="hr_contract.hr_contract_view_form"/>
+		<field name="arch" type="xml">
+			<xpath expr="//notebook" position="inside">
+				<page string="Salary Revision History">
+					<field name="salary_revision_ids" readonly="1">
+						<list create="0" delete="0">
+							<field name="effective_date"/>
+							<field name="previous_wage"/>
+							<field name="revised_wage"/>
+							<field name="difference"/>
+							<field name="percentage_change" widget="percentage"/>
+							<field name="revised_by_id"/>
+							<field name="reason"/>
+						</list>
+					</field>
 				</page>
 			</xpath>
 		</field>
