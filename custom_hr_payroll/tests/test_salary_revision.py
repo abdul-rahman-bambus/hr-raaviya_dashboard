@@ -13,6 +13,7 @@ class TestSalaryRevision(TransactionCase):
             "is_overtime_allowed", "overtime_rate", "is_latefine_applicable",
             "apply_late_fine", "late_fine_rate", "public_holidays_working",
             "public_holiday_wage_type", "public_holiday_wage_rate",
+            "weekend_special_working", "weekend_wage_type", "weekend_wage_rate",
         }
         for relative_path in (
             "views/hr_contract_view.xml",

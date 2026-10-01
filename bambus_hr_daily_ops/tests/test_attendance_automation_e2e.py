@@ -341,6 +341,26 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee, sunday).duration, 6.0)
 
+    def test_weekly_off_policy_ignores_legacy_contract_switch(self):
+        template = self._create_template(
+            "Weekly Off Disabled",
+            weekly_off_overtime_policy="disabled",
+            minimum_overtime_minutes=0,
+        )
+        employee, contract = self._create_employee_contract(
+            "Legacy Weekend Employee", template=template
+        )
+        contract.write({
+            "weekend_special_working": True,
+            "weekend_wage_type": "fixed",
+            "weekend_wage_rate": 500,
+        })
+        sunday = self.test_day + timedelta(days=6)
+
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+
+        self.assertFalse(self._base_overtime(employee, sunday).duration)
+
     def test_public_holiday_policy_proposes_all_worked_hours(self):
         template = self._create_template(
             "Public Holiday Work",

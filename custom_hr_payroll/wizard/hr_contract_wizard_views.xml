@@ -23,9 +23,6 @@
                         <field name="contract_type_id"/>
                     </group>
                 </group>
-                <group string="Settings">
-                    <field name="weekend_special_working"/>
-                </group>
                 <footer>
                     <button name="action_create_contract" string="Create Contract" type="object" class="btn-primary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>

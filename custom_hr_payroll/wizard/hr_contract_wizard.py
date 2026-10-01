@@ -22,8 +22,6 @@ class HrContractWizard(models.TransientModel):
     contract_type_id = fields.Many2one('hr.contract.type', string="Contract Type")
     struct_id = fields.Many2one('hr.payroll.structure', string="Salary Structure")
     
-    weekend_special_working = fields.Boolean(string="Weekend Days")
-
     @api.model
     def default_get(self, fields_list):
         res = super(HrContractWizard, self).default_get(fields_list)
@@ -41,7 +39,6 @@ class HrContractWizard(models.TransientModel):
         
         # Default Monthly logic
         res['wage_type'] = 'monthly'
-        res['weekend_special_working'] = True
         
         # Default Work Schedule if only one exists
         calendars = self.env['resource.calendar'].search([])
@@ -49,13 +46,6 @@ class HrContractWizard(models.TransientModel):
             res['resource_calendar_id'] = calendars.id
         
         return res
-
-    @api.onchange('wage_type')
-    def _onchange_wage_type(self):
-        if self.wage_type in ['daily','monthly']:
-            self.weekend_special_working = True
-        else:
-            self.weekend_special_working = False
 
     def action_create_contract(self):
         self.ensure_one()
@@ -89,7 +79,6 @@ class HrContractWizard(models.TransientModel):
             vals['resource_calendar_id'] = self.resource_calendar_id.id
             vals['structure_type_id'] = self.structure_type_id.id
             vals['struct_id'] = self.struct_id.id
-            vals['weekend_special_working'] = self.weekend_special_working
             vals['schedule_pay'] = 'monthly'
 
         contract = self.env['hr.contract'].create(vals)
