@@ -187,22 +187,29 @@ class HrAttendanceOvertime(models.Model):
         return sorted(intervals, key=lambda x: x[0])
 
     def _is_public_holiday(self, contract, tz, day):
-        if not contract or not contract.resource_calendar_id:
-            return False
+        calendar = contract.resource_calendar_id if contract else False
         start = tz.localize(datetime.combine(day, time.min)).astimezone(
             pytz.UTC
         ).replace(tzinfo=None)
         end = (tz.localize(datetime.combine(day, time.min)) + timedelta(days=1)).astimezone(
             pytz.UTC
         ).replace(tzinfo=None)
-        return bool(self.env["resource.calendar.leaves"].sudo().search_count([
+        domain = [
             ("resource_id", "=", False),
-            "|",
-            ("calendar_id", "=", contract.resource_calendar_id.id),
-            ("calendar_id", "=", False),
             ("date_from", "<", end),
             ("date_to", ">", start),
-        ]))
+        ]
+        if calendar:
+            domain = [
+                ("resource_id", "=", False),
+                "|",
+                ("calendar_id", "=", calendar.id),
+                ("calendar_id", "=", False),
+                *domain[1:],
+            ]
+        else:
+            domain.append(("calendar_id", "=", False))
+        return bool(self.env["resource.calendar.leaves"].sudo().search_count(domain))
 
 
     # ===========================

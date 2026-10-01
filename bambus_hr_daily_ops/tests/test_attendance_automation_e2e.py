@@ -429,6 +429,8 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         employee, contract = self._create_employee_contract(
             "Global Holiday Employee", template=template
         )
+        contract.resource_calendar_id = False
+        employee.resource_calendar_id = False
         self.env["resource.calendar.leaves"].create({
             "name": "All Companies Holiday",
             "calendar_id": False,
@@ -455,6 +457,39 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         wizard.action_save()
         self.assertEqual(line.overtime_rate, 125)
         self.assertEqual(line.overtime_amount, 750)
+
+    def test_hourly_worker_payslip_counts_global_public_holiday(self):
+        employee, contract = self._create_employee_contract(
+            "Hourly Holiday Employee", template=self.company_template
+        )
+        employee.employee_type = "worker"
+        employee.resource_calendar_id = False
+        contract.write({
+            "wage_type": "hourly",
+            "hourly_rate": 25,
+            "resource_calendar_id": False,
+        })
+        self.env["resource.calendar.leaves"].create({
+            "name": "Hourly Global Holiday",
+            "calendar_id": False,
+            "resource_id": False,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(
+                self.test_day + timedelta(days=1), datetime.min.time()
+            ),
+        })
+        payslip = self.env["hr.payslip"].create({
+            "name": "Hourly Holiday Payslip",
+            "employee_id": employee.id,
+            "contract_id": contract.id,
+            "date_from": self.test_day,
+            "date_to": self.test_day,
+        })
+
+        payslip._compute_all_stats()
+
+        self.assertEqual(payslip.holiday_days, 1.0)
+        self.assertEqual(payslip.days_excl_weekend_holidays, 0.0)
 
     def test_expired_employee_template_falls_back_to_company_default(self):
         expired_template = self._create_template(
