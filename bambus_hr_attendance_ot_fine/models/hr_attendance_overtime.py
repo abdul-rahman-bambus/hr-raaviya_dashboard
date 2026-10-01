@@ -119,45 +119,6 @@ class HrAttendanceOvertime(models.Model):
             cur += timedelta(days=1)
         return total
 
-    def _fine_rate_per_hour(self, employee, contract, day_date, month_sched_cache, scheduled_today=0.0):
-        if not contract:
-            return 0.0
-
-        wage_type = (getattr(contract, "wage_type", "") or "monthly").strip().lower()
-
-        # Hourly flexible: no penalty as per your rule
-        if wage_type == "hourly":
-            return 0.0
-
-        # Late fine not applicable => no rate
-        if not bool(getattr(contract, "is_latefine_applicable", False)):
-            return 0.0
-
-        mode = (getattr(contract, "apply_late_fine", "") or "").strip().lower()
-
-        # Fixed per hour
-        if mode == "fixed":
-            return float(getattr(contract, "late_fine_rate", 0.0) or 0.0)
-
-        # Wage-based
-        if wage_type == "daily":
-            daily_wage = float(getattr(contract, "daily_wage", 0.0) or 0.0)
-            sched = float(scheduled_today or 0.0)
-            return (daily_wage / sched) if (daily_wage > 0 and sched > 0) else 0.0
-
-        # Default monthly
-        wage = float(getattr(contract, "wage", 0.0) or 0.0)
-        if wage <= 0:
-            return 0.0
-
-        key = (employee.id, day_date.year, day_date.month)
-        if key not in month_sched_cache:
-            month_sched_cache[key] = self._monthly_scheduled_hours(employee, day_date.year, day_date.month)
-
-        sched = month_sched_cache[key]
-        return (wage / sched) if sched > 0 else 0.0
-
-
     def _last_attendance(self, day_att):
         return day_att.sorted(key=lambda a: ((a.check_out or a.check_in), a.id))[-1] if day_att else False
 
@@ -385,14 +346,12 @@ class HrAttendanceOvertime(models.Model):
                                 Param.get_param("hr_payroll.ot_for_weekend_and_festival") == "True"
                             )
                         
-                        # 2. Check if the employee's contract allows OT
+                        # 2. Apply the effective template; the contract only supplies wage terms.
                         allow_ot = bool(
                             contract
                             and wage_type in ("daily", "monthly")
-                            and (
-                                getattr(contract, "is_overtime_allowed", False)
-                                or (automation and automation.overtime_enabled)
-                            )
+                            and automation
+                            and automation.overtime_enabled
                         )
 
                         # 3. If both are True, calculate OT ONLY for time worked beyond the standard shift
@@ -662,17 +621,10 @@ class HrAttendanceOvertime(models.Model):
                         or automation.break_enabled
                     )
                 )
-                if not (
-                    contract
-                    and (
-                        bool(getattr(contract, "is_latefine_applicable", False))
-                        or automation_fine_enabled
-                    )
-                ):
+                if not (contract and automation_fine_enabled):
                     fine_hours = 0.0
                     fine_amount = 0.0
                 else:
-                    mode = (getattr(contract, "apply_late_fine", "") or "").strip().lower()
                     fine_rate = 0.0
 
                     if automation and automation.fine_calculation_type == "salary_minute":
@@ -686,8 +638,8 @@ class HrAttendanceOvertime(models.Model):
                             fine_minutes * daily_rate / (scheduled * 60.0)
                             if scheduled > 0 else 0.0
                         )
-                    elif mode == "fixed":
-                        fine_rate = float(getattr(contract, "late_fine_rate", 0.0) or 0.0)
+                    elif automation and automation.fine_calculation_type in ("fixed", "fixed_hour"):
+                        fine_rate = float(automation.fine_rate or 0.0)
                     else:
                         if wage_type == "daily":
                             daily_wage = float(getattr(contract, "daily_wage", 0.0) or 0.0)
@@ -703,8 +655,8 @@ class HrAttendanceOvertime(models.Model):
 
                     if not (automation and automation.fine_calculation_type == "salary_minute"):
                         fine_amount = fine_hours * fine_rate if fine_rate > 0 else 0.0
-                        if mode == "fixed":
-                            fine_amount = fine_minutes * fine_rate if fine_rate > 0 else 0.0
+                        if automation and automation.fine_calculation_type == "fixed":
+                            fine_amount = fine_rate
                     # Limits, prevent overcharge
                     if wage_type == "daily":
                         fine_amount = min(fine_amount, contract.daily_wage)
@@ -718,10 +670,8 @@ class HrAttendanceOvertime(models.Model):
                     allow_ot = bool(
                         contract
                         and wage_type in ("daily", "monthly")
-                        and (
-                            getattr(contract, "is_overtime_allowed", False)
-                            or (automation and automation.overtime_enabled)
-                        )
+                        and automation
+                        and automation.overtime_enabled
                     )
                     duration_to_store = ot_hours if allow_ot else 0.0
                     if automation and not automation.overtime_enabled:

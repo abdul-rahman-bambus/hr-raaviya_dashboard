@@ -62,7 +62,6 @@ class AttendanceAutomationTemplate(models.Model):
         default="salary_2",
     )
     public_holiday_rate_policy = fields.Selection([
-        ("contract", "Contract OT Rate"),
         ("fixed", "Fixed Template Rate"),
         ("salary_slab", "Salary Range / Slab"),
         ("salary_multiplier", "Salary Multiplier"),
@@ -100,11 +99,10 @@ class AttendanceAutomationTemplate(models.Model):
         CALCULATION_TYPES, required=True, default="fixed_hour"
     )
     overtime_rate_policy = fields.Selection([
-        ("contract", "Contract OT Rate"),
         ("fixed", "Fixed Template Rate"),
         ("salary_slab", "Salary Range / Slab"),
         ("salary_multiplier", "Salary Multiplier"),
-    ], required=True, default="contract")
+    ], required=True, default="salary_multiplier")
     overtime_salary_basis = fields.Selection([
         ("monthly", "Monthly Contract Wage"),
         ("daily", "Daily Contract Wage"),
@@ -165,7 +163,7 @@ class AttendanceAutomationTemplate(models.Model):
                 and (not item.has_maximum or salary_amount <= item.salary_to)
             )[:1]
             return (slab.rate or 0.0) if slab else 0.0, salary_amount, slab
-        return float(getattr(contract, "overtime_rate", 0.0) or 0.0), salary_amount, self.env[
+        return 0.0, salary_amount, self.env[
             "bambus.attendance.overtime.rate.slab"
         ]
 
@@ -182,11 +180,18 @@ class AttendanceAutomationTemplate(models.Model):
                 and (not item.has_maximum or salary_amount <= item.salary_to)
             )[:1]
             return (slab.rate or 0.0) if slab else 0.0, salary_amount, slab
-        return (
-            float(getattr(contract, "overtime_rate", 0.0) or 0.0),
-            salary_amount,
-            empty_slab,
-        )
+        return 0.0, salary_amount, empty_slab
+
+    @api.model
+    def _migrate_legacy_contract_rate_policies(self):
+        """Replace removed contract-rate policies with template salary rates."""
+        self.search([("overtime_rate_policy", "=", "contract")]).write({
+            "overtime_rate_policy": "salary_multiplier",
+        })
+        self.search([("public_holiday_rate_policy", "=", "contract")]).write({
+            "public_holiday_rate_policy": "salary_multiplier",
+        })
+        return True
 
     @api.constrains(
         "date_from", "date_to", "late_grace_minutes", "early_exit_grace_minutes",

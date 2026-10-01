@@ -445,7 +445,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
                 line.overtime_template_id
                 or line.employee_id._get_attendance_automation_template(line.date)
             )
-            resolved_rate = getattr(line.contract_id, "overtime_rate", 0.0)
+            resolved_rate = 0.0
             salary_amount = 0.0
             slab = self.env["bambus.attendance.overtime.rate.slab"]
             warning = False
@@ -753,8 +753,7 @@ class BambusHrFineWizard(models.TransientModel):
                     template.fine_calculation_type if template else "salary_minute"
                 ),
                 "rate": line.fine_rate or (
-                    template.fine_rate if template and template.fine_rate
-                    else getattr(line.contract_id, "late_fine_rate", 0.0)
+                    template.fine_rate if template else 0.0
                 ),
                 "reason": line.fine_note,
             })

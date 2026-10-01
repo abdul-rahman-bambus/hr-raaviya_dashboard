@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <function model="bambus.attendance.automation.template"
+              name="_migrate_legacy_contract_rate_policies"/>
+    <function model="hr.salary.rule" name="_bambus_use_automation_amounts"/>
+</odoo>

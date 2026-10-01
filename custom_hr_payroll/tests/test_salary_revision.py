@@ -1,9 +1,28 @@
 from datetime import date
+from pathlib import Path
+from xml.etree import ElementTree
 
 from odoo.tests.common import TransactionCase
 
 
 class TestSalaryRevision(TransactionCase):
+
+    def test_contract_forms_do_not_expose_automation_policy_fields(self):
+        module_root = Path(__file__).parents[1]
+        policy_fields = {
+            "is_overtime_allowed", "overtime_rate", "is_latefine_applicable",
+            "apply_late_fine", "late_fine_rate", "public_holidays_working",
+            "public_holiday_wage_type", "public_holiday_wage_rate",
+        }
+        for relative_path in (
+            "views/hr_contract_view.xml",
+            "wizard/hr_contract_wizard_views.xml",
+        ):
+            tree = ElementTree.parse(module_root / relative_path)
+            visible_fields = {
+                field.get("name") for field in tree.findall(".//field[@name]")
+            }
+            self.assertFalse(policy_fields & visible_fields)
 
     def test_employee_number_is_generated_on_create(self):
         employee = self.env["hr.employee"].create({"name": "Sequenced Employee"})
