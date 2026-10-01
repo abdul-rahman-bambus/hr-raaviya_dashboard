@@ -93,8 +93,12 @@
 					<field name="salary_revision_ids" readonly="1">
 						<list create="0" delete="0">
 							<field name="effective_date"/>
+							<field name="previous_wage_type"/>
+							<field name="revised_wage_type"/>
 							<field name="previous_wage"/>
 							<field name="revised_wage"/>
+							<field name="previous_calendar_id" optional="hide"/>
+							<field name="revised_calendar_id" optional="show"/>
 							<field name="difference"/>
 							<field name="percentage_change" widget="percentage"/>
 							<field name="revised_by_id"/>

@@ -1,5 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="view_hr_salary_revision_wizard_automation" model="ir.ui.view">
+        <field name="name">hr.salary.revision.wizard.automation</field>
+        <field name="model">hr.salary.revision.wizard</field>
+        <field name="inherit_id" ref="custom_hr_payroll.view_hr_salary_revision_wizard_form"/>
+        <field name="arch" type="xml">
+            <field name="current_calendar_id" position="after">
+                <field name="current_automation_template_id"/>
+            </field>
+            <field name="revised_calendar_id" position="after">
+                <field name="company_id" invisible="1"/>
+                <field name="revised_automation_template_id"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_hr_contract_salary_revision_automation" model="ir.ui.view">
+        <field name="name">hr.contract.salary.revision.automation</field>
+        <field name="model">hr.contract</field>
+        <field name="inherit_id" ref="custom_hr_payroll.view_hr_contract_form_salary_revision"/>
+        <field name="arch" type="xml">
+            <field name="revised_calendar_id" position="after">
+                <field name="previous_automation_template_id" optional="hide"/>
+                <field name="revised_automation_template_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
     <record id="view_attendance_automation_assign_wizard" model="ir.ui.view">
         <field name="name">bambus.attendance.automation.assign.wizard.form</field>
         <field name="model">bambus.attendance.automation.assign.wizard</field>

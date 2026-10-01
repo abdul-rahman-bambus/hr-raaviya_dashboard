@@ -4,17 +4,21 @@
         <field name="name">hr.salary.revision.wizard.form</field>
         <field name="model">hr.salary.revision.wizard</field>
         <field name="arch" type="xml">
-            <form string="Revise Monthly Salary">
+            <form string="Revise Employment Terms">
                 <group>
                     <group>
                         <field name="payslip_id" invisible="1"/>
                         <field name="employee_id"/>
                         <field name="contract_id"/>
                         <field name="effective_date"/>
+                        <field name="current_wage_type"/>
+                        <field name="current_calendar_id"/>
                     </group>
                     <group>
-                        <field name="current_wage" widget="monetary" options="{'currency_field': 'currency_id'}"/>
-                        <field name="revised_wage" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        <field name="revised_wage_type"/>
+                        <field name="revised_calendar_id" required="revised_wage_type != 'hourly'"/>
+                        <field name="current_wage" string="Current Wage / Rate" widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                        <field name="revised_wage" string="Revised Wage / Rate" widget="monetary" options="{'currency_field': 'currency_id'}"/>
                         <field name="difference" widget="monetary" options="{'currency_field': 'currency_id'}"/>
                         <field name="percentage_change" widget="percentage"/>
                         <field name="currency_id" invisible="1"/>

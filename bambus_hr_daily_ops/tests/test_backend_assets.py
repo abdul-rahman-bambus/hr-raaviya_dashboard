@@ -237,3 +237,21 @@ class TestBackendAssets(TransactionCase):
         self.assertEqual(calculation_defaults.get("invisible"), "not overtime_enabled")
         self.assertEqual(day_classification.get("invisible"), "not overtime_enabled")
         self.assertIn("not overtime_enabled", salary_slabs.get("invisible"))
+
+    def test_employment_revision_adds_automation_template_fields(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(
+            module_root / "views/attendance_automation_template_views.xml"
+        )
+        revision_view = tree.find(
+            ".//record[@id='view_hr_salary_revision_wizard_automation']"
+            "/field[@name='arch']"
+        )
+
+        self.assertIsNotNone(revision_view)
+        self.assertIsNotNone(
+            revision_view.find(".//field[@name='current_automation_template_id']")
+        )
+        self.assertIsNotNone(
+            revision_view.find(".//field[@name='revised_automation_template_id']")
+        )

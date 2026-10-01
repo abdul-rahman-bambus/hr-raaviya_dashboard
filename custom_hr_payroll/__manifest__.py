@@ -1,6 +1,6 @@
 {
     'name': 'HR Payroll Custom Enhancements',
-    'version': '18.0.4.3.0',
+    'version': '18.0.4.4.0',
     'summary': 'Custom payroll with attendance logic, late penalties, weekend config, hourly & monthly logic.',
     'author': 'Bambus Technologies',
     'license': 'LGPL-3',

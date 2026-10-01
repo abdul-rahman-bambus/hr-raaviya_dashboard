@@ -8,11 +8,23 @@ class HrSalaryRevision(models.Model):
 
     employee_id = fields.Many2one("hr.employee", required=True, index=True, ondelete="cascade")
     contract_id = fields.Many2one("hr.contract", required=True, index=True, ondelete="cascade")
+    source_contract_id = fields.Many2one("hr.contract", ondelete="set null")
+    revised_contract_id = fields.Many2one("hr.contract", ondelete="set null")
     payslip_id = fields.Many2one("hr.payslip", index=True, ondelete="set null")
     company_id = fields.Many2one(related="contract_id.company_id", store=True, index=True)
     currency_id = fields.Many2one(related="company_id.currency_id")
     previous_wage = fields.Monetary(required=True, currency_field="currency_id")
     revised_wage = fields.Monetary(required=True, currency_field="currency_id")
+    previous_wage_type = fields.Selection([
+        ("daily", "Daily Wage"), ("monthly", "Monthly Wage"),
+        ("hourly", "Hourly Wage"),
+    ], required=True)
+    revised_wage_type = fields.Selection([
+        ("daily", "Daily Wage"), ("monthly", "Monthly Wage"),
+        ("hourly", "Hourly Wage"),
+    ], required=True)
+    previous_calendar_id = fields.Many2one("resource.calendar", string="Previous Working Schedule")
+    revised_calendar_id = fields.Many2one("resource.calendar", string="Revised Working Schedule")
     difference = fields.Monetary(compute="_compute_change", store=True, currency_field="currency_id")
     percentage_change = fields.Float(compute="_compute_change", store=True)
     effective_date = fields.Date(required=True, index=True)
