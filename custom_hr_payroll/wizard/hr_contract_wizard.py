@@ -22,9 +22,6 @@ class HrContractWizard(models.TransientModel):
     contract_type_id = fields.Many2one('hr.contract.type', string="Contract Type")
     struct_id = fields.Many2one('hr.payroll.structure', string="Salary Structure")
     
-    is_overtime_allowed = fields.Boolean(string='Is overtime allowed?')
-    is_latefine_applicable = fields.Boolean(string='Is latefine applicable?')
-    public_holidays_working = fields.Boolean(string="Public Holidays")
     weekend_special_working = fields.Boolean(string="Weekend Days")
 
     @api.model
@@ -44,9 +41,6 @@ class HrContractWizard(models.TransientModel):
         
         # Default Monthly logic
         res['wage_type'] = 'monthly'
-        res['is_overtime_allowed'] = True
-        res['is_latefine_applicable'] = True
-        res['public_holidays_working'] = True
         res['weekend_special_working'] = True
         
         # Default Work Schedule if only one exists
@@ -59,14 +53,8 @@ class HrContractWizard(models.TransientModel):
     @api.onchange('wage_type')
     def _onchange_wage_type(self):
         if self.wage_type in ['daily','monthly']:
-            self.is_overtime_allowed = True
-            self.is_latefine_applicable = True
-            self.public_holidays_working = True
             self.weekend_special_working = True
         else:
-            self.is_overtime_allowed = False
-            self.is_latefine_applicable = False
-            self.public_holidays_working = False
             self.weekend_special_working = False
 
     def action_create_contract(self):
@@ -101,9 +89,6 @@ class HrContractWizard(models.TransientModel):
             vals['resource_calendar_id'] = self.resource_calendar_id.id
             vals['structure_type_id'] = self.structure_type_id.id
             vals['struct_id'] = self.struct_id.id
-            vals['is_overtime_allowed'] = self.is_overtime_allowed
-            vals['is_latefine_applicable'] = self.is_latefine_applicable
-            vals['public_holidays_working'] = self.public_holidays_working
             vals['weekend_special_working'] = self.weekend_special_working
             vals['schedule_pay'] = 'monthly'
 
