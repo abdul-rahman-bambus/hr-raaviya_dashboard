@@ -392,15 +392,27 @@ class HrPayslip(models.Model):
 
 
     def get_worked_day_lines(self, contracts, date_from, date_to):
-        """
-        If contract has no special working flags -> fallback to default (Cybrosys)
-        Otherwise -> custom logic.
-        """
+        """Build special worked-day buckets from the effective template policy."""
         default_res = super(HrPayslip, self).get_worked_day_lines(contracts, date_from, date_to)
         # for each slip
         for slip in self:
             contract = slip.contract_id
             template_handles_holidays = False
+            template_handles_weekly_off = False
+            current_day = fields.Date.to_date(slip.date_from)
+            last_day = fields.Date.to_date(slip.date_to)
+            while slip.employee_id and current_day and last_day and current_day <= last_day:
+                day_template = slip.employee_id._get_attendance_automation_template(
+                    current_day
+                )
+                if (
+                    day_template
+                    and day_template.overtime_enabled
+                    and day_template.weekly_off_overtime_policy != "disabled"
+                ):
+                    template_handles_weekly_off = True
+                    break
+                current_day += timedelta(days=1)
             if slip.employee_id and slip.date_from and slip.date_to and slip.holiday_days:
                 tzname = (
                     contract.resource_calendar_id.tz
@@ -421,14 +433,13 @@ class HrPayslip(models.Model):
                         template_handles_holidays = True
                         break
 
-            # Case A: no weekend working + no public holiday working
-            # OR wage type = hourly
-            if (not contract.weekend_special_working
-                    and not contract.public_holidays_working
+            # Use the standard payroll buckets when no template handles
+            # weekly-off/public-holiday work, or for hourly contracts.
+            if (not template_handles_weekly_off
                     and not template_handles_holidays) \
                 or contract.wage_type == 'hourly':
 
-                return default_res   # <-- RETURN ORIGINAL ODOO OUTPUT
+                return default_res
 
             # Case B: special config enabled → custom output
             res = []
@@ -444,7 +455,7 @@ class HrPayslip(models.Model):
             })
 
             # WEEKEND worked ONLY IF enabled
-            if slip.weekend_worked > 0 and contract.weekend_special_working:
+            if slip.weekend_worked > 0 and template_handles_weekly_off:
                 res.append({
                     'name': 'Weekend Working Days',
                     'sequence': 5,
@@ -457,7 +468,7 @@ class HrPayslip(models.Model):
             # PUBLIC HOLIDAYS worked ONLY IF enabled
             if (
                 slip.holiday_worked > 0
-                and (contract.public_holidays_working or template_handles_holidays)
+                and template_handles_holidays
             ):
                 res.append({
                     'name': 'Public Holidays',

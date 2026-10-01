@@ -33,6 +33,8 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             late_grace_minutes=5,
             early_exit_grace_minutes=5,
             minimum_overtime_minutes=60,
+            overtime_rate_policy="fixed",
+            overtime_rate=50,
         )
         cls.company.attendance_automation_template_id = cls.company_template
 
@@ -57,11 +59,6 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             "date_start": cls.test_day - timedelta(days=30),
             "wage": wage,
             "wage_type": "monthly",
-            "is_overtime_allowed": True,
-            "overtime_rate": 50,
-            "is_latefine_applicable": True,
-            "apply_late_fine": "fixed",
-            "late_fine_rate": 2,
         })
         return employee, contract
 
@@ -165,7 +162,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(
             overtime_wizard.detected_overtime_hours, 70 / 60, places=4
         )
-        self.assertEqual(overtime_wizard.rate, contract.overtime_rate)
+        self.assertEqual(overtime_wizard.rate, self.company_template.overtime_rate)
         overtime_wizard.action_save()
         self.assertEqual(line.overtime_state, "approved")
         self.assertAlmostEqual(line.overtime_amount, 70 / 60 * 50, places=2)
@@ -216,6 +213,61 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(attendance.bambus_late_minutes, 5)
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
         self.assertAlmostEqual(attendance.bambus_fine_amount, 5 * 300 / 480, places=2)
+
+    def test_disabled_template_ignores_enabled_legacy_contract_switches(self):
+        template = self._create_template(
+            "Disabled Template Is Authoritative",
+            overtime_enabled=False,
+            late_enabled=False,
+            early_exit_enabled=False,
+            break_enabled=False,
+        )
+        employee, contract = self._create_employee_contract(
+            "Legacy Switch Employee", template=template
+        )
+        contract.write({
+            "is_overtime_allowed": True,
+            "is_latefine_applicable": True,
+            "apply_late_fine": "fixed",
+            "late_fine_rate": 99,
+        })
+
+        attendance = self._create_attendance(employee, (9, 10), (18, 10))
+
+        self.assertFalse(self._base_overtime(employee).duration)
+        self.assertFalse(attendance.bambus_fine_hours)
+        self.assertFalse(attendance.bambus_fine_amount)
+
+    def test_salary_rules_use_approved_automation_snapshots(self):
+        category = self.env["hr.salary.rule.category"].search([], limit=1)
+        self.assertTrue(category)
+        rules = self.env["hr.salary.rule"].create([{
+            "name": name,
+            "code": code,
+            "category_id": category.id,
+            "condition_select": "none",
+            "amount_select": "code",
+            "amount_python_compute": "result = contract.overtime_rate",
+        } for code, name in (
+            ("OT", "Automation OT Test"),
+            ("LATE", "Automation Fine Test"),
+            ("PH", "Legacy Public Holiday Test"),
+        )])
+
+        rules._bambus_use_automation_amounts()
+
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "OT").amount_python_compute,
+            "result = payslip.total_overtime_amount or 0.0",
+        )
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "LATE").amount_python_compute,
+            "result = -(payslip.total_fine_amount or 0.0)",
+        )
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "PH").amount_python_compute,
+            "result = 0.0",
+        )
 
     def test_minimum_overtime_is_inclusive_at_sixty_minutes(self):
         below_employee, _contract = self._create_employee_contract("59 Minute Employee")
@@ -289,13 +341,33 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee, sunday).duration, 6.0)
 
+    def test_weekly_off_policy_ignores_legacy_contract_switch(self):
+        template = self._create_template(
+            "Weekly Off Disabled",
+            weekly_off_overtime_policy="disabled",
+            minimum_overtime_minutes=0,
+        )
+        employee, contract = self._create_employee_contract(
+            "Legacy Weekend Employee", template=template
+        )
+        contract.write({
+            "weekend_special_working": True,
+            "weekend_wage_type": "fixed",
+            "weekend_wage_rate": 500,
+        })
+        sunday = self.test_day + timedelta(days=6)
+
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+
+        self.assertFalse(self._base_overtime(employee, sunday).duration)
+
     def test_public_holiday_policy_proposes_all_worked_hours(self):
         template = self._create_template(
             "Public Holiday Work",
             public_holiday_overtime_policy="all",
             minimum_overtime_minutes=0,
         )
-        employee, _contract = self._create_employee_contract(
+        employee, contract = self._create_employee_contract(
             "Public Holiday Employee", template=template
         )
         self.env["resource.calendar.leaves"].create({
@@ -311,7 +383,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
         payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
-            employee.contract_id, self.test_day, self.test_day, "UTC"
+            contract, self.test_day, self.test_day, "UTC"
         )
         self.assertIn(self.test_day, payroll_holidays)
 
@@ -371,7 +443,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
         payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
-            employee.contract_id, self.test_day, self.test_day, "UTC"
+            contract, self.test_day, self.test_day, "UTC"
         )
         self.assertIn(self.test_day, payroll_holidays)
         line = self._review_line(employee, contract, 6.0)
@@ -607,15 +679,15 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
                     expected_minutes,
                 )
 
-    def test_fixed_contract_and_slab_rate_policies(self):
+    def test_fixed_multiplier_and_slab_rate_policies(self):
         employee, contract = self._create_employee_contract(
             "Rate Policy Matrix", wage=10000
         )
         fixed = self._create_template(
             "Fixed Rate Policy", overtime_rate_policy="fixed", overtime_rate=90
         )
-        contract_policy = self._create_template(
-            "Contract Rate Policy", overtime_rate_policy="contract"
+        multiplier = self._create_template(
+            "Salary Multiplier Policy", overtime_rate_policy="salary_multiplier"
         )
         slab = self._create_template(
             "Slab Rate Policy",
@@ -625,7 +697,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             ],
         )
         self.assertEqual(fixed.resolve_overtime_rate(contract)[0], 90)
-        self.assertEqual(contract_policy.resolve_overtime_rate(contract)[0], 50)
+        self.assertEqual(multiplier.resolve_overtime_rate(contract)[0], 0)
         self.assertEqual(slab.resolve_overtime_rate(contract)[0], 110)
 
     def test_every_public_holiday_rate_policy(self):
@@ -636,9 +708,6 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             "Holiday Fixed Rate",
             public_holiday_rate_policy="fixed",
             public_holiday_rate=95,
-        )
-        contract_policy = self._create_template(
-            "Holiday Contract Rate", public_holiday_rate_policy="contract"
         )
         multiplier = self._create_template(
             "Holiday Salary Multiplier",
@@ -653,6 +722,5 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         )
 
         self.assertEqual(fixed.resolve_public_holiday_rate(contract)[0], 95)
-        self.assertEqual(contract_policy.resolve_public_holiday_rate(contract)[0], 50)
-        self.assertEqual(multiplier.resolve_public_holiday_rate(contract)[0], 50)
+        self.assertEqual(multiplier.resolve_public_holiday_rate(contract)[0], 0)
         self.assertEqual(slab.resolve_public_holiday_rate(contract)[0], 115)

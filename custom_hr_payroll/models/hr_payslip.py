@@ -402,55 +402,5 @@ class HrPayslip(models.Model):
 
 
     def get_worked_day_lines(self, contracts, date_from, date_to):
-        """
-        If contract has no special working flags -> fallback to default (Cybrosys)
-        Otherwise -> custom logic.
-        """
-        default_res = super(HrPayslip, self).get_worked_day_lines(contracts, date_from, date_to)
-        # for each slip
-        for slip in self:
-            contract = slip.contract_id
-
-            # Case A: no weekend working + no public holiday working
-            # OR wage type = hourly
-            if (not contract.weekend_special_working and not contract.public_holidays_working) \
-                or contract.wage_type == 'hourly':
-
-                return default_res   # <-- RETURN ORIGINAL ODOO OUTPUT
-
-            # Case B: special config enabled → custom output
-            res = []
-
-            # Normal days
-            res.append({
-                'name': 'Normal Working Days',
-                'sequence': 1,
-                'code': 'DAYSWORKED',
-                'number_of_days': slip.total_working_days,
-                'number_of_hours': slip.total_worked_hours_excl_ot,
-                'contract_id': contract.id,
-            })
-
-            # WEEKEND worked ONLY IF enabled
-            if slip.weekend_worked > 0 and contract.weekend_special_working:
-                res.append({
-                    'name': 'Weekend Working Days',
-                    'sequence': 5,
-                    'code': 'WEEKEND',
-                    'number_of_days': slip.weekend_worked,
-                    'number_of_hours': slip.weekend_hours,
-                    'contract_id': contract.id,
-                })
-
-            # PUBLIC HOLIDAYS worked ONLY IF enabled
-            if slip.holiday_worked > 0 and contract.public_holidays_working:
-                res.append({
-                    'name': 'Public Holidays',
-                    'sequence': 10,
-                    'code': 'HOLIDAYS',
-                    'number_of_days': slip.holiday_worked,
-                    'number_of_hours': slip.holiday_hours,
-                    'contract_id': contract.id,
-                })
-
-            return res
+        """Leave attendance policy classification to the automation add-on."""
+        return super().get_worked_day_lines(contracts, date_from, date_to)
