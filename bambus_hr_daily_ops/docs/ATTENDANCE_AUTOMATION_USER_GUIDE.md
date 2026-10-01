@@ -57,7 +57,6 @@ minutes, and checkout is 20:00. Eligible OT is 17:15–18:15 = **60 minutes**.
 
 ## 6. Rates and salary slabs
 
-- **Contract OT Rate:** uses the employee contract rate.
 - **Fixed Template Rate:** uses one rate from the template.
 - **Salary Range / Slab:** chooses a rate using monthly, daily, or hourly salary.
 - **Salary Multiplier:** the review method can pay 1x, 1.5x, or 2x hourly salary.
