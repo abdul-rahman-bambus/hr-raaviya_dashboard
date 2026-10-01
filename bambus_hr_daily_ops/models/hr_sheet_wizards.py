@@ -516,6 +516,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
 
     def action_save(self):
         self.ensure_one()
+        previous_hours = self.line_id.overtime_hours
         if self.overtime_hours < 0:
             raise UserError(_("Overtime hours cannot be negative."))
         if (
@@ -545,6 +546,127 @@ class BambusHrOvertimeWizard(models.TransientModel):
             "overtime_updated_on": fields.Datetime.now(),
         }
         self.line_id.sudo().write(vals)
+        self.env["bambus.hr.attendance.time.audit"].create({
+            "employee_id": self.line_id.employee_id.id,
+            "date": self.line_id.date,
+            "adjustment_type": "overtime",
+            "previous_hours": previous_hours,
+            "adjusted_hours": self.overtime_hours,
+            "updated_by_id": self.env.user.id,
+        })
+        return {"type": "ir.actions.client", "tag": "reload"}
+
+
+class BambusHrHourlyPayWizard(models.TransientModel):
+    _name = "bambus.hr.hourly.pay.wizard"
+    _description = "Review Hourly Pay"
+
+    line_id = fields.Many2one(
+        "bambus.hr.attendance.sheet.line", required=True, ondelete="cascade"
+    )
+    employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
+    date = fields.Date(related="line_id.date", readonly=True)
+    detected_hourly_pay_hours = fields.Float(
+        string="System Calculated Hours", digits=(16, 6), readonly=True
+    )
+    hourly_pay_hours = fields.Float(string="Final Payable Hours", digits=(16, 6))
+    calculation_type = fields.Selection([
+        ("fixed", "Fixed Amount"), ("fixed_hour", "Fixed Amount per Hour"),
+        ("half_day", "Half Day"), ("full_day", "Full Day"),
+        ("regularize", "Regularize"), ("salary_1", "1x Salary"),
+        ("salary_1_5", "1.5x Salary"), ("salary_2", "2x Salary"),
+    ], required=True, default="salary_1")
+    rate = fields.Monetary(currency_field="currency_id", string="Rate / Amount")
+    hourly_pay_amount = fields.Monetary(
+        currency_field="currency_id", compute="_compute_hourly_pay_amount"
+    )
+    currency_id = fields.Many2one(related="line_id.currency_id", readonly=True)
+    note = fields.Char()
+
+    @api.depends("hourly_pay_hours", "calculation_type", "rate", "line_id.contract_id")
+    def _compute_hourly_pay_amount(self):
+        helper = self.env["bambus.hr.overtime.wizard"]
+        for wizard in self:
+            daily_rate, hourly_rate = helper._contract_rates(wizard.line_id)
+            hours = max(wizard.hourly_pay_hours or 0.0, 0.0)
+            if wizard.calculation_type == "fixed":
+                amount = wizard.rate
+            elif wizard.calculation_type == "fixed_hour":
+                amount = hours * wizard.rate
+            elif wizard.calculation_type == "half_day":
+                amount = daily_rate / 2.0
+            elif wizard.calculation_type == "full_day":
+                amount = daily_rate
+            elif wizard.calculation_type == "regularize":
+                amount = 0.0
+            else:
+                multiplier = {
+                    "salary_1": 1.0, "salary_1_5": 1.5, "salary_2": 2.0,
+                }.get(wizard.calculation_type, 0.0)
+                amount = hours * hourly_rate * multiplier
+            wizard.hourly_pay_amount = max(amount or 0.0, 0.0)
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        line = self.env["bambus.hr.attendance.sheet.line"].browse(
+            self.env.context.get("default_line_id")
+        ).exists()
+        if line:
+            contract = line.contract_id
+            if not contract or getattr(contract, "wage_type", False) != "hourly":
+                raise UserError(_("Hourly pay review is only available for hourly contracts."))
+            template = line.employee_id._get_attendance_automation_template(line.date)
+            if not template or not template.hourly_pay_enabled:
+                raise UserError(_("Enable Hourly Pay Review on the employee's automation template."))
+            detected = line.worked_hours or 0.0
+            calculation_type = (
+                line.hourly_pay_calculation_type
+                if line.hourly_pay_state == "approved"
+                else template.hourly_pay_calculation_type
+            )
+            rate = (
+                line.hourly_pay_rate
+                if line.hourly_pay_state == "approved"
+                else template.hourly_pay_rate
+            )
+            res.update({
+                "line_id": line.id,
+                "detected_hourly_pay_hours": line.hourly_pay_detected_hours or detected,
+                "hourly_pay_hours": (
+                    line.hourly_pay_hours
+                    if line.hourly_pay_state == "approved" else detected
+                ),
+                "calculation_type": calculation_type,
+                "rate": rate,
+                "note": line.hourly_pay_note,
+            })
+        return res
+
+    def action_save(self):
+        self.ensure_one()
+        previous_hours = self.line_id.hourly_pay_hours
+        if self.hourly_pay_hours < 0:
+            raise UserError(_("Payable hours cannot be negative."))
+        self.line_id.sudo().write({
+            "hourly_pay_detected_hours": self.detected_hourly_pay_hours,
+            "hourly_pay_hours": self.hourly_pay_hours,
+            "hourly_pay_amount": self.hourly_pay_amount,
+            "hourly_pay_calculation_type": self.calculation_type,
+            "hourly_pay_rate": self.rate,
+            "hourly_pay_state": "approved",
+            "hourly_pay_note": self.note,
+            "hourly_pay_updated_by_id": self.env.user.id,
+            "hourly_pay_updated_on": fields.Datetime.now(),
+        })
+        self.env["bambus.hr.attendance.time.audit"].create({
+            "employee_id": self.line_id.employee_id.id,
+            "date": self.line_id.date,
+            "adjustment_type": "hourly_pay",
+            "previous_hours": previous_hours,
+            "adjusted_hours": self.hourly_pay_hours,
+            "updated_by_id": self.env.user.id,
+        })
         return {"type": "ir.actions.client", "tag": "reload"}
 
 
@@ -651,6 +773,7 @@ class BambusHrFineWizard(models.TransientModel):
 
     def action_save(self):
         self.ensure_one()
+        previous_hours = self.line_id.fine_hours
         if self.fine_hours < 0:
             raise UserError(_("Late/fine hours cannot be negative."))
         vals = {
@@ -668,6 +791,14 @@ class BambusHrFineWizard(models.TransientModel):
             "fine_updated_on": fields.Datetime.now(),
         }
         self.line_id.sudo().write(vals)
+        self.env["bambus.hr.attendance.time.audit"].create({
+            "employee_id": self.line_id.employee_id.id,
+            "date": self.line_id.date,
+            "adjustment_type": "fine",
+            "previous_hours": previous_hours,
+            "adjusted_hours": self.fine_hours,
+            "updated_by_id": self.env.user.id,
+        })
         return {"type": "ir.actions.client", "tag": "reload"}
 
 
