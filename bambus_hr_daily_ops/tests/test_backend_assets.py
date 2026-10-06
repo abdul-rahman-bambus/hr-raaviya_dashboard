@@ -35,6 +35,19 @@ class TestBackendAssets(TransactionCase):
 
         editor_template = (module_root / "static/src/xml/attendance_editor.xml").read_text(encoding="utf-8")
         self.assertIn('t-if="!employee.is_hourly"', editor_template)
+        self.assertIn('t-att-disabled="!employee.fine_enabled"', editor_template)
+        self.assertIn('t-att-disabled="!employee.overtime_enabled"', editor_template)
+        self.assertIn("openTimingAdjustment(employee)", editor_template)
+        self.assertIn("Update Punch Times", editor_template)
+        self.assertIn("overtime_review_count", editor_template)
+        self.assertIn("fine_review_count", editor_template)
+        self.assertIn("openReviewMetric", editor_template)
+
+        dashboard_source = (
+            module_root / "static/src/js/attendance_dashboard.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn('this.state.statusFilter === "overtime_review"', dashboard_source)
+        self.assertIn('this.state.statusFilter === "fine_review"', dashboard_source)
 
     def test_employee_dashboard_is_nested_under_hrms(self):
         module_root = Path(__file__).parents[1]
@@ -193,4 +206,61 @@ class TestBackendAssets(TransactionCase):
         overtime_page = form.find(".//page[@string='Overtime']")
         self.assertIsNone(
             overtime_page.find(".//field[@name='public_holiday_overtime_policy']")
+        )
+
+    def test_automation_form_has_hourly_pay_review_page(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(
+            module_root / "views/attendance_automation_template_views.xml"
+        )
+        hourly_page = tree.find(
+            ".//record[@id='view_attendance_automation_template_form']"
+            "/field[@name='arch']/form//page[@string='Hourly Pay']"
+        )
+
+        self.assertIsNotNone(hourly_page)
+        self.assertIsNotNone(
+            hourly_page.find(".//field[@name='hourly_pay_enabled']")
+        )
+        self.assertIsNotNone(
+            hourly_page.find(".//field[@name='hourly_pay_calculation_type']")
+        )
+
+    def test_disabled_automation_rules_hide_irrelevant_configuration(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(
+            module_root / "views/attendance_automation_template_views.xml"
+        )
+        form = tree.find(
+            ".//record[@id='view_attendance_automation_template_form']"
+            "/field[@name='arch']/form"
+        )
+
+        fine_defaults = form.find(".//group[@string='Late / Fine Default']")
+        calculation_defaults = form.find(".//group[@string='Calculation Default']")
+        day_classification = form.find(
+            ".//group[@string='Attendance Day Classification']"
+        )
+        salary_slabs = form.find(".//group[@string='OT Salary Slabs']")
+        self.assertEqual(fine_defaults.get("invisible"), "not late_enabled")
+        self.assertEqual(calculation_defaults.get("invisible"), "not overtime_enabled")
+        self.assertEqual(day_classification.get("invisible"), "not overtime_enabled")
+        self.assertIn("not overtime_enabled", salary_slabs.get("invisible"))
+
+    def test_employment_revision_adds_automation_template_fields(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(
+            module_root / "views/attendance_automation_template_views.xml"
+        )
+        revision_view = tree.find(
+            ".//record[@id='view_hr_salary_revision_wizard_automation']"
+            "/field[@name='arch']"
+        )
+
+        self.assertIsNotNone(revision_view)
+        self.assertIsNotNone(
+            revision_view.find(".//field[@name='current_automation_template_id']")
+        )
+        self.assertIsNotNone(
+            revision_view.find(".//field[@name='revised_automation_template_id']")
         )

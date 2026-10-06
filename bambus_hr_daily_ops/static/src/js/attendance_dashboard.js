@@ -83,6 +83,8 @@ export class AttendanceDashboard extends Component {
             const matchesStatus = this.state.statusFilter === "all" ||
                 (this.state.statusFilter === "overtime" && employee.overtime_hours > 0) ||
                 (this.state.statusFilter === "fine" && employee.fine_hours > 0) ||
+                (this.state.statusFilter === "overtime_review" && employee.overtime_review_pending) ||
+                (this.state.statusFilter === "fine_review" && employee.fine_review_pending) ||
                 employee.status === this.state.statusFilter;
             const matchesQuery = !query || [
                 employee.name,
@@ -210,6 +212,11 @@ export class AttendanceDashboard extends Component {
         // client action here loses the current action metadata in Odoo 18 and
         // can fail while the action service tries to map undefined views.
         this.state.statusFilter = metric;
+        this.state.currentPage = 1;
+    }
+
+    openReviewMetric(metric) {
+        this.state.statusFilter = `${metric}_review`;
         this.state.currentPage = 1;
     }
 
