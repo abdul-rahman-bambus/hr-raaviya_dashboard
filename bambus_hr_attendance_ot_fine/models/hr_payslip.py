@@ -12,6 +12,17 @@ _logger = logging.getLogger(__name__)
 class HrPayslip(models.Model):
     _inherit = "hr.payslip"
 
+    def action_compute_sheet(self):
+        """Refresh attendance buckets before evaluating payroll salary rules."""
+        overtime_model = self.env["hr.attendance.overtime"].sudo()
+        for slip in self:
+            if slip.employee_id and slip.date_from and slip.date_to:
+                overtime_model.bambus_recompute_range(
+                    slip.employee_id.ids, slip.date_from, slip.date_to
+                )
+        self._compute_all_stats()
+        return super().action_compute_sheet()
+
     days_excl_weekend_holidays = fields.Float("Regular Days", compute="_compute_all_stats", store=True)
     total_working_days = fields.Float("Regular Days", compute="_compute_all_stats", store=True)
     total_worked_hours_excl_ot = fields.Float("Regular Days", compute="_compute_all_stats", store=True)
@@ -106,20 +117,27 @@ class HrPayslip(models.Model):
 
     def _get_public_holiday_dates(self, contract, date_from, date_to, tzname):
         """Return schedule-specific and database-wide public holiday dates."""
-        if not contract or not contract.resource_calendar_id:
-            return set()
-        leaves = self.env["resource.calendar.leaves"].sudo().search([
+        calendar = contract.resource_calendar_id if contract else False
+        domain = [
             ("resource_id", "=", False),
-            "|",
-            ("calendar_id", "=", contract.resource_calendar_id.id),
-            ("calendar_id", "=", False),
             ("date_from", "<=", fields.Datetime.to_string(
                 datetime.combine(date_to, time.max)
             )),
             ("date_to", ">=", fields.Datetime.to_string(
                 datetime.combine(date_from, time.min)
             )),
-        ])
+        ]
+        if calendar:
+            domain = [
+                ("resource_id", "=", False),
+                "|",
+                ("calendar_id", "=", calendar.id),
+                ("calendar_id", "=", False),
+                *domain[1:],
+            ]
+        else:
+            domain.append(("calendar_id", "=", False))
+        leaves = self.env["resource.calendar.leaves"].sudo().search(domain)
         dates = set()
         for leave in leaves:
             if not (leave.date_from and leave.date_to):
@@ -198,6 +216,26 @@ class HrPayslip(models.Model):
             emp = slip.employee_id
             contract = slip.contract_id
 
+            tzname = (
+                contract.resource_calendar_id.tz
+                if contract and contract.resource_calendar_id and contract.resource_calendar_id.tz
+                else self.env.user.tz or "UTC"
+            )
+            public_holidays = slip._get_public_holiday_dates(
+                contract, slip.date_from, slip.date_to, tzname
+            )
+            total_days = (slip.date_to - slip.date_from).days + 1
+            slip.weekend_days = float(sum(
+                1 for i in range(total_days)
+                if (slip.date_from + timedelta(days=i)).weekday() in weekend_days
+            ))
+            slip.holiday_days = float(len(public_holidays))
+            slip.days_excl_weekend_holidays = float(sum(
+                1 for i in range(total_days)
+                if (slip.date_from + timedelta(days=i)).weekday() not in weekend_days
+                and (slip.date_from + timedelta(days=i)) not in public_holidays
+            ))
+
             # Worker hourly: simple totals from attendances (no OT/fine/late)
             if getattr(emp, "employee_type", False) == "worker" and contract and getattr(contract, "wage_type", "") == "hourly":
                 # Billable hours are capped per LOCAL day at the contract's
@@ -206,13 +244,6 @@ class HrPayslip(models.Model):
                 slip.total_scheduled_hours = 0.0
                 slip.total_shortfall_hours = 0.0
                 continue
-
-            tzname = (contract.resource_calendar_id.tz if contract and contract.resource_calendar_id and contract.resource_calendar_id.tz else (self.env.user.tz or "UTC"))
-
-            # public holidays for this employee calendar (resource_id=False only)
-            public_holidays = slip._get_public_holiday_dates(
-                contract, slip.date_from, slip.date_to, tzname
-            )
 
             # fetch attendances in range
             start_dt = datetime.combine(slip.date_from, time.min)
@@ -244,8 +275,8 @@ class HrPayslip(models.Model):
                     ("date", ">=", slip.date_from),
                     ("date", "<=", slip.date_to),
                     "|",
-                    ("overtime_state", "=", "approved"),
-                    ("fine_state", "=", "approved"),
+                    ("overtime_state", "in", ("approved", "rejected")),
+                    ("fine_state", "in", ("approved", "rejected")),
                 ])
                 approved_lines_by_day = {line.date: line for line in approved_lines}
 
@@ -258,14 +289,6 @@ class HrPayslip(models.Model):
             has_gap = ("bambus_gap_minutes" in Attendance._fields)
 
 
-
-            total_days = (slip.date_to - slip.date_from).days + 1
-            slip.weekend_days = float(sum(1 for i in range(total_days)
-                                         if (slip.date_from + timedelta(days=i)).weekday() in weekend_days))
-            slip.holiday_days = float(len([d for d in public_holidays if slip.date_from <= d <= slip.date_to]))
-            slip.days_excl_weekend_holidays = float(sum(1 for i in range(total_days)
-                                                      if (slip.date_from + timedelta(days=i)).weekday() not in weekend_days
-                                                      and (slip.date_from + timedelta(days=i)) not in public_holidays))
 
             late_by_month = defaultdict(int)
 
@@ -286,6 +309,9 @@ class HrPayslip(models.Model):
                 if approval_line and approval_line.overtime_state == "approved":
                     ot = approval_line.overtime_hours or 0.0
                     ot_amount = approval_line.overtime_amount or 0.0
+                elif approval_line and approval_line.overtime_state == "rejected":
+                    ot = 0.0
+                    ot_amount = 0.0
 
                 # last-attendance values (stored values only)
                 scheduled_today = 0.0
@@ -358,6 +384,9 @@ class HrPayslip(models.Model):
                 if approval_line and approval_line.fine_state == "approved":
                     fine_h = approval_line.fine_hours or 0.0
                     fine_amt = approval_line.fine_amount or 0.0
+                elif approval_line and approval_line.fine_state == "rejected":
+                    fine_h = 0.0
+                    fine_amt = 0.0
 
 
                 late_by_month[(d.year, d.month)] += late_mins
@@ -392,15 +421,27 @@ class HrPayslip(models.Model):
 
 
     def get_worked_day_lines(self, contracts, date_from, date_to):
-        """
-        If contract has no special working flags -> fallback to default (Cybrosys)
-        Otherwise -> custom logic.
-        """
+        """Build special worked-day buckets from the effective template policy."""
         default_res = super(HrPayslip, self).get_worked_day_lines(contracts, date_from, date_to)
         # for each slip
         for slip in self:
             contract = slip.contract_id
             template_handles_holidays = False
+            template_handles_weekly_off = False
+            current_day = fields.Date.to_date(slip.date_from)
+            last_day = fields.Date.to_date(slip.date_to)
+            while slip.employee_id and current_day and last_day and current_day <= last_day:
+                day_template = slip.employee_id._get_attendance_automation_template(
+                    current_day
+                )
+                if (
+                    day_template
+                    and day_template.overtime_enabled
+                    and day_template.weekly_off_overtime_policy != "disabled"
+                ):
+                    template_handles_weekly_off = True
+                    break
+                current_day += timedelta(days=1)
             if slip.employee_id and slip.date_from and slip.date_to and slip.holiday_days:
                 tzname = (
                     contract.resource_calendar_id.tz
@@ -421,14 +462,13 @@ class HrPayslip(models.Model):
                         template_handles_holidays = True
                         break
 
-            # Case A: no weekend working + no public holiday working
-            # OR wage type = hourly
-            if (not contract.weekend_special_working
-                    and not contract.public_holidays_working
+            # Use the standard payroll buckets when no template handles
+            # weekly-off/public-holiday work, or for hourly contracts.
+            if (not template_handles_weekly_off
                     and not template_handles_holidays) \
                 or contract.wage_type == 'hourly':
 
-                return default_res   # <-- RETURN ORIGINAL ODOO OUTPUT
+                return default_res
 
             # Case B: special config enabled → custom output
             res = []
@@ -444,7 +484,7 @@ class HrPayslip(models.Model):
             })
 
             # WEEKEND worked ONLY IF enabled
-            if slip.weekend_worked > 0 and contract.weekend_special_working:
+            if slip.weekend_worked > 0 and template_handles_weekly_off:
                 res.append({
                     'name': 'Weekend Working Days',
                     'sequence': 5,
@@ -457,7 +497,7 @@ class HrPayslip(models.Model):
             # PUBLIC HOLIDAYS worked ONLY IF enabled
             if (
                 slip.holiday_worked > 0
-                and (contract.public_holidays_working or template_handles_holidays)
+                and template_handles_holidays
             ):
                 res.append({
                     'name': 'Public Holidays',
