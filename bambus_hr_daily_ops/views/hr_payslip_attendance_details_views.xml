@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+  <record id="view_hr_payslip_form_attendance_details" model="ir.ui.view">
+    <field name="name">hr.payslip.form.attendance.earnings.deductions</field>
+    <field name="model">hr.payslip</field>
+    <field name="inherit_id" ref="hr_payroll_community.hr_payslip_view_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//notebook" position="inside">
+        <page name="attendance_earnings" string="Earnings">
+          <field name="attendance_earning_detail_ids" readonly="1">
+            <list create="0" edit="0" delete="0"
+                  decoration-warning="review_state == 'pending'">
+              <field name="currency_id" column_invisible="True"/>
+              <field name="display_type" string="Earning Type"/>
+              <field name="date" string="Entry Date"/>
+              <field name="duration_display"/>
+              <field name="calculation_type" optional="show"/>
+              <field name="rate" widget="monetary" optional="show"/>
+              <field name="amount" widget="monetary" sum="Total Earnings"/>
+              <field name="display_description" string="Description"/>
+              <field name="review_state" widget="badge"/>
+              <field name="reviewed_by_id" optional="hide"/>
+              <field name="reviewed_on" optional="hide"/>
+              <field name="source_line_id" optional="hide"/>
+            </list>
+          </field>
+        </page>
+        <page name="attendance_deductions" string="Deductions">
+          <field name="attendance_deduction_detail_ids" readonly="1">
+            <list create="0" edit="0" delete="0"
+                  decoration-warning="review_state == 'pending'">
+              <field name="currency_id" column_invisible="True"/>
+              <field name="display_type" string="Deduction Type"/>
+              <field name="date" string="Entry Date"/>
+              <field name="duration_display"/>
+              <field name="calculation_type" optional="show"/>
+              <field name="rate" widget="monetary" optional="show"/>
+              <field name="amount" widget="monetary" sum="Total Deductions"/>
+              <field name="display_description" string="Description"/>
+              <field name="review_state" widget="badge"/>
+              <field name="reviewed_by_id" optional="hide"/>
+              <field name="reviewed_on" optional="hide"/>
+              <field name="source_line_id" optional="hide"/>
+            </list>
+          </field>
+        </page>
+      </xpath>
+    </field>
+  </record>
+</odoo>

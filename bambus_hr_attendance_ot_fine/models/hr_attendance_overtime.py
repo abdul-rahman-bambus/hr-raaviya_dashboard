@@ -119,45 +119,6 @@ class HrAttendanceOvertime(models.Model):
             cur += timedelta(days=1)
         return total
 
-    def _fine_rate_per_hour(self, employee, contract, day_date, month_sched_cache, scheduled_today=0.0):
-        if not contract:
-            return 0.0
-
-        wage_type = (getattr(contract, "wage_type", "") or "monthly").strip().lower()
-
-        # Hourly flexible: no penalty as per your rule
-        if wage_type == "hourly":
-            return 0.0
-
-        # Late fine not applicable => no rate
-        if not bool(getattr(contract, "is_latefine_applicable", False)):
-            return 0.0
-
-        mode = (getattr(contract, "apply_late_fine", "") or "").strip().lower()
-
-        # Fixed per hour
-        if mode == "fixed":
-            return float(getattr(contract, "late_fine_rate", 0.0) or 0.0)
-
-        # Wage-based
-        if wage_type == "daily":
-            daily_wage = float(getattr(contract, "daily_wage", 0.0) or 0.0)
-            sched = float(scheduled_today or 0.0)
-            return (daily_wage / sched) if (daily_wage > 0 and sched > 0) else 0.0
-
-        # Default monthly
-        wage = float(getattr(contract, "wage", 0.0) or 0.0)
-        if wage <= 0:
-            return 0.0
-
-        key = (employee.id, day_date.year, day_date.month)
-        if key not in month_sched_cache:
-            month_sched_cache[key] = self._monthly_scheduled_hours(employee, day_date.year, day_date.month)
-
-        sched = month_sched_cache[key]
-        return (wage / sched) if sched > 0 else 0.0
-
-
     def _last_attendance(self, day_att):
         return day_att.sorted(key=lambda a: ((a.check_out or a.check_in), a.id))[-1] if day_att else False
 
@@ -226,22 +187,29 @@ class HrAttendanceOvertime(models.Model):
         return sorted(intervals, key=lambda x: x[0])
 
     def _is_public_holiday(self, contract, tz, day):
-        if not contract or not contract.resource_calendar_id:
-            return False
+        calendar = contract.resource_calendar_id if contract else False
         start = tz.localize(datetime.combine(day, time.min)).astimezone(
             pytz.UTC
         ).replace(tzinfo=None)
         end = (tz.localize(datetime.combine(day, time.min)) + timedelta(days=1)).astimezone(
             pytz.UTC
         ).replace(tzinfo=None)
-        return bool(self.env["resource.calendar.leaves"].sudo().search_count([
+        domain = [
             ("resource_id", "=", False),
-            "|",
-            ("calendar_id", "=", contract.resource_calendar_id.id),
-            ("calendar_id", "=", False),
             ("date_from", "<", end),
             ("date_to", ">", start),
-        ]))
+        ]
+        if calendar:
+            domain = [
+                ("resource_id", "=", False),
+                "|",
+                ("calendar_id", "=", calendar.id),
+                ("calendar_id", "=", False),
+                *domain[1:],
+            ]
+        else:
+            domain.append(("calendar_id", "=", False))
+        return bool(self.env["resource.calendar.leaves"].sudo().search_count(domain))
 
 
     # ===========================
@@ -385,14 +353,12 @@ class HrAttendanceOvertime(models.Model):
                                 Param.get_param("hr_payroll.ot_for_weekend_and_festival") == "True"
                             )
                         
-                        # 2. Check if the employee's contract allows OT
+                        # 2. Apply the effective template; the contract only supplies wage terms.
                         allow_ot = bool(
                             contract
                             and wage_type in ("daily", "monthly")
-                            and (
-                                getattr(contract, "is_overtime_allowed", False)
-                                or (automation and automation.overtime_enabled)
-                            )
+                            and automation
+                            and automation.overtime_enabled
                         )
 
                         # 3. If both are True, calculate OT ONLY for time worked beyond the standard shift
@@ -498,9 +464,13 @@ class HrAttendanceOvertime(models.Model):
                         checkins.append(ci)
                 checkins.sort()
 
-                # late computed vs effective start (after leave), once per shift
-                late_raw = 0.0
-                for segs in per_shift_effective:
+                # Calculate each scheduled session independently. The first
+                # session uses the normal arrival grace; later sessions use the
+                # post-break grace (normally zero), so morning grace cannot
+                # cancel a late return from lunch.
+                late_minutes = 0
+                post_break_late_minutes = 0
+                for session_index, segs in enumerate(per_shift_effective):
                     if not segs:
                         continue
                     eff_start = segs[0][0]
@@ -509,11 +479,22 @@ class HrAttendanceOvertime(models.Model):
                         None
                     )
                     if ci_in_eff and ci_in_eff > eff_start:
-                        late_raw += (ci_in_eff - eff_start).total_seconds() / 3600.0
-
-                # Option B: round late to whole minutes
-                late_minutes = int(round((late_raw or 0.0) * 60.0))
-                late_raw = late_minutes / 60.0
+                        session_late_minutes = int(round(
+                            (ci_in_eff - eff_start).total_seconds() / 60.0
+                        ))
+                        session_grace = (
+                            automation.late_grace_minutes
+                            if automation and session_index == 0
+                            else automation.post_break_grace_minutes
+                            if automation
+                            else 0
+                        )
+                        adjusted_session_late = max(
+                            0, session_late_minutes - session_grace
+                        )
+                        late_minutes += adjusted_session_late
+                        if session_index:
+                            post_break_late_minutes += adjusted_session_late
 
                 # ---- OT (worked time after scheduled end only; excludes gaps)
                 sched_end = max([e for _, e in effective_bounds], default=False)
@@ -563,11 +544,11 @@ class HrAttendanceOvertime(models.Model):
                 # Fetch "Tolerance Time In Favor Of Company" from settings
                 company_tolerance = int(getattr(company, 'overtime_company_threshold', 0))
                 
-                # 1. No OT if they didn't even complete their base scheduled hours
-                if worked < scheduled:
-                    ot_minutes = 0
-                # 2. No OT if the extra minutes fall within the company tolerance
-                elif ot_minutes <= company_tolerance:
+                # Overtime is determined from completed attendance inside the
+                # configured OT window. A late arrival or another shortfall in
+                # regular hours must not erase genuine work performed after the
+                # OT start time; fines and OT are reviewed independently.
+                if ot_minutes <= company_tolerance:
                     ot_minutes = 0
 
                 if automation:
@@ -595,13 +576,28 @@ class HrAttendanceOvertime(models.Model):
 
                 # Ensure late_minutes and early_leave_minutes are integers
                 late_minutes = int(late_minutes or 0)
+                detected_late_minutes = late_minutes
                 early_leave_minutes = int(early_leave_minutes or 0)
+
+                # An open punch has not finished its shift yet. It is valid to
+                # propose the already-known late arrival, but the remaining
+                # scheduled time is not an early-exit/break deficit. Treating
+                # it as such made a short late arrival appear as an almost
+                # full-day fine until the employee punched out.
+                has_open_attendance = any(
+                    attendance.check_in and not attendance.check_out
+                    for attendance in day_att
+                )
 
                 # Calculate the actual deficit against the full day schedule
                 actual_deficit_minutes = max(0, scheduled_minutes - worked_minutes)
 
                 # APPLY WORK HOUR RULES THRESHOLDS
-                if half_day_threshold <= worked < full_day_threshold:
+                if has_open_attendance:
+                    early_leave_minutes = 0
+                    gap_minutes = 0
+                    deficit_minutes = late_minutes
+                elif half_day_threshold <= worked < full_day_threshold:
                     # Employee completed a valid half-day. 
                     early_leave_minutes = 0
                     gap_minutes = 0
@@ -631,11 +627,16 @@ class HrAttendanceOvertime(models.Model):
                     early_leave_minutes = int(min(early_leave_minutes, deficit_minutes - late_minutes))
                     gap_minutes = max(0, deficit_minutes - late_minutes - early_leave_minutes)
 
+                # Late-entry rules are independent from total worked-hour
+                # classification. Threshold handling may forgive an early exit
+                # or another gap, but it must not erase a detected morning or
+                # post-break late arrival.
+                late_minutes = max(
+                    late_minutes, detected_late_minutes, post_break_late_minutes
+                )
+
                 if automation:
-                    late_minutes = (
-                        max(0, late_minutes - automation.late_grace_minutes)
-                        if automation.late_enabled else 0
-                    )
+                    late_minutes = late_minutes if automation.late_enabled else 0
                     early_leave_minutes = (
                         max(0, early_leave_minutes - automation.early_exit_grace_minutes)
                         if automation.early_exit_enabled else 0
@@ -662,17 +663,10 @@ class HrAttendanceOvertime(models.Model):
                         or automation.break_enabled
                     )
                 )
-                if not (
-                    contract
-                    and (
-                        bool(getattr(contract, "is_latefine_applicable", False))
-                        or automation_fine_enabled
-                    )
-                ):
+                if not (contract and automation_fine_enabled):
                     fine_hours = 0.0
                     fine_amount = 0.0
                 else:
-                    mode = (getattr(contract, "apply_late_fine", "") or "").strip().lower()
                     fine_rate = 0.0
 
                     if automation and automation.fine_calculation_type == "salary_minute":
@@ -686,8 +680,8 @@ class HrAttendanceOvertime(models.Model):
                             fine_minutes * daily_rate / (scheduled * 60.0)
                             if scheduled > 0 else 0.0
                         )
-                    elif mode == "fixed":
-                        fine_rate = float(getattr(contract, "late_fine_rate", 0.0) or 0.0)
+                    elif automation and automation.fine_calculation_type in ("fixed", "fixed_hour"):
+                        fine_rate = float(automation.fine_rate or 0.0)
                     else:
                         if wage_type == "daily":
                             daily_wage = float(getattr(contract, "daily_wage", 0.0) or 0.0)
@@ -703,8 +697,8 @@ class HrAttendanceOvertime(models.Model):
 
                     if not (automation and automation.fine_calculation_type == "salary_minute"):
                         fine_amount = fine_hours * fine_rate if fine_rate > 0 else 0.0
-                        if mode == "fixed":
-                            fine_amount = fine_minutes * fine_rate if fine_rate > 0 else 0.0
+                        if automation and automation.fine_calculation_type == "fixed":
+                            fine_amount = fine_rate
                     # Limits, prevent overcharge
                     if wage_type == "daily":
                         fine_amount = min(fine_amount, contract.daily_wage)
@@ -718,10 +712,8 @@ class HrAttendanceOvertime(models.Model):
                     allow_ot = bool(
                         contract
                         and wage_type in ("daily", "monthly")
-                        and (
-                            getattr(contract, "is_overtime_allowed", False)
-                            or (automation and automation.overtime_enabled)
-                        )
+                        and automation
+                        and automation.overtime_enabled
                     )
                     duration_to_store = ot_hours if allow_ot else 0.0
                     if automation and not automation.overtime_enabled:
