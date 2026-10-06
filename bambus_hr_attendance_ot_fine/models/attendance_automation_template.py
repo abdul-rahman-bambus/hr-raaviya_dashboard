@@ -37,6 +37,12 @@ class AttendanceAutomationTemplate(models.Model):
 
     late_enabled = fields.Boolean(string="Late Entry Rule", default=True)
     late_grace_minutes = fields.Integer(string="Late Entry Grace (Minutes)", default=0)
+    post_break_grace_minutes = fields.Integer(
+        string="Post-Break Late Grace (Minutes)",
+        default=0,
+        help="Grace applied when an employee returns for the second or a later "
+             "scheduled work session. Use zero to fine every late return minute.",
+    )
     early_exit_enabled = fields.Boolean(string="Early Exit Rule", default=True)
     early_exit_grace_minutes = fields.Integer(string="Early Exit Grace (Minutes)", default=0)
     break_enabled = fields.Boolean(string="Break Rule")
@@ -62,7 +68,6 @@ class AttendanceAutomationTemplate(models.Model):
         default="salary_2",
     )
     public_holiday_rate_policy = fields.Selection([
-        ("contract", "Contract OT Rate"),
         ("fixed", "Fixed Template Rate"),
         ("salary_slab", "Salary Range / Slab"),
         ("salary_multiplier", "Salary Multiplier"),
@@ -100,11 +105,10 @@ class AttendanceAutomationTemplate(models.Model):
         CALCULATION_TYPES, required=True, default="fixed_hour"
     )
     overtime_rate_policy = fields.Selection([
-        ("contract", "Contract OT Rate"),
         ("fixed", "Fixed Template Rate"),
         ("salary_slab", "Salary Range / Slab"),
         ("salary_multiplier", "Salary Multiplier"),
-    ], required=True, default="contract")
+    ], required=True, default="salary_multiplier")
     overtime_salary_basis = fields.Selection([
         ("monthly", "Monthly Contract Wage"),
         ("daily", "Daily Contract Wage"),
@@ -119,6 +123,21 @@ class AttendanceAutomationTemplate(models.Model):
         FINE_CALCULATION_TYPES, required=True, default="salary_minute"
     )
     fine_rate = fields.Monetary(currency_field="currency_id")
+
+    hourly_pay_enabled = fields.Boolean(
+        string="Enable Hourly Pay Review",
+        help="Allow HR to review payable hours for employees whose contract wage type is Hourly.",
+    )
+    hourly_pay_calculation_type = fields.Selection(
+        CALCULATION_TYPES,
+        string="Hourly Pay Calculation Type",
+        required=True,
+        default="salary_1",
+        help="1x Salary uses the hourly rate configured on the employee's contract.",
+    )
+    hourly_pay_rate = fields.Monetary(
+        string="Hourly Pay Rate / Amount", currency_field="currency_id"
+    )
     currency_id = fields.Many2one(related="company_id.currency_id", readonly=True)
 
     @api.depends("employee_ids")
@@ -150,7 +169,7 @@ class AttendanceAutomationTemplate(models.Model):
                 and (not item.has_maximum or salary_amount <= item.salary_to)
             )[:1]
             return (slab.rate or 0.0) if slab else 0.0, salary_amount, slab
-        return float(getattr(contract, "overtime_rate", 0.0) or 0.0), salary_amount, self.env[
+        return 0.0, salary_amount, self.env[
             "bambus.attendance.overtime.rate.slab"
         ]
 
@@ -167,16 +186,24 @@ class AttendanceAutomationTemplate(models.Model):
                 and (not item.has_maximum or salary_amount <= item.salary_to)
             )[:1]
             return (slab.rate or 0.0) if slab else 0.0, salary_amount, slab
-        return (
-            float(getattr(contract, "overtime_rate", 0.0) or 0.0),
-            salary_amount,
-            empty_slab,
-        )
+        return 0.0, salary_amount, empty_slab
+
+    @api.model
+    def _migrate_legacy_contract_rate_policies(self):
+        """Replace removed contract-rate policies with template salary rates."""
+        self.search([("overtime_rate_policy", "=", "contract")]).write({
+            "overtime_rate_policy": "salary_multiplier",
+        })
+        self.search([("public_holiday_rate_policy", "=", "contract")]).write({
+            "public_holiday_rate_policy": "salary_multiplier",
+        })
+        return True
 
     @api.constrains(
-        "date_from", "date_to", "late_grace_minutes", "early_exit_grace_minutes",
+        "date_from", "date_to", "late_grace_minutes", "post_break_grace_minutes",
+        "early_exit_grace_minutes",
         "allowed_break_minutes", "minimum_overtime_minutes", "overtime_rate",
-        "public_holiday_rate", "fine_rate",
+        "public_holiday_rate", "fine_rate", "hourly_pay_rate",
         "overtime_start_offset_minutes", "maximum_overtime_minutes", "half_day_hours",
         "full_day_hours", "overtime_start_hour", "overtime_end_hour",
     )
@@ -186,12 +213,14 @@ class AttendanceAutomationTemplate(models.Model):
                 raise ValidationError("Effective Until cannot be before Effective From.")
             values = (
                 template.late_grace_minutes,
+                template.post_break_grace_minutes,
                 template.early_exit_grace_minutes,
                 template.allowed_break_minutes,
                 template.minimum_overtime_minutes,
                 template.overtime_rate,
                 template.public_holiday_rate,
                 template.fine_rate,
+                template.hourly_pay_rate,
                 template.overtime_start_offset_minutes,
                 template.maximum_overtime_minutes,
                 template.half_day_hours,

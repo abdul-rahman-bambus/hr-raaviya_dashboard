@@ -33,6 +33,8 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             late_grace_minutes=5,
             early_exit_grace_minutes=5,
             minimum_overtime_minutes=60,
+            overtime_rate_policy="fixed",
+            overtime_rate=50,
         )
         cls.company.attendance_automation_template_id = cls.company_template
 
@@ -57,11 +59,6 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             "date_start": cls.test_day - timedelta(days=30),
             "wage": wage,
             "wage_type": "monthly",
-            "is_overtime_allowed": True,
-            "overtime_rate": 50,
-            "is_latefine_applicable": True,
-            "apply_late_fine": "fixed",
-            "late_fine_rate": 2,
         })
         return employee, contract
 
@@ -144,6 +141,181 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
         self.assertAlmostEqual(attendance.bambus_fine_amount, 5 * 300 / 480, places=2)
 
+    def test_open_punch_only_proposes_elapsed_late_time(self):
+        template = self._create_template(
+            "Open Punch Late Rule",
+            late_grace_minutes=5,
+            early_exit_enabled=True,
+            break_enabled=True,
+            allowed_break_minutes=0,
+        )
+        employee, _contract = self._create_employee_contract(
+            "Open Punch Employee", template=template
+        )
+        attendance = self.env["hr.attendance"].with_context(
+            bambus_skip_recompute=True
+        ).create({
+            "employee_id": employee.id,
+            "check_in": datetime.combine(
+                self.test_day, datetime.min.time()
+            ).replace(hour=9, minute=10),
+        })
+
+        self.env["hr.attendance.overtime"].bambus_recompute_range(
+            employee.ids, self.test_day, self.test_day
+        )
+        attendance.invalidate_recordset()
+
+        self.assertEqual(attendance.bambus_late_minutes, 5)
+        self.assertEqual(attendance.bambus_early_leave_minutes, 0)
+        self.assertEqual(attendance.bambus_gap_minutes, 0)
+        self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
+
+    def test_post_lunch_late_uses_separate_zero_grace(self):
+        split_calendar = self.env["resource.calendar"].create({
+            "name": "Split Shift 09:00-14:00 and 14:45-17:00",
+            "tz": "UTC",
+            "company_id": self.company.id,
+            "attendance_ids": [
+                (0, 0, {
+                    "name": "Monday Morning",
+                    "dayofweek": "0",
+                    "day_period": "morning",
+                    "hour_from": 9.0,
+                    "hour_to": 14.0,
+                }),
+                (0, 0, {
+                    "name": "Monday Afternoon",
+                    "dayofweek": "0",
+                    "day_period": "afternoon",
+                    "hour_from": 14.75,
+                    "hour_to": 17.0,
+                }),
+            ],
+        })
+        template = self._create_template(
+            "Separate Post-Break Grace",
+            late_grace_minutes=5,
+            post_break_grace_minutes=0,
+            break_enabled=True,
+            allowed_break_minutes=45,
+        )
+        employee, contract = self._create_employee_contract(
+            "Post-Lunch Late Employee", template=template
+        )
+        employee.resource_calendar_id = split_calendar
+        contract.resource_calendar_id = split_calendar
+        attendance_model = self.env["hr.attendance"].with_context(
+            bambus_skip_recompute=True
+        )
+        attendance_model.create({
+            "employee_id": employee.id,
+            "check_in": datetime(2026, 9, 21, 9, 4),
+            "check_out": datetime(2026, 9, 21, 14, 0),
+        })
+        afternoon = attendance_model.create({
+            "employee_id": employee.id,
+            "check_in": datetime(2026, 9, 21, 14, 46),
+            "check_out": datetime(2026, 9, 21, 17, 0),
+        })
+
+        self.env["hr.attendance.overtime"].bambus_recompute_range(
+            employee.ids, self.test_day, self.test_day
+        )
+        afternoon.invalidate_recordset()
+
+        self.assertEqual(afternoon.bambus_late_minutes, 1)
+        self.assertAlmostEqual(afternoon.bambus_fine_hours, 1 / 60, places=4)
+
+    def test_late_shortfall_does_not_hide_valid_overtime(self):
+        split_calendar = self.env["resource.calendar"].create({
+            "name": "Factory Split Shift 09:45-14:00 and 14:45-18:45",
+            "tz": "UTC",
+            "company_id": self.company.id,
+            "attendance_ids": [
+                (0, 0, {
+                    "name": "Monday Morning",
+                    "dayofweek": "0",
+                    "day_period": "morning",
+                    "hour_from": 9.75,
+                    "hour_to": 14.0,
+                }),
+                (0, 0, {
+                    "name": "Monday Afternoon",
+                    "dayofweek": "0",
+                    "day_period": "afternoon",
+                    "hour_from": 14.75,
+                    "hour_to": 18.75,
+                }),
+            ],
+        })
+        template = self._create_template(
+            "Late and OT Independent Review",
+            late_grace_minutes=5,
+            post_break_grace_minutes=0,
+            early_exit_enabled=False,
+            break_enabled=False,
+            overtime_enabled=True,
+            minimum_overtime_minutes=0,
+            overtime_start_mode="offset",
+            overtime_start_offset_minutes=15,
+            overtime_end_mode="duration",
+            maximum_overtime_minutes=60,
+        )
+        employee, contract = self._create_employee_contract(
+            "Late With Valid OT Employee", template=template
+        )
+        employee.resource_calendar_id = split_calendar
+        contract.resource_calendar_id = split_calendar
+        attendance_model = self.env["hr.attendance"].with_context(
+            bambus_skip_recompute=True
+        )
+        for check_in, check_out in (
+            (datetime(2026, 9, 21, 10, 55), datetime(2026, 9, 21, 14, 0)),
+            (datetime(2026, 9, 21, 14, 50), datetime(2026, 9, 21, 18, 45)),
+            (datetime(2026, 9, 21, 19, 0), datetime(2026, 9, 21, 20, 0)),
+        ):
+            last_attendance = attendance_model.create({
+                "employee_id": employee.id,
+                "check_in": check_in,
+                "check_out": check_out,
+            })
+
+        self.env["hr.attendance.overtime"].bambus_recompute_range(
+            employee.ids, self.test_day, self.test_day
+        )
+        last_attendance.invalidate_recordset()
+        base_overtime = self._base_overtime(employee)
+
+        # 10:55 - 09:45 - 5 minute grace = 65 minutes, plus a
+        # 5-minute late return after lunch.
+        self.assertEqual(last_attendance.bambus_late_minutes, 70)
+        self.assertAlmostEqual(last_attendance.bambus_fine_hours, 70 / 60, places=4)
+        # OT starts at 19:00 and is capped at 60 minutes. It remains payable
+        # even though regular worked time is below the 8h15 schedule.
+        self.assertAlmostEqual(base_overtime.duration, 1.0, places=4)
+        self.assertAlmostEqual(
+            sum(attendance_model.search([
+                ("employee_id", "=", employee.id),
+                ("check_in", ">=", datetime(2026, 9, 21, 0, 0)),
+                ("check_in", "<", datetime(2026, 9, 22, 0, 0)),
+            ]).mapped("overtime_hours")),
+            1.0,
+            places=4,
+        )
+
+        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+            fields.Date.to_string(self.test_day)
+        )
+        row = next(
+            item for item in dashboard["daily_attendance"]
+            if item["id"] == employee.id
+        )
+        self.assertAlmostEqual(row["fine_hours"], 70 / 60, places=2)
+        self.assertAlmostEqual(row["overtime_hours"], 1.0, places=2)
+        self.assertTrue(row["fine_review_pending"])
+        self.assertTrue(row["overtime_review_pending"])
+
     def test_dashboard_review_opens_detected_values_and_saves_snapshots(self):
         employee, contract = self._create_employee_contract(
             "Direct Dashboard Review", wage=10000
@@ -165,7 +337,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(
             overtime_wizard.detected_overtime_hours, 70 / 60, places=4
         )
-        self.assertEqual(overtime_wizard.rate, contract.overtime_rate)
+        self.assertEqual(overtime_wizard.rate, self.company_template.overtime_rate)
         overtime_wizard.action_save()
         self.assertEqual(line.overtime_state, "approved")
         self.assertAlmostEqual(line.overtime_amount, 70 / 60 * 50, places=2)
@@ -216,6 +388,61 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(attendance.bambus_late_minutes, 5)
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
         self.assertAlmostEqual(attendance.bambus_fine_amount, 5 * 300 / 480, places=2)
+
+    def test_disabled_template_ignores_enabled_legacy_contract_switches(self):
+        template = self._create_template(
+            "Disabled Template Is Authoritative",
+            overtime_enabled=False,
+            late_enabled=False,
+            early_exit_enabled=False,
+            break_enabled=False,
+        )
+        employee, contract = self._create_employee_contract(
+            "Legacy Switch Employee", template=template
+        )
+        contract.write({
+            "is_overtime_allowed": True,
+            "is_latefine_applicable": True,
+            "apply_late_fine": "fixed",
+            "late_fine_rate": 99,
+        })
+
+        attendance = self._create_attendance(employee, (9, 10), (18, 10))
+
+        self.assertFalse(self._base_overtime(employee).duration)
+        self.assertFalse(attendance.bambus_fine_hours)
+        self.assertFalse(attendance.bambus_fine_amount)
+
+    def test_salary_rules_use_approved_automation_snapshots(self):
+        category = self.env["hr.salary.rule.category"].search([], limit=1)
+        self.assertTrue(category)
+        rules = self.env["hr.salary.rule"].create([{
+            "name": name,
+            "code": code,
+            "category_id": category.id,
+            "condition_select": "none",
+            "amount_select": "code",
+            "amount_python_compute": "result = contract.overtime_rate",
+        } for code, name in (
+            ("OT", "Automation OT Test"),
+            ("LATE", "Automation Fine Test"),
+            ("PH", "Legacy Public Holiday Test"),
+        )])
+
+        rules._bambus_use_automation_amounts()
+
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "OT").amount_python_compute,
+            "result = payslip.total_overtime_amount or 0.0",
+        )
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "LATE").amount_python_compute,
+            "result = -(payslip.total_fine_amount or 0.0)",
+        )
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "PH").amount_python_compute,
+            "result = 0.0",
+        )
 
     def test_minimum_overtime_is_inclusive_at_sixty_minutes(self):
         below_employee, _contract = self._create_employee_contract("59 Minute Employee")
@@ -289,13 +516,33 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee, sunday).duration, 6.0)
 
+    def test_weekly_off_policy_ignores_legacy_contract_switch(self):
+        template = self._create_template(
+            "Weekly Off Disabled",
+            weekly_off_overtime_policy="disabled",
+            minimum_overtime_minutes=0,
+        )
+        employee, contract = self._create_employee_contract(
+            "Legacy Weekend Employee", template=template
+        )
+        contract.write({
+            "weekend_special_working": True,
+            "weekend_wage_type": "fixed",
+            "weekend_wage_rate": 500,
+        })
+        sunday = self.test_day + timedelta(days=6)
+
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+
+        self.assertFalse(self._base_overtime(employee, sunday).duration)
+
     def test_public_holiday_policy_proposes_all_worked_hours(self):
         template = self._create_template(
             "Public Holiday Work",
             public_holiday_overtime_policy="all",
             minimum_overtime_minutes=0,
         )
-        employee, _contract = self._create_employee_contract(
+        employee, contract = self._create_employee_contract(
             "Public Holiday Employee", template=template
         )
         self.env["resource.calendar.leaves"].create({
@@ -311,7 +558,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
         payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
-            employee.contract_id, self.test_day, self.test_day, "UTC"
+            contract, self.test_day, self.test_day, "UTC"
         )
         self.assertIn(self.test_day, payroll_holidays)
 
@@ -357,6 +604,8 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         employee, contract = self._create_employee_contract(
             "Global Holiday Employee", template=template
         )
+        contract.resource_calendar_id = False
+        employee.resource_calendar_id = False
         self.env["resource.calendar.leaves"].create({
             "name": "All Companies Holiday",
             "calendar_id": False,
@@ -371,7 +620,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
         self.assertEqual(self._base_overtime(employee).duration, 6.0)
         payroll_holidays = self.env["hr.payslip"]._get_public_holiday_dates(
-            employee.contract_id, self.test_day, self.test_day, "UTC"
+            contract, self.test_day, self.test_day, "UTC"
         )
         self.assertIn(self.test_day, payroll_holidays)
         line = self._review_line(employee, contract, 6.0)
@@ -383,6 +632,39 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         wizard.action_save()
         self.assertEqual(line.overtime_rate, 125)
         self.assertEqual(line.overtime_amount, 750)
+
+    def test_hourly_worker_payslip_counts_global_public_holiday(self):
+        employee, contract = self._create_employee_contract(
+            "Hourly Holiday Employee", template=self.company_template
+        )
+        employee.employee_type = "worker"
+        employee.resource_calendar_id = False
+        contract.write({
+            "wage_type": "hourly",
+            "hourly_rate": 25,
+            "resource_calendar_id": False,
+        })
+        self.env["resource.calendar.leaves"].create({
+            "name": "Hourly Global Holiday",
+            "calendar_id": False,
+            "resource_id": False,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(
+                self.test_day + timedelta(days=1), datetime.min.time()
+            ),
+        })
+        payslip = self.env["hr.payslip"].create({
+            "name": "Hourly Holiday Payslip",
+            "employee_id": employee.id,
+            "contract_id": contract.id,
+            "date_from": self.test_day,
+            "date_to": self.test_day,
+        })
+
+        payslip._compute_all_stats()
+
+        self.assertEqual(payslip.holiday_days, 1.0)
+        self.assertEqual(payslip.days_excl_weekend_holidays, 0.0)
 
     def test_expired_employee_template_falls_back_to_company_default(self):
         expired_template = self._create_template(
@@ -607,15 +889,15 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
                     expected_minutes,
                 )
 
-    def test_fixed_contract_and_slab_rate_policies(self):
+    def test_fixed_multiplier_and_slab_rate_policies(self):
         employee, contract = self._create_employee_contract(
             "Rate Policy Matrix", wage=10000
         )
         fixed = self._create_template(
             "Fixed Rate Policy", overtime_rate_policy="fixed", overtime_rate=90
         )
-        contract_policy = self._create_template(
-            "Contract Rate Policy", overtime_rate_policy="contract"
+        multiplier = self._create_template(
+            "Salary Multiplier Policy", overtime_rate_policy="salary_multiplier"
         )
         slab = self._create_template(
             "Slab Rate Policy",
@@ -625,7 +907,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             ],
         )
         self.assertEqual(fixed.resolve_overtime_rate(contract)[0], 90)
-        self.assertEqual(contract_policy.resolve_overtime_rate(contract)[0], 50)
+        self.assertEqual(multiplier.resolve_overtime_rate(contract)[0], 0)
         self.assertEqual(slab.resolve_overtime_rate(contract)[0], 110)
 
     def test_every_public_holiday_rate_policy(self):
@@ -636,9 +918,6 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             "Holiday Fixed Rate",
             public_holiday_rate_policy="fixed",
             public_holiday_rate=95,
-        )
-        contract_policy = self._create_template(
-            "Holiday Contract Rate", public_holiday_rate_policy="contract"
         )
         multiplier = self._create_template(
             "Holiday Salary Multiplier",
@@ -653,6 +932,5 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         )
 
         self.assertEqual(fixed.resolve_public_holiday_rate(contract)[0], 95)
-        self.assertEqual(contract_policy.resolve_public_holiday_rate(contract)[0], 50)
-        self.assertEqual(multiplier.resolve_public_holiday_rate(contract)[0], 50)
+        self.assertEqual(multiplier.resolve_public_holiday_rate(contract)[0], 0)
         self.assertEqual(slab.resolve_public_holiday_rate(contract)[0], 115)
