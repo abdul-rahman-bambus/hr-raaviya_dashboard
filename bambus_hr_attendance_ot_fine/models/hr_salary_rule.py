@@ -12,11 +12,24 @@ class HrSalaryRule(models.Model):
         each earning is visible under its matching salary rule without being
         paid twice.
         """
+        net_rules = self.search([("code", "=", "NET")])
+        deductions_are_positive = any(
+            "-categories.DED" in "".join(
+                (rule.amount_python_compute or "").split()
+            )
+            for rule in net_rules
+        )
+        fine_expression = (
+            "result = payslip.total_fine_amount or 0.0"
+            if deductions_are_positive
+            else "result = -(payslip.total_fine_amount or 0.0)"
+        )
         expressions = {
             ("OT",): "result = payslip.total_overtime_amount or 0.0",
             # LATE is the module default, while existing databases can use LF.
-            # Both codes represent the same attendance-fine deduction.
-            ("LATE", "LF"): "result = -(payslip.total_fine_amount or 0.0)",
+            # Match the fine sign to the installed NET rule's convention so the
+            # deduction is applied once rather than becoming an earning.
+            ("LATE", "LF"): fine_expression,
             ("PH",): "result = payslip.total_public_holiday_amount or 0.0",
         }
         for codes, expression in expressions.items():

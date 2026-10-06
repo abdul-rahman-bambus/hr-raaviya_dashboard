@@ -462,12 +462,16 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             "category_id": category.id,
             "condition_select": "none",
             "amount_select": "code",
-            "amount_python_compute": "result = contract.overtime_rate",
+            "amount_python_compute": (
+                "result = categories.BASIC + categories.ALW - categories.DED"
+                if code == "NET" else "result = contract.overtime_rate"
+            ),
         } for code, name in (
             ("OT", "Automation OT Test"),
             ("LATE", "Automation Fine Test"),
             ("LF", "Legacy Automation Fine Test"),
             ("PH", "Legacy Public Holiday Test"),
+            ("NET", "Automation Net Salary Test"),
         )])
 
         rules._bambus_use_automation_amounts()
@@ -478,15 +482,19 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         )
         self.assertEqual(
             rules.filtered(lambda rule: rule.code == "LATE").amount_python_compute,
-            "result = -(payslip.total_fine_amount or 0.0)",
+            "result = payslip.total_fine_amount or 0.0",
         )
         self.assertEqual(
             rules.filtered(lambda rule: rule.code == "LF").amount_python_compute,
-            "result = -(payslip.total_fine_amount or 0.0)",
+            "result = payslip.total_fine_amount or 0.0",
         )
         self.assertEqual(
             rules.filtered(lambda rule: rule.code == "PH").amount_python_compute,
             "result = payslip.total_public_holiday_amount or 0.0",
+        )
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "NET").amount_python_compute,
+            "result = categories.BASIC + categories.ALW - categories.DED",
         )
 
     def test_minimum_overtime_is_inclusive_at_sixty_minutes(self):
