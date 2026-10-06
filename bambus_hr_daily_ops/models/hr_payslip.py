@@ -15,6 +15,26 @@ class HrPayslip(models.Model):
         string="Attendance Earnings and Deductions",
         copy=False,
     )
+    attendance_earning_detail_ids = fields.Many2many(
+        "bambus.hr.payslip.attendance.detail",
+        string="Attendance Earnings",
+        compute="_compute_attendance_detail_groups",
+    )
+    attendance_deduction_detail_ids = fields.Many2many(
+        "bambus.hr.payslip.attendance.detail",
+        string="Attendance Deductions",
+        compute="_compute_attendance_detail_groups",
+    )
+
+    @api.depends("attendance_detail_ids.category")
+    def _compute_attendance_detail_groups(self):
+        for payslip in self:
+            payslip.attendance_earning_detail_ids = payslip.attendance_detail_ids.filtered(
+                lambda detail: detail.category == "earning"
+            )
+            payslip.attendance_deduction_detail_ids = payslip.attendance_detail_ids.filtered(
+                lambda detail: detail.category == "deduction"
+            )
 
     def action_compute_sheet(self):
         result = super().action_compute_sheet()
@@ -67,6 +87,9 @@ class HrPayslip(models.Model):
                 ("date", "<=", payslip.date_to),
             ])
             review_by_day = {line.date: line for line in review_lines}
+            public_holidays = set(payslip._get_public_holiday_dates(
+                contract, payslip.date_from, payslip.date_to, tzname
+            ))
             values_list = []
 
             for day, day_attendances in sorted(by_day.items()):
@@ -109,17 +132,27 @@ class HrPayslip(models.Model):
                     overtime_state = "pending"
 
                 if overtime_hours > 0 or overtime_amount > 0:
+                    is_public_holiday = day in public_holidays
+                    earning_type = (
+                        "public_holiday" if is_public_holiday else "overtime"
+                    )
+                    earning_label = (
+                        "Public Holiday" if is_public_holiday else "Overtime"
+                    )
                     values_list.append({
                         "payslip_id": payslip.id,
                         "date": day,
                         "category": "earning",
-                        "detail_type": "overtime",
+                        "detail_type": earning_type,
                         "hours": overtime_hours,
                         "amount": overtime_amount,
                         "calculation_type": overtime_type,
                         "rate": overtime_rate,
-                        "description": "Overtime %s" % self._bambus_duration_label(
-                            overtime_hours
+                        "description": "%s %s" % (
+                            earning_label,
+                            self._bambus_duration_label(
+                                overtime_hours
+                            ),
                         ),
                         "review_state": overtime_state,
                         "source_line_id": review.id if review else False,
@@ -261,7 +294,11 @@ class HrPayslipAttendanceDetail(models.Model):
         index=True,
     )
     detail_type = fields.Selection(
-        [("overtime", "Overtime"), ("fine", "Fine")],
+        [
+            ("overtime", "Overtime"),
+            ("public_holiday", "Public Holiday"),
+            ("fine", "Fine"),
+        ],
         required=True,
     )
     hours = fields.Float(string="Duration", digits=(16, 6))

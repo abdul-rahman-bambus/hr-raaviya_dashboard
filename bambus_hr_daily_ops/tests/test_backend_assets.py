@@ -63,8 +63,12 @@ class TestBackendAssets(TransactionCase):
             payslip_tree.find(".//page[@name='attendance_deductions']")
         )
         self.assertEqual(
-            len(payslip_tree.findall(".//field[@name='attendance_detail_ids']")),
-            2,
+            len(payslip_tree.findall(".//field[@name='attendance_earning_detail_ids']")),
+            1,
+        )
+        self.assertEqual(
+            len(payslip_tree.findall(".//field[@name='attendance_deduction_detail_ids']")),
+            1,
         )
 
     def test_employee_dashboard_is_nested_under_hrms(self):

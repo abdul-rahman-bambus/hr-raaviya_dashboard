@@ -401,7 +401,11 @@ class HrPayslip(models.Model):
                     slip.total_working_days += day_fraction
                     slip.total_worked_hours_excl_ot += base_hours
 
-                slip.total_validated_overtime += ot
+                # Public-holiday hours have their own Attendance Details bucket
+                # and payslip earning classification. Do not duplicate them in
+                # the regular-day Overtime total.
+                if not is_holiday:
+                    slip.total_validated_overtime += ot
                 slip.total_overtime_amount += ot_amount
                 slip.total_late_hours += late_mins / 60.0
                 slip.total_early_leave_hours += early_mins / 60.0

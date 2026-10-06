@@ -673,6 +673,26 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(line.overtime_rate, 125)
         self.assertEqual(line.overtime_amount, 750)
 
+        payslip = self.env["hr.payslip"].create({
+            "name": "Public Holiday Detail Payslip",
+            "employee_id": employee.id,
+            "contract_id": contract.id,
+            "date_from": self.test_day,
+            "date_to": self.test_day,
+        })
+        payslip._compute_all_stats()
+        payslip._bambus_rebuild_attendance_details()
+
+        self.assertEqual(payslip.total_validated_overtime, 0.0)
+        self.assertEqual(payslip.holiday_hours, 6.0)
+        self.assertFalse(payslip.attendance_deduction_detail_ids)
+        self.assertEqual(len(payslip.attendance_earning_detail_ids), 1)
+        holiday_detail = payslip.attendance_earning_detail_ids
+        self.assertEqual(holiday_detail.detail_type, "public_holiday")
+        self.assertEqual(holiday_detail.duration_display, "6h 00m")
+        self.assertEqual(holiday_detail.amount, 750)
+        self.assertIn("Public Holiday", holiday_detail.description)
+
     def test_hourly_worker_payslip_counts_global_public_holiday(self):
         employee, contract = self._create_employee_contract(
             "Hourly Holiday Employee", template=self.company_template

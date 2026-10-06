@@ -7,8 +7,7 @@
     <field name="arch" type="xml">
       <xpath expr="//notebook" position="inside">
         <page name="attendance_earnings" string="Earnings">
-          <field name="attendance_detail_ids" readonly="1"
-                 domain="[('category', '=', 'earning')]">
+          <field name="attendance_earning_detail_ids" readonly="1">
             <list create="0" edit="0" delete="0"
                   decoration-warning="review_state == 'pending'">
               <field name="currency_id" column_invisible="True"/>
@@ -27,8 +26,7 @@
           </field>
         </page>
         <page name="attendance_deductions" string="Deductions">
-          <field name="attendance_detail_ids" readonly="1"
-                 domain="[('category', '=', 'deduction')]">
+          <field name="attendance_deduction_detail_ids" readonly="1">
             <list create="0" edit="0" delete="0"
                   decoration-warning="review_state == 'pending'">
               <field name="currency_id" column_invisible="True"/>
