@@ -40,6 +40,9 @@ class HrPayslip(models.Model):
     holiday_hours = fields.Float("Public Holidays", compute="_compute_all_stats", store=True)
 
     total_overtime_amount = fields.Float(string="Overtime Amount", compute="_compute_all_stats", store=True)
+    total_public_holiday_amount = fields.Float(
+        string="Public Holiday Amount", compute="_compute_all_stats", store=True
+    )
     total_fine_hours = fields.Float(string="Fine Hours", compute="_compute_all_stats", store=True)
     total_fine_amount = fields.Float(string="Fine Amount", compute="_compute_all_stats", store=True)
 
@@ -197,6 +200,7 @@ class HrPayslip(models.Model):
             slip.holiday_hours = 0.0
 
             slip.total_overtime_amount = 0.0
+            slip.total_public_holiday_amount = 0.0
             slip.total_fine_hours = 0.0
             slip.total_fine_amount = 0.0
 
@@ -404,9 +408,11 @@ class HrPayslip(models.Model):
                 # Public-holiday hours have their own Attendance Details bucket
                 # and payslip earning classification. Do not duplicate them in
                 # the regular-day Overtime total.
-                if not is_holiday:
+                if is_holiday:
+                    slip.total_public_holiday_amount += ot_amount
+                else:
                     slip.total_validated_overtime += ot
-                slip.total_overtime_amount += ot_amount
+                    slip.total_overtime_amount += ot_amount
                 slip.total_late_hours += late_mins / 60.0
                 slip.total_early_leave_hours += early_mins / 60.0
                 slip.total_gap_hours += gap_mins / 60.0

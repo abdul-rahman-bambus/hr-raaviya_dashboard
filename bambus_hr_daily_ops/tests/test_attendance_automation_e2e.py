@@ -486,7 +486,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         )
         self.assertEqual(
             rules.filtered(lambda rule: rule.code == "PH").amount_python_compute,
-            "result = 0.0",
+            "result = payslip.total_public_holiday_amount or 0.0",
         )
 
     def test_minimum_overtime_is_inclusive_at_sixty_minutes(self):
@@ -689,6 +689,8 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         payslip._bambus_rebuild_attendance_details()
 
         self.assertEqual(payslip.total_validated_overtime, 0.0)
+        self.assertEqual(payslip.total_overtime_amount, 0.0)
+        self.assertEqual(payslip.total_public_holiday_amount, 750)
         self.assertEqual(payslip.holiday_hours, 6.0)
         self.assertFalse(payslip.attendance_deduction_detail_ids)
         self.assertEqual(len(payslip.attendance_earning_detail_ids), 1)
