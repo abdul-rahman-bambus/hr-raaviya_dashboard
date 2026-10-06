@@ -1,5 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="view_hr_salary_revision_wizard_automation" model="ir.ui.view">
+        <field name="name">hr.salary.revision.wizard.automation</field>
+        <field name="model">hr.salary.revision.wizard</field>
+        <field name="inherit_id" ref="custom_hr_payroll.view_hr_salary_revision_wizard_form"/>
+        <field name="arch" type="xml">
+            <field name="current_calendar_id" position="after">
+                <field name="current_automation_template_id"/>
+            </field>
+            <field name="revised_calendar_id" position="after">
+                <field name="company_id" invisible="1"/>
+                <field name="revised_automation_template_id"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_hr_contract_salary_revision_automation" model="ir.ui.view">
+        <field name="name">hr.contract.salary.revision.automation</field>
+        <field name="model">hr.contract</field>
+        <field name="inherit_id" ref="custom_hr_payroll.view_hr_contract_form_salary_revision"/>
+        <field name="arch" type="xml">
+            <field name="revised_calendar_id" position="after">
+                <field name="previous_automation_template_id" optional="hide"/>
+                <field name="revised_automation_template_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
     <record id="view_attendance_automation_assign_wizard" model="ir.ui.view">
         <field name="name">bambus.attendance.automation.assign.wizard.form</field>
         <field name="model">bambus.attendance.automation.assign.wizard</field>
@@ -68,13 +95,14 @@
                                 <group string="Late Entry">
                                     <field name="late_enabled"/>
                                     <field name="late_grace_minutes" invisible="not late_enabled"/>
+                                    <field name="post_break_grace_minutes" invisible="not late_enabled"/>
                                 </group>
                                 <group string="Early Exit">
                                     <field name="early_exit_enabled"/>
                                     <field name="early_exit_grace_minutes" invisible="not early_exit_enabled"/>
                                 </group>
                             </group>
-                            <group string="Late / Fine Default">
+                            <group string="Late / Fine Default" invisible="not late_enabled">
                                 <field name="fine_calculation_type"/>
                                 <field name="fine_rate" widget="monetary"
                                        options="{'currency_field': 'currency_id'}"
@@ -110,7 +138,7 @@
                                            invisible="not overtime_enabled or overtime_end_mode != 'duration'"/>
                                     <field name="overtime_rounding_minutes" invisible="not overtime_enabled"/>
                                 </group>
-                                <group string="Calculation Default">
+                                <group string="Calculation Default" invisible="not overtime_enabled">
                                     <field name="overtime_calculation_type"
                                            invisible="overtime_rate_policy == 'salary_slab'"/>
                                     <field name="overtime_rate_policy"/>
@@ -124,13 +152,13 @@
                                            invisible="overtime_rate_policy != 'fixed'"/>
                                 </group>
                             </group>
-                            <group string="Attendance Day Classification">
+                            <group string="Attendance Day Classification" invisible="not overtime_enabled">
                                 <field name="half_day_hours"/>
                                 <field name="full_day_basis"/>
                                 <field name="full_day_hours" invisible="full_day_basis != 'fixed'"/>
                             </group>
                             <group string="OT Salary Slabs"
-                                   invisible="overtime_rate_policy != 'salary_slab'">
+                                   invisible="not overtime_enabled or overtime_rate_policy != 'salary_slab'">
                                 <field name="overtime_slab_ids" nolabel="1">
                                     <list editable="bottom">
                                         <field name="salary_from" widget="monetary"
@@ -172,6 +200,21 @@
                                         stored separately for payroll and reporting.
                                     </div>
                                 </group>
+                            </group>
+                        </page>
+                        <page string="Hourly Pay">
+                            <div class="alert alert-info" role="alert">
+                                Hourly contracts do not use overtime, late/fine, or public-holiday
+                                calculations. Enable this option to let HR review payable worked
+                                hours using the contract hourly rate or another calculation type.
+                            </div>
+                            <group>
+                                <field name="hourly_pay_enabled"/>
+                                <field name="hourly_pay_calculation_type"
+                                       invisible="not hourly_pay_enabled"/>
+                                <field name="hourly_pay_rate" widget="monetary"
+                                       options="{'currency_field': 'currency_id'}"
+                                       invisible="not hourly_pay_enabled or hourly_pay_calculation_type not in ('fixed', 'fixed_hour')"/>
                             </group>
                         </page>
                         <page string="Assigned Employees">
