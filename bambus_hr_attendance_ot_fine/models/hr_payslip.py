@@ -14,6 +14,12 @@ class HrPayslip(models.Model):
 
     def action_compute_sheet(self):
         """Refresh attendance buckets before evaluating payroll salary rules."""
+        overtime_model = self.env["hr.attendance.overtime"].sudo()
+        for slip in self:
+            if slip.employee_id and slip.date_from and slip.date_to:
+                overtime_model.bambus_recompute_range(
+                    slip.employee_id.ids, slip.date_from, slip.date_to
+                )
         self._compute_all_stats()
         return super().action_compute_sheet()
 

@@ -544,11 +544,11 @@ class HrAttendanceOvertime(models.Model):
                 # Fetch "Tolerance Time In Favor Of Company" from settings
                 company_tolerance = int(getattr(company, 'overtime_company_threshold', 0))
                 
-                # 1. No OT if they didn't even complete their base scheduled hours
-                if worked < scheduled:
-                    ot_minutes = 0
-                # 2. No OT if the extra minutes fall within the company tolerance
-                elif ot_minutes <= company_tolerance:
+                # Overtime is determined from completed attendance inside the
+                # configured OT window. A late arrival or another shortfall in
+                # regular hours must not erase genuine work performed after the
+                # OT start time; fines and OT are reviewed independently.
+                if ot_minutes <= company_tolerance:
                     ot_minutes = 0
 
                 if automation:
@@ -576,6 +576,7 @@ class HrAttendanceOvertime(models.Model):
 
                 # Ensure late_minutes and early_leave_minutes are integers
                 late_minutes = int(late_minutes or 0)
+                detected_late_minutes = late_minutes
                 early_leave_minutes = int(early_leave_minutes or 0)
 
                 # An open punch has not finished its shift yet. It is valid to
@@ -626,11 +627,13 @@ class HrAttendanceOvertime(models.Model):
                     early_leave_minutes = int(min(early_leave_minutes, deficit_minutes - late_minutes))
                     gap_minutes = max(0, deficit_minutes - late_minutes - early_leave_minutes)
 
-                # A late return after a scheduled break is always retained.
-                # Work-hour threshold handling may forgive other deficit time,
-                # but it must not erase a post-break violation configured with
-                # its own grace period.
-                late_minutes = max(late_minutes, post_break_late_minutes)
+                # Late-entry rules are independent from total worked-hour
+                # classification. Threshold handling may forgive an early exit
+                # or another gap, but it must not erase a detected morning or
+                # post-break late arrival.
+                late_minutes = max(
+                    late_minutes, detected_late_minutes, post_break_late_minutes
+                )
 
                 if automation:
                     late_minutes = late_minutes if automation.late_enabled else 0

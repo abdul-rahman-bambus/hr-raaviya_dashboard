@@ -227,6 +227,95 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(afternoon.bambus_late_minutes, 1)
         self.assertAlmostEqual(afternoon.bambus_fine_hours, 1 / 60, places=4)
 
+    def test_late_shortfall_does_not_hide_valid_overtime(self):
+        split_calendar = self.env["resource.calendar"].create({
+            "name": "Factory Split Shift 09:45-14:00 and 14:45-18:45",
+            "tz": "UTC",
+            "company_id": self.company.id,
+            "attendance_ids": [
+                (0, 0, {
+                    "name": "Monday Morning",
+                    "dayofweek": "0",
+                    "day_period": "morning",
+                    "hour_from": 9.75,
+                    "hour_to": 14.0,
+                }),
+                (0, 0, {
+                    "name": "Monday Afternoon",
+                    "dayofweek": "0",
+                    "day_period": "afternoon",
+                    "hour_from": 14.75,
+                    "hour_to": 18.75,
+                }),
+            ],
+        })
+        template = self._create_template(
+            "Late and OT Independent Review",
+            late_grace_minutes=5,
+            post_break_grace_minutes=0,
+            early_exit_enabled=False,
+            break_enabled=False,
+            overtime_enabled=True,
+            minimum_overtime_minutes=0,
+            overtime_start_mode="offset",
+            overtime_start_offset_minutes=15,
+            overtime_end_mode="duration",
+            maximum_overtime_minutes=60,
+        )
+        employee, contract = self._create_employee_contract(
+            "Late With Valid OT Employee", template=template
+        )
+        employee.resource_calendar_id = split_calendar
+        contract.resource_calendar_id = split_calendar
+        attendance_model = self.env["hr.attendance"].with_context(
+            bambus_skip_recompute=True
+        )
+        for check_in, check_out in (
+            (datetime(2026, 9, 21, 10, 55), datetime(2026, 9, 21, 14, 0)),
+            (datetime(2026, 9, 21, 14, 50), datetime(2026, 9, 21, 18, 45)),
+            (datetime(2026, 9, 21, 19, 0), datetime(2026, 9, 21, 20, 0)),
+        ):
+            last_attendance = attendance_model.create({
+                "employee_id": employee.id,
+                "check_in": check_in,
+                "check_out": check_out,
+            })
+
+        self.env["hr.attendance.overtime"].bambus_recompute_range(
+            employee.ids, self.test_day, self.test_day
+        )
+        last_attendance.invalidate_recordset()
+        base_overtime = self._base_overtime(employee)
+
+        # 10:55 - 09:45 - 5 minute grace = 65 minutes, plus a
+        # 5-minute late return after lunch.
+        self.assertEqual(last_attendance.bambus_late_minutes, 70)
+        self.assertAlmostEqual(last_attendance.bambus_fine_hours, 70 / 60, places=4)
+        # OT starts at 19:00 and is capped at 60 minutes. It remains payable
+        # even though regular worked time is below the 8h15 schedule.
+        self.assertAlmostEqual(base_overtime.duration, 1.0, places=4)
+        self.assertAlmostEqual(
+            sum(attendance_model.search([
+                ("employee_id", "=", employee.id),
+                ("check_in", ">=", datetime(2026, 9, 21, 0, 0)),
+                ("check_in", "<", datetime(2026, 9, 22, 0, 0)),
+            ]).mapped("overtime_hours")),
+            1.0,
+            places=4,
+        )
+
+        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+            fields.Date.to_string(self.test_day)
+        )
+        row = next(
+            item for item in dashboard["daily_attendance"]
+            if item["id"] == employee.id
+        )
+        self.assertAlmostEqual(row["fine_hours"], 70 / 60, places=2)
+        self.assertAlmostEqual(row["overtime_hours"], 1.0, places=2)
+        self.assertTrue(row["fine_review_pending"])
+        self.assertTrue(row["overtime_review_pending"])
+
     def test_dashboard_review_opens_detected_values_and_saves_snapshots(self):
         employee, contract = self._create_employee_contract(
             "Direct Dashboard Review", wage=10000

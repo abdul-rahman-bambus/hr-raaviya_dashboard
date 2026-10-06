@@ -99,6 +99,19 @@ class BambusHrAttendanceSheet(models.Model):
             ("check_in", ">=", fields.Datetime.to_string(utc_start)),
             ("check_in", "<", fields.Datetime.to_string(utc_end)),
         ])
+        # Keep the dashboard authoritative even when an automation template
+        # was changed after punches were imported. Attendance hooks recompute
+        # on punch edits, but a policy-only edit otherwise leaves stored fine
+        # and overtime snapshots stale until somebody edits an attendance.
+        if attendances:
+            self.env["hr.attendance.overtime"].sudo().bambus_recompute_range(
+                attendances.employee_id.ids, day, day
+            )
+            attendances = self.env["hr.attendance"].search([
+                ("employee_id", "in", employees.ids),
+                ("check_in", ">=", fields.Datetime.to_string(utc_start)),
+                ("check_in", "<", fields.Datetime.to_string(utc_end)),
+            ])
         leaves = self.env["hr.leave"].search([
             ("employee_id", "in", employees.ids),
             ("state", "=", "validate"),
