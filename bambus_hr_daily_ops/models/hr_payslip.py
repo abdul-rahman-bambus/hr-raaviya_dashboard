@@ -301,6 +301,9 @@ class HrPayslipAttendanceDetail(models.Model):
         ],
         required=True,
     )
+    display_type = fields.Char(
+        string="Earning Type", compute="_compute_display_classification"
+    )
     hours = fields.Float(string="Duration", digits=(16, 6))
     duration_display = fields.Char(
         string="Duration", compute="_compute_duration_display"
@@ -319,6 +322,9 @@ class HrPayslipAttendanceDetail(models.Model):
     ], string="Calculation")
     rate = fields.Monetary(currency_field="currency_id")
     description = fields.Char(required=True)
+    display_description = fields.Char(
+        string="Description", compute="_compute_display_classification"
+    )
     review_state = fields.Selection([
         ("detected", "System Detected"),
         ("pending", "Needs Review"),
@@ -339,3 +345,48 @@ class HrPayslipAttendanceDetail(models.Model):
                 if minutes < 60
                 else f"{minutes // 60}h {minutes % 60:02d}m"
             )
+
+    @api.depends(
+        "category", "detail_type", "date", "description", "hours",
+        "payslip_id.date_from", "payslip_id.date_to", "payslip_id.contract_id",
+    )
+    def _compute_display_classification(self):
+        """Classify old and new snapshots from the actual holiday calendar.
+
+        This keeps existing draft detail rows accurate after a module upgrade,
+        even before HR presses Compute Sheet again.
+        """
+        holiday_dates_by_payslip = {}
+        for detail in self:
+            payslip = detail.payslip_id
+            if payslip not in holiday_dates_by_payslip:
+                contract = payslip.contract_id
+                tzname = (
+                    contract.resource_calendar_id.tz
+                    if contract and contract.resource_calendar_id
+                    and contract.resource_calendar_id.tz
+                    else self.env.user.tz or "UTC"
+                )
+                holiday_dates_by_payslip[payslip] = set(
+                    payslip._get_public_holiday_dates(
+                        contract, payslip.date_from, payslip.date_to, tzname
+                    )
+                ) if payslip.date_from and payslip.date_to else set()
+
+            is_public_holiday = (
+                detail.category == "earning"
+                and detail.date in holiday_dates_by_payslip[payslip]
+            )
+            if detail.category == "deduction":
+                detail.display_type = "Fine"
+            elif is_public_holiday:
+                detail.display_type = "Public Holiday"
+            else:
+                detail.display_type = "Overtime"
+
+            if is_public_holiday:
+                detail.display_description = "Public Holiday %s" % (
+                    payslip._bambus_duration_label(detail.hours)
+                )
+            else:
+                detail.display_description = detail.description

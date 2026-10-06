@@ -11,13 +11,13 @@
             <list create="0" edit="0" delete="0"
                   decoration-warning="review_state == 'pending'">
               <field name="currency_id" column_invisible="True"/>
-              <field name="detail_type" string="Earning Type"/>
+              <field name="display_type" string="Earning Type"/>
               <field name="date" string="Entry Date"/>
               <field name="duration_display"/>
               <field name="calculation_type" optional="show"/>
               <field name="rate" widget="monetary" optional="show"/>
               <field name="amount" widget="monetary" sum="Total Earnings"/>
-              <field name="description"/>
+              <field name="display_description" string="Description"/>
               <field name="review_state" widget="badge"/>
               <field name="reviewed_by_id" optional="hide"/>
               <field name="reviewed_on" optional="hide"/>
@@ -30,13 +30,13 @@
             <list create="0" edit="0" delete="0"
                   decoration-warning="review_state == 'pending'">
               <field name="currency_id" column_invisible="True"/>
-              <field name="detail_type" string="Deduction Type"/>
+              <field name="display_type" string="Deduction Type"/>
               <field name="date" string="Entry Date"/>
               <field name="duration_display"/>
               <field name="calculation_type" optional="show"/>
               <field name="rate" widget="monetary" optional="show"/>
               <field name="amount" widget="monetary" sum="Total Deductions"/>
-              <field name="description"/>
+              <field name="display_description" string="Description"/>
               <field name="review_state" widget="badge"/>
               <field name="reviewed_by_id" optional="hide"/>
               <field name="reviewed_on" optional="hide"/>

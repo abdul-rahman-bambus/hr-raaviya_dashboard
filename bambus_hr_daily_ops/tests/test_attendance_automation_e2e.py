@@ -689,9 +689,16 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(len(payslip.attendance_earning_detail_ids), 1)
         holiday_detail = payslip.attendance_earning_detail_ids
         self.assertEqual(holiday_detail.detail_type, "public_holiday")
+        self.assertEqual(holiday_detail.display_type, "Public Holiday")
         self.assertEqual(holiday_detail.duration_display, "6h 00m")
         self.assertEqual(holiday_detail.amount, 750)
-        self.assertIn("Public Holiday", holiday_detail.description)
+        self.assertIn("Public Holiday", holiday_detail.display_description)
+
+        # Legacy draft snapshots created before this classification was added
+        # must also display correctly without requiring a manual rebuild.
+        holiday_detail.detail_type = "overtime"
+        self.assertEqual(holiday_detail.display_type, "Public Holiday")
+        self.assertIn("Public Holiday", holiday_detail.display_description)
 
     def test_hourly_worker_payslip_counts_global_public_holiday(self):
         employee, contract = self._create_employee_contract(
