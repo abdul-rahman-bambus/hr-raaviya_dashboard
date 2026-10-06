@@ -563,11 +563,25 @@ class HrAttendanceOvertime(models.Model):
                 late_minutes = int(late_minutes or 0)
                 early_leave_minutes = int(early_leave_minutes or 0)
 
+                # An open punch has not finished its shift yet. It is valid to
+                # propose the already-known late arrival, but the remaining
+                # scheduled time is not an early-exit/break deficit. Treating
+                # it as such made a short late arrival appear as an almost
+                # full-day fine until the employee punched out.
+                has_open_attendance = any(
+                    attendance.check_in and not attendance.check_out
+                    for attendance in day_att
+                )
+
                 # Calculate the actual deficit against the full day schedule
                 actual_deficit_minutes = max(0, scheduled_minutes - worked_minutes)
 
                 # APPLY WORK HOUR RULES THRESHOLDS
-                if half_day_threshold <= worked < full_day_threshold:
+                if has_open_attendance:
+                    early_leave_minutes = 0
+                    gap_minutes = 0
+                    deficit_minutes = late_minutes
+                elif half_day_threshold <= worked < full_day_threshold:
                     # Employee completed a valid half-day. 
                     early_leave_minutes = 0
                     gap_minutes = 0

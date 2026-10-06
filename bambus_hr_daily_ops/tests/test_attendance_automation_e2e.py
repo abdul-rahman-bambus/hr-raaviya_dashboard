@@ -141,6 +141,36 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
         self.assertAlmostEqual(attendance.bambus_fine_amount, 5 * 300 / 480, places=2)
 
+    def test_open_punch_only_proposes_elapsed_late_time(self):
+        template = self._create_template(
+            "Open Punch Late Rule",
+            late_grace_minutes=5,
+            early_exit_enabled=True,
+            break_enabled=True,
+            allowed_break_minutes=0,
+        )
+        employee, _contract = self._create_employee_contract(
+            "Open Punch Employee", template=template
+        )
+        attendance = self.env["hr.attendance"].with_context(
+            bambus_skip_recompute=True
+        ).create({
+            "employee_id": employee.id,
+            "check_in": datetime.combine(
+                self.test_day, datetime.min.time()
+            ).replace(hour=9, minute=10),
+        })
+
+        self.env["hr.attendance.overtime"].bambus_recompute_range(
+            employee.ids, self.test_day, self.test_day
+        )
+        attendance.invalidate_recordset()
+
+        self.assertEqual(attendance.bambus_late_minutes, 5)
+        self.assertEqual(attendance.bambus_early_leave_minutes, 0)
+        self.assertEqual(attendance.bambus_gap_minutes, 0)
+        self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
+
     def test_dashboard_review_opens_detected_values_and_saves_snapshots(self):
         employee, contract = self._create_employee_contract(
             "Direct Dashboard Review", wage=10000
