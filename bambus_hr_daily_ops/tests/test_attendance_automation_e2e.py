@@ -171,6 +171,62 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(attendance.bambus_gap_minutes, 0)
         self.assertAlmostEqual(attendance.bambus_fine_hours, 5 / 60, places=4)
 
+    def test_post_lunch_late_uses_separate_zero_grace(self):
+        split_calendar = self.env["resource.calendar"].create({
+            "name": "Split Shift 09:00-14:00 and 14:45-17:00",
+            "tz": "UTC",
+            "company_id": self.company.id,
+            "attendance_ids": [
+                (0, 0, {
+                    "name": "Monday Morning",
+                    "dayofweek": "0",
+                    "day_period": "morning",
+                    "hour_from": 9.0,
+                    "hour_to": 14.0,
+                }),
+                (0, 0, {
+                    "name": "Monday Afternoon",
+                    "dayofweek": "0",
+                    "day_period": "afternoon",
+                    "hour_from": 14.75,
+                    "hour_to": 17.0,
+                }),
+            ],
+        })
+        template = self._create_template(
+            "Separate Post-Break Grace",
+            late_grace_minutes=5,
+            post_break_grace_minutes=0,
+            break_enabled=True,
+            allowed_break_minutes=45,
+        )
+        employee, contract = self._create_employee_contract(
+            "Post-Lunch Late Employee", template=template
+        )
+        employee.resource_calendar_id = split_calendar
+        contract.resource_calendar_id = split_calendar
+        attendance_model = self.env["hr.attendance"].with_context(
+            bambus_skip_recompute=True
+        )
+        attendance_model.create({
+            "employee_id": employee.id,
+            "check_in": datetime(2026, 9, 21, 9, 4),
+            "check_out": datetime(2026, 9, 21, 14, 0),
+        })
+        afternoon = attendance_model.create({
+            "employee_id": employee.id,
+            "check_in": datetime(2026, 9, 21, 14, 46),
+            "check_out": datetime(2026, 9, 21, 17, 0),
+        })
+
+        self.env["hr.attendance.overtime"].bambus_recompute_range(
+            employee.ids, self.test_day, self.test_day
+        )
+        afternoon.invalidate_recordset()
+
+        self.assertEqual(afternoon.bambus_late_minutes, 1)
+        self.assertAlmostEqual(afternoon.bambus_fine_hours, 1 / 60, places=4)
+
     def test_dashboard_review_opens_detected_values_and_saves_snapshots(self):
         employee, contract = self._create_employee_contract(
             "Direct Dashboard Review", wage=10000

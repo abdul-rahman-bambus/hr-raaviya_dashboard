@@ -42,12 +42,16 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("overtime_review_count", editor_template)
         self.assertIn("fine_review_count", editor_template)
         self.assertIn("openReviewMetric", editor_template)
+        self.assertIn("post_break_grace_minutes", (
+            module_root / "views/attendance_automation_template_views.xml"
+        ).read_text(encoding="utf-8"))
 
         dashboard_source = (
             module_root / "static/src/js/attendance_dashboard.js"
         ).read_text(encoding="utf-8")
         self.assertIn('this.state.statusFilter === "overtime_review"', dashboard_source)
         self.assertIn('this.state.statusFilter === "fine_review"', dashboard_source)
+        self.assertIn('}h ${String(minutes % 60).padStart(2, "0")}m`', dashboard_source)
 
     def test_employee_dashboard_is_nested_under_hrms(self):
         module_root = Path(__file__).parents[1]

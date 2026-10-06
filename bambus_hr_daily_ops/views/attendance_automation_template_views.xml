@@ -95,6 +95,7 @@
                                 <group string="Late Entry">
                                     <field name="late_enabled"/>
                                     <field name="late_grace_minutes" invisible="not late_enabled"/>
+                                    <field name="post_break_grace_minutes" invisible="not late_enabled"/>
                                 </group>
                                 <group string="Early Exit">
                                     <field name="early_exit_enabled"/>

@@ -464,9 +464,13 @@ class HrAttendanceOvertime(models.Model):
                         checkins.append(ci)
                 checkins.sort()
 
-                # late computed vs effective start (after leave), once per shift
-                late_raw = 0.0
-                for segs in per_shift_effective:
+                # Calculate each scheduled session independently. The first
+                # session uses the normal arrival grace; later sessions use the
+                # post-break grace (normally zero), so morning grace cannot
+                # cancel a late return from lunch.
+                late_minutes = 0
+                post_break_late_minutes = 0
+                for session_index, segs in enumerate(per_shift_effective):
                     if not segs:
                         continue
                     eff_start = segs[0][0]
@@ -475,11 +479,22 @@ class HrAttendanceOvertime(models.Model):
                         None
                     )
                     if ci_in_eff and ci_in_eff > eff_start:
-                        late_raw += (ci_in_eff - eff_start).total_seconds() / 3600.0
-
-                # Option B: round late to whole minutes
-                late_minutes = int(round((late_raw or 0.0) * 60.0))
-                late_raw = late_minutes / 60.0
+                        session_late_minutes = int(round(
+                            (ci_in_eff - eff_start).total_seconds() / 60.0
+                        ))
+                        session_grace = (
+                            automation.late_grace_minutes
+                            if automation and session_index == 0
+                            else automation.post_break_grace_minutes
+                            if automation
+                            else 0
+                        )
+                        adjusted_session_late = max(
+                            0, session_late_minutes - session_grace
+                        )
+                        late_minutes += adjusted_session_late
+                        if session_index:
+                            post_break_late_minutes += adjusted_session_late
 
                 # ---- OT (worked time after scheduled end only; excludes gaps)
                 sched_end = max([e for _, e in effective_bounds], default=False)
@@ -611,11 +626,14 @@ class HrAttendanceOvertime(models.Model):
                     early_leave_minutes = int(min(early_leave_minutes, deficit_minutes - late_minutes))
                     gap_minutes = max(0, deficit_minutes - late_minutes - early_leave_minutes)
 
+                # A late return after a scheduled break is always retained.
+                # Work-hour threshold handling may forgive other deficit time,
+                # but it must not erase a post-break violation configured with
+                # its own grace period.
+                late_minutes = max(late_minutes, post_break_late_minutes)
+
                 if automation:
-                    late_minutes = (
-                        max(0, late_minutes - automation.late_grace_minutes)
-                        if automation.late_enabled else 0
-                    )
+                    late_minutes = late_minutes if automation.late_enabled else 0
                     early_leave_minutes = (
                         max(0, early_leave_minutes - automation.early_exit_grace_minutes)
                         if automation.early_exit_enabled else 0

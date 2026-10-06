@@ -69,12 +69,12 @@ export class AttendanceDashboard extends Component {
         // schedule. A shortfall is not overtime and must never be displayed as
         // a negative HH:MM value on the OT/Fine review dashboard.
         const minutes = Math.round(Math.max(Number(value) || 0, 0) * 60);
-        return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+        return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
     }
 
     metricValue(metric) {
         const value = this.state.data.metrics[metric[0]];
-        return metric[3] === "hours" ? `${this.formatHours(value)} h` : value;
+        return metric[3] === "hours" ? this.formatHours(value) : value;
     }
 
     get filteredDailyEmployees() {
@@ -239,7 +239,7 @@ export class AttendanceDashboard extends Component {
     }
 
     fineDisplay(hours) {
-        return hours > 0 ? `${this.formatHours(hours)} h` : "—";
+        return hours > 0 ? this.formatHours(hours) : "—";
     }
 
     updateEmployeeField(employee, field, event) {

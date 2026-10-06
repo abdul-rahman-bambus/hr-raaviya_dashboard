@@ -37,6 +37,12 @@ class AttendanceAutomationTemplate(models.Model):
 
     late_enabled = fields.Boolean(string="Late Entry Rule", default=True)
     late_grace_minutes = fields.Integer(string="Late Entry Grace (Minutes)", default=0)
+    post_break_grace_minutes = fields.Integer(
+        string="Post-Break Late Grace (Minutes)",
+        default=0,
+        help="Grace applied when an employee returns for the second or a later "
+             "scheduled work session. Use zero to fine every late return minute.",
+    )
     early_exit_enabled = fields.Boolean(string="Early Exit Rule", default=True)
     early_exit_grace_minutes = fields.Integer(string="Early Exit Grace (Minutes)", default=0)
     break_enabled = fields.Boolean(string="Break Rule")
@@ -194,7 +200,8 @@ class AttendanceAutomationTemplate(models.Model):
         return True
 
     @api.constrains(
-        "date_from", "date_to", "late_grace_minutes", "early_exit_grace_minutes",
+        "date_from", "date_to", "late_grace_minutes", "post_break_grace_minutes",
+        "early_exit_grace_minutes",
         "allowed_break_minutes", "minimum_overtime_minutes", "overtime_rate",
         "public_holiday_rate", "fine_rate", "hourly_pay_rate",
         "overtime_start_offset_minutes", "maximum_overtime_minutes", "half_day_hours",
@@ -206,6 +213,7 @@ class AttendanceAutomationTemplate(models.Model):
                 raise ValidationError("Effective Until cannot be before Effective From.")
             values = (
                 template.late_grace_minutes,
+                template.post_break_grace_minutes,
                 template.early_exit_grace_minutes,
                 template.allowed_break_minutes,
                 template.minimum_overtime_minutes,
