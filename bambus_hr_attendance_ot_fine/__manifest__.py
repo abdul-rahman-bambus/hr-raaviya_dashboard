@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 {
     "name": "Bambus Attendance Overtime & Fine",
-    "version": "18.0.3.7.0",
+    "version": "18.0.3.17.0",
     "category": "Human Resources",
     "author": "Bambus Technologies LLP",
     "depends": ["hr", "hr_attendance", "hr_contract", "custom_hr_payroll"],
     "data": [
         "security/attendance_automation_security.xml",
         "security/ir.model.access.csv",
+        "data/salary_rule_migration.xml",
         "views/res_config_settings_views.xml",
         "views/hr_attendance_views.xml",
 
