@@ -5,3 +5,4 @@ from . import hr_attendance
 from . import hr_attendance_overtime
 from . import hr_leaves
 from . import hr_payslip
+from . import hr_salary_rule
