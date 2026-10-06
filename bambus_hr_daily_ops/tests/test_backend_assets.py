@@ -39,6 +39,15 @@ class TestBackendAssets(TransactionCase):
         self.assertIn('t-att-disabled="!employee.overtime_enabled"', editor_template)
         self.assertIn("openTimingAdjustment(employee)", editor_template)
         self.assertIn("Update Punch Times", editor_template)
+        self.assertIn("overtime_review_count", editor_template)
+        self.assertIn("fine_review_count", editor_template)
+        self.assertIn("openReviewMetric", editor_template)
+
+        dashboard_source = (
+            module_root / "static/src/js/attendance_dashboard.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn('this.state.statusFilter === "overtime_review"', dashboard_source)
+        self.assertIn('this.state.statusFilter === "fine_review"', dashboard_source)
 
     def test_employee_dashboard_is_nested_under_hrms(self):
         module_root = Path(__file__).parents[1]

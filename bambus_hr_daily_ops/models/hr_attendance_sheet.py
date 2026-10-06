@@ -414,17 +414,33 @@ class BambusHrAttendanceSheet(models.Model):
                     "image_url": False,
                     "actor": override[user_field].name,
                 })
-            employee_overtime_hours = max(
-                override.overtime_hours
-                if override and (employee_attendances or override.attendance_status_manual)
-                else sum(a.overtime_hours for a in employee_attendances),
-                0.0,
+            raw_overtime_hours = sum(a.overtime_hours for a in employee_attendances)
+            overtime_reviewed = bool(
+                override and override.overtime_state in ("approved", "rejected")
             )
-            employee_fine_hours = max(
-                override.fine_hours
-                if override and (employee_attendances or override.attendance_status_manual)
-                else employee_fine_hours,
-                0.0,
+            fine_reviewed = bool(
+                override and override.fine_state in ("approved", "rejected")
+            )
+            if override and override.overtime_state in ("submitted", "approved"):
+                employee_overtime_hours = override.overtime_hours
+            elif override and override.overtime_state == "rejected":
+                employee_overtime_hours = 0.0
+            else:
+                employee_overtime_hours = raw_overtime_hours
+            if override and override.fine_state in ("submitted", "approved"):
+                employee_fine_hours = override.fine_hours
+            elif override and override.fine_state == "rejected":
+                employee_fine_hours = 0.0
+            employee_overtime_hours = max(employee_overtime_hours, 0.0)
+            employee_fine_hours = max(employee_fine_hours, 0.0)
+            overtime_enabled = bool(automation and automation.overtime_enabled)
+            fine_enabled = bool(
+                automation
+                and (
+                    automation.late_enabled
+                    or automation.early_exit_enabled
+                    or automation.break_enabled
+                )
             )
             daily_attendance.append({
                 "id": employee.id,
@@ -436,8 +452,14 @@ class BambusHrAttendanceSheet(models.Model):
                 "contract_type": contract_type.display_name if contract_type else _("No Contract Type"),
                 "wage_type": wage_type,
                 "is_hourly": wage_type == "hourly",
-                "fine_enabled": bool(automation and automation.late_enabled),
-                "overtime_enabled": bool(automation and automation.overtime_enabled),
+                "fine_enabled": fine_enabled,
+                "overtime_enabled": overtime_enabled,
+                "overtime_review_pending": bool(
+                    overtime_enabled and employee_overtime_hours > 0 and not overtime_reviewed
+                ),
+                "fine_review_pending": bool(
+                    fine_enabled and employee_fine_hours > 0 and not fine_reviewed
+                ),
                 "hourly_pay_enabled": bool(
                     wage_type == "hourly"
                     and automation.hourly_pay_enabled
@@ -481,6 +503,12 @@ class BambusHrAttendanceSheet(models.Model):
                 "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
                 "overtime": round(sum(row["overtime_hours"] for row in daily_attendance), 2),
                 "fine": round(sum(row["fine_hours"] for row in daily_attendance), 2),
+                "overtime_review_count": sum(
+                    1 for row in daily_attendance if row["overtime_review_pending"]
+                ),
+                "fine_review_count": sum(
+                    1 for row in daily_attendance if row["fine_review_pending"]
+                ),
                 "fine_amount": round(fine_amount, 2),
                 "on_duty": 0,
                 "upcoming_on_duty": 0,

@@ -400,6 +400,60 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertGreaterEqual(dashboard["metrics"]["overtime"], 1.5)
         self.assertGreaterEqual(dashboard["metrics"]["fine"], 0.25)
 
+    def test_dashboard_counts_overtime_and_fine_waiting_for_review(self):
+        today = fields.Date.context_today(self.env.user)
+        template = self.env["bambus.attendance.automation.template"].create({
+            "name": "Pending Review Count Rules",
+            "company_id": self.env.company.id,
+            "overtime_enabled": True,
+            "late_enabled": True,
+        })
+        employee = self.env["hr.employee"].create({
+            "name": "Pending Review Count Employee",
+            "company_id": self.env.company.id,
+            "attendance_automation_template_id": template.id,
+        })
+        contract = self.env["hr.contract"].create({
+            "name": "Pending Review Count Contract",
+            "employee_id": employee.id,
+            "date_start": today,
+            "wage": 24000,
+        })
+        line = self.env["bambus.hr.attendance.sheet.line"].create({
+            "sheet_id": self._sheet_for(today).id,
+            "employee_id": employee.id,
+            "contract_id": contract.id,
+            "status": "present",
+            "attendance_status_manual": True,
+            "overtime_hours": 1.5,
+            "overtime_state": "submitted",
+            "fine_hours": 0.25,
+            "fine_state": "submitted",
+        })
+
+        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+            fields.Date.to_string(today)
+        )
+        row = next(
+            item for item in dashboard["daily_attendance"]
+            if item["id"] == employee.id
+        )
+        self.assertTrue(row["overtime_review_pending"])
+        self.assertTrue(row["fine_review_pending"])
+        self.assertGreaterEqual(dashboard["metrics"]["overtime_review_count"], 1)
+        self.assertGreaterEqual(dashboard["metrics"]["fine_review_count"], 1)
+
+        line.write({"overtime_state": "approved", "fine_state": "rejected"})
+        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+            fields.Date.to_string(today)
+        )
+        row = next(
+            item for item in dashboard["daily_attendance"]
+            if item["id"] == employee.id
+        )
+        self.assertFalse(row["overtime_review_pending"])
+        self.assertFalse(row["fine_review_pending"])
+
     def test_attendance_logs_include_hr_time_updates(self):
         employee = self.env["hr.employee"].create({
             "name": "HR Time Update Employee",
