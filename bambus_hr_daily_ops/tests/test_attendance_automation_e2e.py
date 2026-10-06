@@ -316,6 +316,46 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertTrue(row["fine_review_pending"])
         self.assertTrue(row["overtime_review_pending"])
 
+        review_line = self._review_line(employee, contract, 1.0)
+        review_line.write({
+            "overtime_state": "approved",
+            "overtime_calculation_type": "fixed_hour",
+            "overtime_rate": 100,
+            "overtime_amount": 100,
+            "fine_state": "approved",
+            "fine_hours": 70 / 60,
+            "fine_calculation_type": "salary_minute",
+            "fine_amount": 70,
+        })
+        payslip = self.env["hr.payslip"].create({
+            "name": "Date-wise OT and Fine Payslip",
+            "employee_id": employee.id,
+            "contract_id": contract.id,
+            "date_from": self.test_day,
+            "date_to": self.test_day,
+        })
+        payslip._bambus_rebuild_attendance_details()
+
+        earning = payslip.attendance_detail_ids.filtered(
+            lambda detail: detail.category == "earning"
+        )
+        deduction = payslip.attendance_detail_ids.filtered(
+            lambda detail: detail.category == "deduction"
+        )
+        self.assertEqual(len(earning), 1)
+        self.assertEqual(earning.date, self.test_day)
+        self.assertEqual(earning.detail_type, "overtime")
+        self.assertEqual(earning.duration_display, "1h 00m")
+        self.assertEqual(earning.amount, 100)
+        self.assertEqual(earning.review_state, "approved")
+        self.assertEqual(len(deduction), 1)
+        self.assertEqual(deduction.date, self.test_day)
+        self.assertEqual(deduction.detail_type, "fine")
+        self.assertEqual(deduction.duration_display, "1h 10m")
+        self.assertEqual(deduction.amount, 70)
+        self.assertIn("Late Entry 1h 10m", deduction.description)
+        self.assertEqual(deduction.review_state, "approved")
+
     def test_dashboard_review_opens_detected_values_and_saves_snapshots(self):
         employee, contract = self._create_employee_contract(
             "Direct Dashboard Review", wage=10000

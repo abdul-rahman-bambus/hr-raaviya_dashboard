@@ -53,6 +53,20 @@ class TestBackendAssets(TransactionCase):
         self.assertIn('this.state.statusFilter === "fine_review"', dashboard_source)
         self.assertIn('}h ${String(minutes % 60).padStart(2, "0")}m`', dashboard_source)
 
+        payslip_tree = ElementTree.parse(
+            module_root / "views/hr_payslip_attendance_details_views.xml"
+        )
+        self.assertIsNotNone(
+            payslip_tree.find(".//page[@name='attendance_earnings']")
+        )
+        self.assertIsNotNone(
+            payslip_tree.find(".//page[@name='attendance_deductions']")
+        )
+        self.assertEqual(
+            len(payslip_tree.findall(".//field[@name='attendance_detail_ids']")),
+            2,
+        )
+
     def test_employee_dashboard_is_nested_under_hrms(self):
         module_root = Path(__file__).parents[1]
         hrms_tree = ElementTree.parse(module_root / "views/hrms_menu.xml")

@@ -275,8 +275,8 @@ class HrPayslip(models.Model):
                     ("date", ">=", slip.date_from),
                     ("date", "<=", slip.date_to),
                     "|",
-                    ("overtime_state", "=", "approved"),
-                    ("fine_state", "=", "approved"),
+                    ("overtime_state", "in", ("approved", "rejected")),
+                    ("fine_state", "in", ("approved", "rejected")),
                 ])
                 approved_lines_by_day = {line.date: line for line in approved_lines}
 
@@ -309,6 +309,9 @@ class HrPayslip(models.Model):
                 if approval_line and approval_line.overtime_state == "approved":
                     ot = approval_line.overtime_hours or 0.0
                     ot_amount = approval_line.overtime_amount or 0.0
+                elif approval_line and approval_line.overtime_state == "rejected":
+                    ot = 0.0
+                    ot_amount = 0.0
 
                 # last-attendance values (stored values only)
                 scheduled_today = 0.0
@@ -381,6 +384,9 @@ class HrPayslip(models.Model):
                 if approval_line and approval_line.fine_state == "approved":
                     fine_h = approval_line.fine_hours or 0.0
                     fine_amt = approval_line.fine_amount or 0.0
+                elif approval_line and approval_line.fine_state == "rejected":
+                    fine_h = 0.0
+                    fine_amt = 0.0
 
 
                 late_by_month[(d.year, d.month)] += late_mins
