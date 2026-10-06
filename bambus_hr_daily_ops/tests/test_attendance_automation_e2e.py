@@ -466,6 +466,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         } for code, name in (
             ("OT", "Automation OT Test"),
             ("LATE", "Automation Fine Test"),
+            ("LF", "Legacy Automation Fine Test"),
             ("PH", "Legacy Public Holiday Test"),
         )])
 
@@ -477,6 +478,10 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         )
         self.assertEqual(
             rules.filtered(lambda rule: rule.code == "LATE").amount_python_compute,
+            "result = -(payslip.total_fine_amount or 0.0)",
+        )
+        self.assertEqual(
+            rules.filtered(lambda rule: rule.code == "LF").amount_python_compute,
             "result = -(payslip.total_fine_amount or 0.0)",
         )
         self.assertEqual(

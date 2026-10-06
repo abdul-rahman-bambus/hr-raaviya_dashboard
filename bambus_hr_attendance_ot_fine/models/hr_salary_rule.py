@@ -13,12 +13,14 @@ class HrSalaryRule(models.Model):
         switches and pay the same work twice.
         """
         expressions = {
-            "OT": "result = payslip.total_overtime_amount or 0.0",
-            "LATE": "result = -(payslip.total_fine_amount or 0.0)",
-            "PH": "result = 0.0",
+            ("OT",): "result = payslip.total_overtime_amount or 0.0",
+            # LATE is the module default, while existing databases can use LF.
+            # Both codes represent the same attendance-fine deduction.
+            ("LATE", "LF"): "result = -(payslip.total_fine_amount or 0.0)",
+            ("PH",): "result = 0.0",
         }
-        for code, expression in expressions.items():
-            self.search([("code", "=", code)]).write({
+        for codes, expression in expressions.items():
+            self.search([("code", "in", codes)]).write({
                 "condition_select": "none",
                 "amount_select": "code",
                 "amount_python_compute": expression,
