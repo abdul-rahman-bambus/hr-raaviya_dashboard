@@ -77,10 +77,11 @@ class HrAttendance(models.Model):
             if wage_type == "hourly":
                 continue
 
-            if not getattr(contract, "is_overtime_allowed", False):
+            template = att.employee_id._get_attendance_automation_template(d)
+            if not template or not template.overtime_enabled:
                 continue
 
-            rate = float(getattr(contract, "overtime_rate", 0.0) or 0.0)
+            rate = template.resolve_overtime_rate(contract)[0]
             att.bambus_overtime_amount = max(att.overtime_hours or 0.0, 0.0) * rate
 
 
