@@ -1017,6 +1017,17 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(multiplier.resolve_public_holiday_rate(contract)[0], 0)
         self.assertEqual(slab.resolve_public_holiday_rate(contract)[0], 115)
 
+    def test_attendance_without_template_uses_global_day_thresholds(self):
+        self.company.attendance_automation_template_id = False
+        employee, _contract = self._create_employee_contract("No Template Attendance")
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("hr_payroll.half_day_hours", "3")
+        params.set_param("hr_payroll.full_day_hours", "6")
+        attendance = self._create_attendance(employee, (9, 0), (17, 0))
+        self.assertFalse(employee._get_attendance_automation_template(self.test_day))
+        self.assertEqual(attendance.bambus_scheduled_hours, 8)
+        self.assertFalse(attendance.bambus_fine_hours)
+
     def test_selected_weekdays_override_working_schedule_for_every_weekday(self):
         template = self._create_template("Selected Days", weekly_off_source="weekdays")
         employee, _contract = self._create_employee_contract("Selected Days Employee", template=template)
