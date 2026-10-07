@@ -192,6 +192,7 @@ class HrAttendanceOvertime(models.Model):
     @api.model
     def bambus_recompute_range(self, employee_ids, date_start, date_end):
         Attendance = self.env["hr.attendance"].sudo()
+        Param = self.env["ir.config_parameter"].sudo()
         Overtime = self.sudo()
 
 
