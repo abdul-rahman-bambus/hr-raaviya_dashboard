@@ -155,3 +155,32 @@ class TestWeeklyOffReport(TransactionCase):
         self.assertFalse(totals["total_overtime_amount"])
         self.assertFalse(totals["total_fine_hours"])
         self.assertFalse(totals["total_fine_amount"])
+
+    def test_report_uses_template_day_thresholds_and_already_applied_grace(self):
+        template = self._selected_template(
+            weekly_off_monday=False, full_day_basis="fixed", full_day_hours=6,
+            half_day_hours=3, late_grace_minutes=5,
+        )
+        self.calendar.attendance_ids.hour_to = 15
+        params = self.env["ir.config_parameter"].sudo()
+        params.set_param("hr_payroll.full_day_hours", "8")
+        params.set_param("hr_payroll.half_day_hours", "4")
+        params.set_param("custom_hr_payroll.late_login_grace_minutes", "60")
+        self.wizard.date_end = self.day
+        self.env["hr.attendance"].with_context(bambus_skip_recompute=True).create({
+            "employee_id": self.employee.id,
+            "check_in": datetime.combine(self.day, time(9, 10)),
+            "check_out": datetime.combine(self.day, time(15, 10)),
+        })
+        self.env["hr.attendance.overtime"].bambus_recompute_range(self.employee.ids, self.day, self.day)
+        totals = self.report._totals_for_emp(self.employee, self.wizard)
+        self.assertEqual(totals["regular_worked_days"], 1)
+        self.assertEqual(totals["total_late_after_grace_minutes"], 5)
+        self.assertEqual(totals["daily"][self.day]["late_after_grace_minutes"], 5)
+        slip = self.env["hr.payslip"].create({
+            "employee_id": self.employee.id, "contract_id": self.contract.id,
+            "date_from": self.day, "date_to": self.day,
+        })
+        slip._compute_all_stats()
+        self.assertEqual(slip.total_working_days, totals["regular_worked_days"])
+        self.assertAlmostEqual(slip.total_late_after_grace * 60, totals["total_late_after_grace_minutes"])

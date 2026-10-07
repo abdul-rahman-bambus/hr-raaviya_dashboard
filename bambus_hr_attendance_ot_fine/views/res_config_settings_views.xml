@@ -9,10 +9,7 @@
       <field name="arch" type="xml">
 
         <xpath expr="//app[@name='hr_attendance']" position="inside">
-          <block title="Overtime">
-            <setting string="Overtime Mode" help="Choose default overtime or Bambus custom daily rule.">
-              <field name="bambus_ot_mode" widget="radio"/>
-            </setting>
+          <block title="Attendance Automation">
             <setting string="Default Automation Rules"
                      help="Used when an employee has no individual attendance automation template.">
               <field name="attendance_automation_template_id"
@@ -22,6 +19,20 @@
 
         </xpath>
 
+      </field>
+    </record>
+
+    <record id="res_config_settings_hide_legacy_attendance_rules" model="ir.ui.view">
+      <field name="name">res.config.settings.hide.legacy.attendance.rules</field>
+      <field name="model">res.config.settings</field>
+      <field name="inherit_id" ref="custom_hr_payroll.view_res_config_settings_inherit_overtime"/>
+      <field name="arch" type="xml">
+        <xpath expr="//block[@name='day_allocation_settings']" position="attributes">
+          <attribute name="invisible">1</attribute>
+        </xpath>
+        <xpath expr="//block[@name='work_hour_rules']" position="attributes">
+          <attribute name="invisible">1</attribute>
+        </xpath>
       </field>
     </record>
 

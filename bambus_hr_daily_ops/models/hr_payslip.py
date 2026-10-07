@@ -221,7 +221,7 @@ class HrPayslip(models.Model):
                 detail_model.create(values_list)
 
     def _bambus_hourly_billable_hours(self, employee, contract, date_from, date_to):
-        """Use HR-approved daily payable hours while retaining the contract cap."""
+        """Use HR-approved daily payable hours with the effective daily hour cap."""
         billable, attendance_days = super()._bambus_hourly_billable_hours(
             employee, contract, date_from, date_to
         )
@@ -256,8 +256,8 @@ class HrPayslip(models.Model):
             ).date()
             raw_by_day[local_day] += attendance.worked_hours or 0.0
 
-        limit = float(getattr(contract, "hourly_wage_hour_limit", 0.0) or 0.0)
         for line in approved:
+            limit = employee._get_attendance_hourly_limit(line.date, contract)
             original = raw_by_day.get(line.date, 0.0)
             original = min(original, limit) if limit > 0 else original
             corrected = max(line.hourly_pay_hours or 0.0, 0.0)
