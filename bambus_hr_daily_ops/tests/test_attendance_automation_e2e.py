@@ -1185,3 +1185,187 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         template.active = False
         self.assertFalse(slip.weekend_days)
         self.assertEqual(slip.days_excl_weekend_holidays, 1)
+
+    def test_screenshot_sunday_policy_split_punches_review_and_recompute(self):
+        sunday = fields.Date.to_date("2026-10-04")
+        template = self._create_template(
+            "Screenshot Sunday Policy", date_from="2026-09-23", date_to="2027-09-23",
+            weekly_off_source="weekdays", weekly_off_sunday=True,
+            weekly_off_overtime_policy="all", overtime_rate_policy="fixed",
+            overtime_rate=100, overtime_calculation_type="fixed_hour",
+        )
+        employee, contract = self._create_employee_contract("Sunday Split Punches", template=template)
+        self._create_attendance(employee, (9, 0), (12, 0), day=sunday)
+        self._create_attendance(employee, (13, 0), (16, 0), day=sunday)
+        self.assertEqual(self._base_overtime(employee, sunday).duration, 6)
+        line = self._review_line(employee, contract, 6, day=sunday)
+        wizard = self._default_overtime_wizard(line)
+        self.assertEqual(wizard.detected_overtime_hours, 6)
+        wizard.overtime_hours = 5
+        wizard.action_save()
+        self.assertEqual(line.overtime_amount, 500)
+        slip = self.env["hr.payslip"].create({
+            "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": sunday, "date_to": sunday,
+        })
+        for _ in range(3):
+            self.env["hr.attendance.overtime"].bambus_recompute_range(employee.ids, sunday, sunday)
+            slip._compute_all_stats()
+            slip._bambus_rebuild_attendance_details()
+            self.assertEqual(slip.total_validated_overtime, 5)
+            self.assertEqual(slip.total_overtime_amount, 500)
+            self.assertEqual(slip.weekend_hours, 6)
+            self.assertEqual(line.overtime_hours, 5)
+            self.assertEqual(len(slip.attendance_earning_detail_ids), 1)
+        template.write({"weekly_off_overtime_policy": "disabled", "overtime_rate": 200})
+        self.env["hr.attendance.overtime"].bambus_recompute_range(employee.ids, sunday, sunday)
+        slip._compute_all_stats()
+        self.assertFalse(self._base_overtime(employee, sunday).duration)
+        self.assertEqual(slip.total_overtime_amount, 500)
+        self.assertEqual(line.overtime_rate, 100)
+
+    def test_weekly_off_minimum_threshold_boundaries(self):
+        sunday = self.test_day + timedelta(days=6)
+        template = self._create_template(
+            "Sunday Minimum", weekly_off_source="weekdays", weekly_off_sunday=True,
+            weekly_off_overtime_policy="all", minimum_overtime_minutes=60,
+        )
+        for minutes, expected in ((59, 0), (60, 1), (61, 61 / 60)):
+            with self.subTest(minutes=minutes):
+                employee, _ = self._create_employee_contract(f"Sunday {minutes}", template=template)
+                self._create_attendance(employee, (9, 0), (9 + minutes // 60, minutes % 60), day=sunday)
+                self.assertAlmostEqual(self._base_overtime(employee, sunday).duration, expected)
+
+    def test_weekly_off_disabling_overtime_clears_existing_proposal(self):
+        sunday = self.test_day + timedelta(days=6)
+        template = self._create_template(
+            "Sunday Disabled OT", weekly_off_source="weekdays", weekly_off_sunday=True,
+            weekly_off_overtime_policy="all",
+        )
+        employee, _ = self._create_employee_contract("Disable Sunday OT", template=template)
+        attendance = self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+        self.assertEqual(self._base_overtime(employee, sunday).duration, 6)
+        template.overtime_enabled = False
+        self.env["hr.attendance.overtime"].bambus_recompute_range(employee.ids, sunday, sunday)
+        self.assertFalse(self._base_overtime(employee, sunday).duration)
+        self.assertFalse(attendance.bambus_fine_hours)
+
+    def test_weekly_off_effective_dates_include_both_endpoints(self):
+        sunday = fields.Date.to_date("2026-10-04")
+        template = self._create_template(
+            "Single Effective Sunday", date_from=sunday, date_to=sunday,
+            weekly_off_source="weekdays", weekly_off_sunday=True, weekly_off_overtime_policy="all",
+        )
+        self.company_template.write({"weekly_off_source": "weekdays"})
+        employee, _ = self._create_employee_contract("Effective Sunday", template=template)
+        self.assertTrue(employee._is_attendance_weekly_off(sunday))
+        self.assertFalse(employee._is_attendance_weekly_off(sunday - timedelta(days=7)))
+        self.assertFalse(employee._is_attendance_weekly_off(sunday + timedelta(days=7)))
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+        self.assertEqual(self._base_overtime(employee, sunday).duration, 6)
+
+    def test_weekly_off_excluded_review_is_zero_in_payroll(self):
+        sunday = self.test_day + timedelta(days=6)
+        template = self._create_template(
+            "Excluded Sunday", weekly_off_source="weekdays", weekly_off_sunday=True,
+            weekly_off_overtime_policy="all",
+        )
+        employee, contract = self._create_employee_contract("Excluded Sunday Employee", template=template)
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+        line = self._review_line(employee, contract, 6, day=sunday)
+        line.overtime_state = "rejected"
+        slip = self.env["hr.payslip"].create({
+            "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": sunday, "date_to": sunday,
+        })
+        slip._compute_all_stats()
+        self.assertFalse(slip.total_validated_overtime)
+        self.assertFalse(slip.total_overtime_amount)
+        self.assertEqual(slip.weekend_hours, 6)
+
+    def test_weekly_off_saved_amount_reaches_actual_salary_rule_once(self):
+        sunday = self.test_day + timedelta(days=6)
+        template = self._create_template(
+            "Sunday Salary Rule", weekly_off_source="weekdays", weekly_off_sunday=True,
+            weekly_off_overtime_policy="all", overtime_rate_policy="fixed", overtime_rate=100,
+        )
+        employee, contract = self._create_employee_contract("Sunday Salary Calculation", template=template)
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+        line = self._review_line(employee, contract, 6, day=sunday)
+        wizard = self._default_overtime_wizard(line)
+        wizard.overtime_hours = 5
+        wizard.action_save()
+        category = self.env["hr.salary.rule.category"].create({"name": "Test OT", "code": "TESTOT"})
+        rule = self.env["hr.salary.rule"].create({
+            "name": "Sunday Saved OT", "code": "OT", "category_id": category.id,
+            "condition_select": "none", "amount_select": "code",
+            "amount_python_compute": "result = payslip.total_overtime_amount or 0.0",
+        })
+        structure = self.env["hr.payroll.structure"].create({
+            "name": "Isolated Sunday OT", "code": "SUNDAYOT", "parent_id": False,
+            "rule_ids": [(6, 0, rule.ids)],
+        })
+        contract.struct_id = structure
+        slip = self.env["hr.payslip"].create({
+            "employee_id": employee.id, "contract_id": contract.id, "struct_id": structure.id,
+            "date_from": sunday, "date_to": sunday,
+        })
+        for _ in range(3):
+            slip.action_compute_sheet()
+            ot_lines = slip.line_ids.filtered(lambda item: item.code == "OT")
+            self.assertEqual(len(ot_lines), 1)
+            self.assertEqual(ot_lines.total, 500)
+        wizard = self._default_overtime_wizard(line)
+        wizard.calculation_type = "regularize"
+        wizard.action_save()
+        slip.action_compute_sheet()
+        self.assertFalse(sum(slip.line_ids.filtered(lambda item: item.code == "OT").mapped("total")))
+
+    def test_weekly_off_uses_local_sunday_for_saturday_utc_punch(self):
+        sunday = self.test_day + timedelta(days=6)
+        self.calendar.tz = "Asia/Kolkata"
+        template = self._create_template(
+            "Local Sunday", weekly_off_source="weekdays", weekly_off_sunday=True,
+            weekly_off_overtime_policy="all",
+        )
+        employee, contract = self._create_employee_contract("Local Sunday Employee", template=template)
+        contract.state = "open"
+        self.assertEqual(employee.resource_calendar_id.tz, "Asia/Kolkata")
+        # Native overtime allocation reads calendar timezones through SQL.
+        self.env.flush_all()
+        attendance = self.env["hr.attendance"].with_context(bambus_skip_recompute=True).create({
+            "employee_id": employee.id,
+            "check_in": datetime.combine(sunday - timedelta(days=1), datetime.min.time()).replace(hour=20),
+            "check_out": datetime.combine(sunday, datetime.min.time()).replace(hour=2),
+        })
+        self.env["hr.attendance.overtime"].bambus_recompute_range(employee.ids, sunday, sunday)
+        self.assertEqual(attendance.worked_hours, 6)
+        self.assertEqual(self._base_overtime(employee, sunday).duration, 6)
+        slip = self.env["hr.payslip"].create({
+            "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": sunday, "date_to": sunday,
+        })
+        slip._compute_all_stats()
+        self.assertEqual(slip.weekend_days, 1)
+        self.assertEqual(slip.weekend_hours, 6)
+        self.assertEqual(slip.total_validated_overtime, 6)
+
+    def test_attendance_create_applies_local_weekly_off_not_payable(self):
+        sunday = self.test_day + timedelta(days=6)
+        self.calendar.tz = "Asia/Kolkata"
+        template = self._create_template(
+            "Local Sunday Not Payable", weekly_off_source="weekdays", weekly_off_sunday=True,
+            weekly_off_overtime_policy="disabled",
+        )
+        employee, contract = self._create_employee_contract("Native Local Sunday", template=template)
+        contract.state = "open"
+        self.env.flush_all()
+        # Both UTC timestamps are Saturday; both local timestamps are Sunday.
+        attendance = self.env["hr.attendance"].with_context(tz="UTC").create({
+            "employee_id": employee.id,
+            "check_in": datetime.combine(sunday - timedelta(days=1), datetime.min.time()).replace(hour=20),
+            "check_out": datetime.combine(sunday - timedelta(days=1), datetime.min.time()).replace(hour=23),
+        })
+        self.assertEqual(attendance.worked_hours, 3)
+        self.assertFalse(self._base_overtime(employee, sunday).duration)
+        self.assertFalse(attendance.overtime_hours)

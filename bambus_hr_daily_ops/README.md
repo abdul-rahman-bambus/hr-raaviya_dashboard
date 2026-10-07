@@ -143,6 +143,9 @@ later.
 
 ## Testing
 
+For a step-by-step Sunday example and automated regression command, see
+[Weekly Off Verification](docs/WEEKLY_OFF_VERIFICATION.md).
+
 The automated suite creates isolated employees, contracts, schedules,
 attendance punches, templates, salary slabs, and saved attendance records for
 the main company-default and employee-override scenarios. See

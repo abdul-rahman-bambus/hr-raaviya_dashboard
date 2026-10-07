@@ -121,6 +121,15 @@ class AttendanceXlsxReport(models.AbstractModel):
 
         atts = self._search_attendances(emp, start_date, end_date)
         by_day = self._group_by_local_day(atts, tzname, start_date, end_date)
+        reviewed_by_day = {}
+        if "bambus.hr.attendance.sheet.line" in self.env:
+            reviewed = self.env["bambus.hr.attendance.sheet.line"].sudo().search([
+                ("employee_id", "=", emp.id),
+                ("date", ">=", start_date), ("date", "<=", end_date),
+                "|", ("overtime_state", "in", ("approved", "rejected")),
+                ("fine_state", "in", ("approved", "rejected")),
+            ])
+            reviewed_by_day = {line.date: line for line in reviewed}
 
         has_ot_amount = ("bambus_overtime_amount" in Attendance._fields)
         has_fine = ("bambus_fine_hours" in Attendance._fields and "bambus_fine_amount" in Attendance._fields)
@@ -172,7 +181,19 @@ class AttendanceXlsxReport(models.AbstractModel):
                 if has_short:
                     shortfall_hours = float(last.bambus_shortfall_hours or 0.0)
 
-            # For day-fraction we use worked excluding OT (still from attendance fields only)
+            # Match payroll: saved HR values override proposals, once per day.
+            review = reviewed_by_day.get(d)
+            if review:
+                if review.overtime_state == "approved":
+                    ot, ot_amount = review.overtime_hours or 0.0, review.overtime_amount or 0.0
+                elif review.overtime_state == "rejected":
+                    ot, ot_amount = 0.0, 0.0
+                if review.fine_state == "approved":
+                    fine_hours, fine_amount = review.fine_hours or 0.0, review.fine_amount or 0.0
+                elif review.fine_state == "rejected":
+                    fine_hours, fine_amount = 0.0, 0.0
+
+            # Keep punch-level detection intact while reporting final HR amounts.
             worked_excl_ot = max(0.0, worked - ot)
 
             is_weekend = emp._is_attendance_weekly_off(d) and d not in public_holidays
