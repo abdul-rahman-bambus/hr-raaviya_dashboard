@@ -1,7 +1,7 @@
 
 {
     "name": "Attendance Custom Report",
-    "version": "18.0.1.2.0",
+    "version": "18.0.1.3.0",
     "category": "Human Resources",
     "depends": ["hr", "hr_attendance", "report_xlsx", "custom_hr_payroll"],
     "data": [

@@ -66,7 +66,7 @@ class HrAttendance(models.Model):
             if not att.employee_id or not att.check_in:
                 continue
 
-            d = fields.Date.to_date(att.check_in)
+            d = att._bambus_local_day(att.check_in)
             contract = att._get_contract_on_date(att.employee_id, d)
             if not contract:
                 continue
@@ -89,7 +89,14 @@ class HrAttendance(models.Model):
     def _bambus_local_day(self, check_in_dt):
         if not check_in_dt:
             return None
-        return fields.Datetime.context_timestamp(self, check_in_dt).date()
+        self.ensure_one()
+        employee = self.employee_id
+        tzname = employee.resource_calendar_id.tz or self.env.user.tz or "UTC"
+        day = fields.Datetime.context_timestamp(self.with_context(tz=tzname), check_in_dt).date()
+        contract = self._get_contract_on_date(employee, day)
+        if contract.resource_calendar_id.tz:
+            tzname = contract.resource_calendar_id.tz
+        return fields.Datetime.context_timestamp(self.with_context(tz=tzname), check_in_dt).date()
 
     # ---------- recompute only impacted employee+day ----------
     def _bambus_recompute_impacted(self, impacted):

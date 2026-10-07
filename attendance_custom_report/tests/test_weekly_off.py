@@ -119,3 +119,39 @@ class TestWeeklyOffReport(TransactionCase):
         daily = self.report._compute_employee_daily(other, self.wizard)
         self.assertTrue(daily[self.day]["is_weekend"])
         self.assertFalse(daily[self.day + timedelta(days=1)]["is_weekend"])
+
+    def test_xlsx_uses_hr_saved_overtime_and_fine_snapshots(self):
+        self._selected_template(overtime_rate_policy="fixed", overtime_rate=100)
+        self.wizard.date_end = self.day
+        self.env["hr.attendance"].with_context(bambus_skip_recompute=True).create({
+            "employee_id": self.employee.id,
+            "check_in": datetime.combine(self.day, time(9)),
+            "check_out": datetime.combine(self.day, time(15)),
+        })
+        self.env["hr.attendance.overtime"].bambus_recompute_range(self.employee.ids, self.day, self.day)
+        sheet = self.env["bambus.hr.attendance.sheet"].create({"date": self.day, "company_id": self.employee.company_id.id})
+        line = self.env["bambus.hr.attendance.sheet.line"].create({
+            "sheet_id": sheet.id, "employee_id": self.employee.id, "contract_id": self.contract.id,
+            "overtime_state": "approved", "overtime_hours": 5, "overtime_amount": 500,
+            "fine_state": "approved", "fine_hours": 0.25, "fine_amount": 10,
+        })
+        totals = self.report._totals_for_emp(self.employee, self.wizard)
+        self.assertEqual(totals["total_overtime_hours"], 5)
+        self.assertEqual(totals["total_overtime_amount"], 500)
+        self.assertEqual(totals["total_fine_hours"], 0.25)
+        self.assertEqual(totals["total_fine_amount"], 10)
+        output = BytesIO()
+        workbook = xlsxwriter.Workbook(output, {"in_memory": True})
+        self.report.generate_xlsx_report(workbook, {}, self.wizard)
+        workbook.close()
+        document = openpyxl.load_workbook(BytesIO(output.getvalue()), read_only=True)
+        cells = [value for sheet in document for row in sheet.iter_rows(values_only=True) for value in row]
+        self.assertIn(500, cells)
+        self.assertIn("05:00", cells)
+        self.assertNotIn(600, cells)
+        line.write({"overtime_state": "rejected", "fine_state": "rejected"})
+        totals = self.report._totals_for_emp(self.employee, self.wizard)
+        self.assertFalse(totals["total_overtime_hours"])
+        self.assertFalse(totals["total_overtime_amount"])
+        self.assertFalse(totals["total_fine_hours"])
+        self.assertFalse(totals["total_fine_amount"])
