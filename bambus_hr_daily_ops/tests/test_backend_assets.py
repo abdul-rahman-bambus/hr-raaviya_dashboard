@@ -286,3 +286,21 @@ class TestBackendAssets(TransactionCase):
         self.assertIsNotNone(
             revision_view.find(".//field[@name='revised_automation_template_id']")
         )
+
+    def test_weekly_off_configuration_is_on_template_only(self):
+        module_root = Path(__file__).parents[1]
+        tree = ElementTree.parse(module_root / "views/attendance_automation_template_views.xml")
+        weekly_off = tree.find(".//page[@string='Weekly Off']")
+        self.assertIsNotNone(weekly_off)
+        self.assertIsNotNone(weekly_off.find(".//field[@name='weekly_off_source']"))
+        weekdays = weekly_off.find(".//group[@string='Weekly Off Days']")
+        self.assertEqual(weekdays.get("invisible"), "weekly_off_source != 'weekdays'")
+        self.assertEqual(
+            {node.get("name") for node in weekdays.findall("field")},
+            {"weekly_off_" + day for day in (
+                "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+            )},
+        )
+        settings = ElementTree.parse(module_root.parent / "custom_hr_payroll/views/res_config_settings_view.xml")
+        self.assertIsNone(settings.find(".//block[@name='weekend_config']"))
+        self.assertIsNone(settings.find(".//field[@name='ot_for_weekend_and_festival']"))

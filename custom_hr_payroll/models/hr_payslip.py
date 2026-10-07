@@ -125,22 +125,6 @@ class HrPayslip(models.Model):
             slip.total_worker_hours, slip.total_worker_days = self._get_worker_total_hours(slip)
 
 
-    def get_weekend_days(self):
-        Param = self.env['ir.config_parameter'].sudo()
-
-        weekend_days = []
-
-        if Param.get_param('hr_payroll.weekend_mon') == 'True': weekend_days.append(0)
-        if Param.get_param('hr_payroll.weekend_tue') == 'True': weekend_days.append(1)
-        if Param.get_param('hr_payroll.weekend_wed') == 'True': weekend_days.append(2)
-        if Param.get_param('hr_payroll.weekend_thu') == 'True': weekend_days.append(3)
-        if Param.get_param('hr_payroll.weekend_fri') == 'True': weekend_days.append(4)
-        if Param.get_param('hr_payroll.weekend_sat') == 'True': weekend_days.append(5)
-        if Param.get_param('hr_payroll.weekend_sun') == 'True': weekend_days.append(6)
-        #if check_in_date.weekday() in weekend_days:
-        return weekend_days
-
-
     # ---------------------------
     # Helpers
     # ---------------------------
@@ -216,8 +200,9 @@ class HrPayslip(models.Model):
                 all_dates.append(cur)
                 cur = cur + timedelta(days=1)
             
-            weekend_days = self.get_weekend_days()
-            weekend_dates_in_period = [d for d in all_dates if d.weekday() in weekend_days]
+            weekend_dates_in_period = {
+                d for d in all_dates if employee._is_attendance_weekly_off(d)
+            }
 
             slip.weekend_days = float(len(weekend_dates_in_period))
             
@@ -242,6 +227,8 @@ class HrPayslip(models.Model):
                         public_holiday_dates.add(d)
                     d += timedelta(days=1)
             slip.holiday_days = len(public_holiday_dates)
+            weekend_dates_in_period -= public_holiday_dates
+            slip.weekend_days = float(len(weekend_dates_in_period))
 
             # Generate all days between start and end
             total_days_list = [
@@ -295,19 +282,27 @@ class HrPayslip(models.Model):
 
             # iterate per-day
             for day_date, segs in sorted(daily.items()):
-                # schedule segments for that date
-                sched_time_segs = self._get_schedule_segments(calendar, day_date)
+                is_weekend = day_date in weekend_dates_in_period
+                is_holiday = day_date in public_holiday_dates
+                if is_weekend or is_holiday:
+                    worked = sum((co - ci).total_seconds() for ci, co in segs) / 3600.0
+                    day_fraction = 1.0 if worked >= full_day_hrs else 0.5 if worked >= half_day_hrs else 0.0
+                    if is_holiday:
+                        holiday_worked_days += day_fraction
+                        holiday_total_hours += worked
+                    else:
+                        weekend_worked_days += day_fraction
+                        weekend_total_hours += worked
+                    continue
+                sched_time_segs = employee._get_attendance_work_periods(day_date)
                 if not sched_time_segs:
                     continue
-                # convert schedule to tz-aware datetimes
-                schedule_dt = [(tz.localize(datetime.combine(day_date, s)), tz.localize(datetime.combine(day_date, e))) for s, e in sched_time_segs]
+                schedule_dt = [
+                    (tz.localize(datetime.combine(day_date, time.min)) + timedelta(hours=start),
+                     tz.localize(datetime.combine(day_date, time.min)) + timedelta(hours=end))
+                    for start, end in sched_time_segs
+                ]
                 last_sched_end = schedule_dt[-1][1]
-
-                # determine special day
-                #is_sunday = (day_date.weekday() == 6)
-                is_weekend = (day_date.weekday() in weekend_days)
-                is_holiday = (day_date in public_holiday_dates)
-                #is_special = is_sunday or is_holiday
 
                 # --- LATE (per segment, full minutes only) ---
                 check_ins = sorted(ci for ci, co in segs)

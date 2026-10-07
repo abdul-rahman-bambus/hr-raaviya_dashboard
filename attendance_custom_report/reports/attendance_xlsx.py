@@ -39,18 +39,6 @@ class AttendanceXlsxReport(models.AbstractModel):
             cur = cur + timedelta(days=1)
         return res
 
-    def _get_weekend_days(self):
-        Param = self.env['ir.config_parameter'].sudo()
-        weekend_days = []
-        if Param.get_param('hr_payroll.weekend_mon') == 'True': weekend_days.append(0)
-        if Param.get_param('hr_payroll.weekend_tue') == 'True': weekend_days.append(1)
-        if Param.get_param('hr_payroll.weekend_wed') == 'True': weekend_days.append(2)
-        if Param.get_param('hr_payroll.weekend_thu') == 'True': weekend_days.append(3)
-        if Param.get_param('hr_payroll.weekend_fri') == 'True': weekend_days.append(4)
-        if Param.get_param('hr_payroll.weekend_sat') == 'True': weekend_days.append(5)
-        if Param.get_param('hr_payroll.weekend_sun') == 'True': weekend_days.append(6)
-        return weekend_days
-
     def _get_emp_tzname(self, emp):
         contract = emp.contract_id or (emp.contract_ids[:1] if emp.contract_ids else False)
         cal = contract.resource_calendar_id if contract else False
@@ -124,7 +112,6 @@ class AttendanceXlsxReport(models.AbstractModel):
         end_date = wizard.date_end
 
         tzname = self._get_emp_tzname(emp)
-        weekend_days = self._get_weekend_days()
         public_holidays = self._get_public_holidays_for_emp(emp, start_date, end_date, tzname)
 
         # config: half/full day thresholds
@@ -188,18 +175,19 @@ class AttendanceXlsxReport(models.AbstractModel):
             # For day-fraction we use worked excluding OT (still from attendance fields only)
             worked_excl_ot = max(0.0, worked - ot)
 
-            if worked_excl_ot >= full_day_hrs:
+            is_weekend = emp._is_attendance_weekly_off(d) and d not in public_holidays
+            is_holiday = d in public_holidays
+            # OT on special days must not erase the worked-day classification.
+            day_count_hours = worked if is_weekend or is_holiday else worked_excl_ot
+            if day_count_hours >= full_day_hrs:
                 day_fraction = 1.0
                 base_hours = full_day_hrs
-            elif worked_excl_ot >= half_day_hrs:
+            elif day_count_hours >= half_day_hrs:
                 day_fraction = 0.5
-                base_hours = worked_excl_ot
+                base_hours = day_count_hours
             else:
                 day_fraction = 0.0
                 base_hours = 0.0
-
-            is_weekend = d.weekday() in weekend_days
-            is_holiday = d in public_holidays
 
             # Absent flag: schedule exists AND not weekend/holiday
             shifts = wizard._get_shift_rules_for_employee_on_date(emp, d) if hasattr(wizard, "_get_shift_rules_for_employee_on_date") else []

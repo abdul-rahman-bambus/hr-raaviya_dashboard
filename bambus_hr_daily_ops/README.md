@@ -28,6 +28,39 @@ also template driven so schedules of different lengths remain valid full days.
 Weekly-off and public-holiday policies are independent and can either suppress
 overtime or propose every valid worked hour for HR review.
 
+### Template-driven weekly off
+
+Configure **Weekly Off** on each attendance automation template:
+
+- **Assigned Working Schedule** classifies dates without assigned work periods
+  as weekly off. It uses the contract valid for the date, including alternating
+  weeks and date-limited work periods, and falls back to the employee schedule.
+  Public holidays and personal leave do not change the weekly-off classification.
+- **Selected Weekdays** uses only the selected Monday–Sunday checkboxes,
+  even when the working schedule contains a shift on a selected day. An empty
+  selection means no weekly-off days.
+- **Not Payable** proposes no weekly-off overtime. **All Worked Hours** proposes
+  every worked hour for HR review when the Overtime Rule is enabled, subject
+  to the template's minimum overtime threshold.
+
+The effective employee template takes precedence over the company template.
+Inactive or out-of-date templates fall back to the effective company template,
+then to the assigned working schedule when neither is effective. Attendance,
+payslip statistics, and attendance XLSX reports use this same date classification.
+A public holiday that overlaps weekly off uses the public-holiday policy and
+bucket, so the day is counted once.
+
+Upgrade `custom_hr_payroll`, `bambus_hr_attendance_ot_fine`,
+`bambus_hr_daily_ops`, and `attendance_custom_report` (if installed). The legacy
+Weekend Configuration and OT for Weekend and Festival controls are removed
+from settings; their stored global values no longer determine attendance or
+reporting. Existing templates default to Assigned Working Schedule and retain
+their explicit Weekly Off Policy. Configure Selected Weekdays on the relevant
+company/employee templates if the old global weekday selections must be kept.
+The hidden legacy weekend-overtime toggle no longer overrides Not Payable.
+Review and recompute draft attendance/payroll after changing a template;
+HR-approved attendance snapshots remain the authoritative payroll amounts.
+
 ### Salary-based overtime rates
 
 Set **OT Rate Policy** to **Salary Range / Slab** to derive the hourly overtime

@@ -102,35 +102,7 @@ class AttendanceReportWizard(models.TransientModel):
 
     # ---------- shift rules: get all shifts for day ----------
     def _get_shift_rules_for_employee_on_date(self, employee, dt_date):
-        """
-        Return only actual working periods ("Morning", "Afternoon").
-        Exclude "Lunch" or any non-working segments.
-        """
-        contract = employee.contract_id or (employee.contract_ids[:1] if employee.contract_ids else False)
-        if not contract:
-            return []
-        cal = contract.resource_calendar_id
-        if not cal:
-            return []
-
-        dow = dt_date.weekday()  # Monday = 0
-
-        # Only include working periods (Morning/Afternoon)
-        rules = cal.attendance_ids.filtered(
-            lambda r:
-                r.dayofweek is not None
-                and str(int(float(r.dayofweek))) == str(dow)
-                and r.day_period and r.day_period.lower() in ('morning', 'afternoon')
-        )
-        if not rules:
-            return []
-
-        shifts = []
-        for r in rules:
-            hf = float(r.hour_from or 0.0)
-            ht = float(r.hour_to or 0.0)
-            shifts.append((hf, ht))
-        return sorted(shifts, key=lambda x: x[0])
+        return employee._get_attendance_work_periods(dt_date)
 
     # ---------- find matching shift start for a check-in ----------
     def _find_matching_shift_start(self, employee, check_in_dt):

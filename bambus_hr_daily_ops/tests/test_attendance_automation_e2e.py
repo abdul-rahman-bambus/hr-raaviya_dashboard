@@ -1016,3 +1016,161 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(fixed.resolve_public_holiday_rate(contract)[0], 95)
         self.assertEqual(multiplier.resolve_public_holiday_rate(contract)[0], 0)
         self.assertEqual(slab.resolve_public_holiday_rate(contract)[0], 115)
+
+    def test_selected_weekdays_override_working_schedule_for_every_weekday(self):
+        template = self._create_template("Selected Days", weekly_off_source="weekdays")
+        employee, _contract = self._create_employee_contract("Selected Days Employee", template=template)
+        names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        for selected, name in enumerate(names):
+            with self.subTest(weekday=name):
+                template.write({"weekly_off_" + weekday: index == selected for index, weekday in enumerate(names)})
+                for offset in range(7):
+                    self.assertEqual(employee._is_attendance_weekly_off(self.test_day + timedelta(days=offset)), offset == selected)
+
+    def test_selected_weekday_not_payable_clears_ot_and_ignores_legacy_switches(self):
+        template = self._create_template(
+            "Monday Not Payable", weekly_off_source="weekdays", weekly_off_monday=True,
+            weekly_off_overtime_policy="all", weekend_overtime=True,
+        )
+        employee, _contract = self._create_employee_contract("Monday Off Employee", template=template)
+        attendance = self._create_attendance(employee, (10, 0), (15, 0))
+        self.assertEqual(self._base_overtime(employee).duration, 5)
+        template.weekly_off_overtime_policy = "disabled"
+        self.env["ir.config_parameter"].sudo().set_param("hr_payroll.ot_for_weekend_and_festival", "True")
+        self.env["hr.attendance.overtime"].bambus_recompute_range(employee.ids, self.test_day, self.test_day)
+        self.assertFalse(self._base_overtime(employee).duration)
+        self.assertFalse(attendance.bambus_scheduled_hours)
+        self.assertFalse(attendance.bambus_fine_hours)
+        self.assertFalse(attendance.bambus_late_minutes)
+
+    def test_unselected_unscheduled_day_is_not_weekly_off_overtime(self):
+        template = self._create_template(
+            "Monday Only", weekly_off_source="weekdays", weekly_off_monday=True,
+            weekly_off_overtime_policy="all", weekend_overtime=True,
+        )
+        employee, _contract = self._create_employee_contract("Unselected Sunday", template=template)
+        sunday = self.test_day + timedelta(days=6)
+        self._create_attendance(employee, (9, 0), (15, 0), day=sunday)
+        self.assertFalse(employee._is_attendance_weekly_off(sunday))
+        self.assertFalse(self._base_overtime(employee, sunday).duration)
+
+    def test_weekly_off_template_override_and_effective_dates(self):
+        self.company_template.write({"weekly_off_source": "weekdays", "weekly_off_tuesday": True})
+        template = self._create_template(
+            "Employee Monday", weekly_off_source="weekdays", weekly_off_monday=True,
+            date_from=self.test_day, date_to=self.test_day,
+        )
+        employee, _contract = self._create_employee_contract("Effective Off Days", template=template)
+        self.assertTrue(employee._is_attendance_weekly_off(self.test_day))
+        self.assertTrue(employee._is_attendance_weekly_off(self.test_day + timedelta(days=1)))
+        template.active = False
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day))
+        self.company_template.active = False
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day))
+        self.assertTrue(employee._is_attendance_weekly_off(self.test_day + timedelta(days=6)))
+
+    def test_schedule_weekly_off_ignores_global_flags_and_holidays(self):
+        employee, contract = self._create_employee_contract("Schedule Off Employee")
+        self.env["ir.config_parameter"].sudo().set_param("hr_payroll.weekend_mon", "True")
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day))
+        self.assertTrue(employee._is_attendance_weekly_off(self.test_day + timedelta(days=6)))
+        self.env["resource.calendar.leaves"].create({
+            "name": "Monday Holiday", "calendar_id": contract.resource_calendar_id.id,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(self.test_day, datetime.min.time()).replace(hour=23),
+        })
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day))
+
+    def test_schedule_weekly_off_uses_contract_valid_for_date(self):
+        employee, old_contract = self._create_employee_contract("Historical Schedule")
+        old_contract.date_end = self.test_day
+        calendar = self.env["resource.calendar"].create({
+            "name": "Tuesday Work", "tz": "UTC", "attendance_ids": [(0, 0, {
+                "name": "Tuesday", "dayofweek": "1", "hour_from": 9, "hour_to": 17,
+            })],
+        })
+        self.env["hr.contract"].create({
+            "name": "New Tuesday Contract", "employee_id": employee.id,
+            "date_start": self.test_day + timedelta(days=1), "wage": 9000,
+            "resource_calendar_id": calendar.id,
+        })
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day))
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day + timedelta(days=1)))
+        self.assertTrue(employee._is_attendance_weekly_off(self.test_day + timedelta(days=7)))
+
+    def test_schedule_weekly_off_respects_date_limited_work_periods(self):
+        employee, _contract = self._create_employee_contract("Dated Schedule")
+        self.calendar.attendance_ids.write({"date_from": self.test_day, "date_to": self.test_day})
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day))
+        self.assertTrue(employee._is_attendance_weekly_off(self.test_day + timedelta(days=7)))
+
+    def test_schedule_weekly_off_respects_alternating_weeks(self):
+        employee, _contract = self._create_employee_contract("Alternating Weeks")
+        self.calendar.switch_calendar_type()
+        week_type = str(self.env["resource.calendar.attendance"].get_week_type(self.test_day))
+        self.calendar.attendance_ids.filtered(lambda line: not line.display_type and line.week_type != week_type).unlink()
+        self.assertFalse(employee._is_attendance_weekly_off(self.test_day))
+        self.assertTrue(employee._is_attendance_weekly_off(self.test_day + timedelta(days=7)))
+
+    def test_weekly_off_attendance_and_payroll_use_same_selected_day(self):
+        template = self._create_template(
+            "Payroll Monday Off", weekly_off_source="weekdays", weekly_off_monday=True,
+            weekly_off_overtime_policy="all",
+        )
+        employee, contract = self._create_employee_contract("Monday Payroll", template=template)
+        self._create_attendance(employee, (9, 0), (17, 0))
+        payslip = self.env["hr.payslip"].create({
+            "name": "Monday Off Payslip", "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": self.test_day, "date_to": self.test_day,
+        })
+        payslip._compute_all_stats()
+        self.assertEqual(payslip.weekend_days, 1)
+        self.assertEqual(payslip.weekend_worked, 1)
+        self.assertEqual(payslip.weekend_hours, 8)
+        self.assertEqual(payslip.total_validated_overtime, 8)
+        self.assertFalse(payslip.days_excl_weekend_holidays)
+        self.assertFalse(payslip.total_working_days)
+        lines = payslip.get_worked_day_lines(contract, self.test_day, self.test_day)
+        weekend = [line for line in lines if line['code'] == 'WEEKEND']
+        self.assertEqual(len(weekend), 1)
+        self.assertEqual(weekend[0]['number_of_hours'], 8)
+
+    def test_public_holiday_takes_precedence_over_selected_weekly_off(self):
+        template = self._create_template(
+            "Holiday Over Off", weekly_off_source="weekdays", weekly_off_monday=True,
+            weekly_off_overtime_policy="disabled", public_holiday_overtime_policy="all",
+        )
+        employee, contract = self._create_employee_contract("Holiday Off Employee", template=template)
+        self.env["resource.calendar.leaves"].create({
+            "name": "Monday Public Holiday", "calendar_id": contract.resource_calendar_id.id,
+            "date_from": datetime.combine(self.test_day, datetime.min.time()),
+            "date_to": datetime.combine(self.test_day, datetime.min.time()).replace(hour=23),
+        })
+        self._create_attendance(employee, (9, 0), (17, 0))
+        self.assertEqual(self._base_overtime(employee).duration, 8)
+        payslip = self.env["hr.payslip"].create({
+            "name": "Holiday Off Payslip", "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": self.test_day, "date_to": self.test_day,
+        })
+        payslip._compute_all_stats()
+        self.assertEqual(payslip.holiday_days, 1)
+        self.assertEqual(payslip.holiday_worked, 1)
+        self.assertEqual(payslip.holiday_hours, 8)
+        self.assertFalse(payslip.weekend_days)
+        self.assertFalse(payslip.weekend_worked)
+        self.assertFalse(payslip.days_excl_weekend_holidays)
+
+    def test_payslip_weekly_off_counts_refresh_when_template_changes(self):
+        template = self._create_template("Editable Off", weekly_off_source="weekdays")
+        employee, contract = self._create_employee_contract("Editable Off Employee", template=template)
+        slip = self.env["hr.payslip"].create({
+            "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": self.test_day, "date_to": self.test_day,
+        })
+        self.assertFalse(slip.weekend_days)
+        template.weekly_off_monday = True
+        self.assertEqual(slip.weekend_days, 1)
+        self.assertFalse(slip.days_excl_weekend_holidays)
+        template.active = False
+        self.assertFalse(slip.weekend_days)
+        self.assertEqual(slip.days_excl_weekend_holidays, 1)
