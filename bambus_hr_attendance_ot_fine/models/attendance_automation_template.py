@@ -140,6 +140,14 @@ class AttendanceAutomationTemplate(models.Model):
         string="Enable Hourly Pay Review",
         help="Allow HR to review payable hours for employees whose contract wage type is Hourly.",
     )
+    hourly_pay_use_template_limit = fields.Boolean(
+        string="Use Template Hour Limit",
+        help="Use this template's per-day billable hour limit instead of the existing contract limit.",
+    )
+    hourly_wage_hour_limit = fields.Float(
+        string="Hourly Wage Hour Limit", default=0.0,
+        help="Maximum billable hours per local day. Zero means no limit. Raw punches remain unchanged.",
+    )
     hourly_pay_calculation_type = fields.Selection(
         CALCULATION_TYPES,
         string="Hourly Pay Calculation Type",
@@ -215,7 +223,7 @@ class AttendanceAutomationTemplate(models.Model):
         "date_from", "date_to", "late_grace_minutes", "post_break_grace_minutes",
         "early_exit_grace_minutes",
         "allowed_break_minutes", "minimum_overtime_minutes", "overtime_rate",
-        "public_holiday_rate", "fine_rate", "hourly_pay_rate",
+        "public_holiday_rate", "fine_rate", "hourly_pay_rate", "hourly_wage_hour_limit",
         "overtime_start_offset_minutes", "maximum_overtime_minutes", "half_day_hours",
         "full_day_hours", "overtime_start_hour", "overtime_end_hour",
     )
@@ -233,6 +241,7 @@ class AttendanceAutomationTemplate(models.Model):
                 template.public_holiday_rate,
                 template.fine_rate,
                 template.hourly_pay_rate,
+                template.hourly_wage_hour_limit,
                 template.overtime_start_offset_minutes,
                 template.maximum_overtime_minutes,
                 template.half_day_hours,
@@ -313,6 +322,12 @@ class HrEmployee(models.Model):
             )
             return bool(template[field_names[day.weekday()]])
         return super()._is_attendance_weekly_off(day)
+
+    def _get_attendance_hourly_limit(self, day, contract):
+        template = self._get_attendance_automation_template(day)
+        if template and template.hourly_pay_use_template_limit:
+            return template.hourly_wage_hour_limit
+        return super()._get_attendance_hourly_limit(day, contract)
 
     def _get_attendance_automation_template(self, day=None):
         self.ensure_one()

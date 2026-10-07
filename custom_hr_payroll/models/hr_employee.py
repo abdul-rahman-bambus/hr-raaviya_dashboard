@@ -36,6 +36,10 @@ class HrEmployee(models.Model):
         self.ensure_one()
         return not self._get_attendance_work_periods(day)
 
+    def _get_attendance_hourly_limit(self, day, contract):
+        self.ensure_one()
+        return float(contract.hourly_wage_hour_limit or 0.0) if contract else 0.0
+
     _sql_constraints = [
         ("employee_number_unique", "unique(employee_number)", "Employee ID must be unique."),
     ]

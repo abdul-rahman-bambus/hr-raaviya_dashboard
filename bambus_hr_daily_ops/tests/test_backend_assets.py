@@ -266,7 +266,7 @@ class TestBackendAssets(TransactionCase):
         salary_slabs = form.find(".//group[@string='OT Salary Slabs']")
         self.assertEqual(fine_defaults.get("invisible"), "not late_enabled")
         self.assertEqual(calculation_defaults.get("invisible"), "not overtime_enabled")
-        self.assertEqual(day_classification.get("invisible"), "not overtime_enabled")
+        self.assertIsNone(day_classification.get("invisible"))
         self.assertIn("not overtime_enabled", salary_slabs.get("invisible"))
 
     def test_employment_revision_adds_automation_template_fields(self):
@@ -304,3 +304,16 @@ class TestBackendAssets(TransactionCase):
         settings = ElementTree.parse(module_root.parent / "custom_hr_payroll/views/res_config_settings_view.xml")
         self.assertIsNone(settings.find(".//block[@name='weekend_config']"))
         self.assertIsNone(settings.find(".//field[@name='ot_for_weekend_and_festival']"))
+
+    def test_combined_settings_view_hides_duplicate_attendance_controls(self):
+        from lxml import etree
+        view = self.env["res.config.settings"].get_view(
+            view_id=self.env.ref("base.res_config_settings_view_form").id, view_type="form"
+        )
+        form = etree.fromstring(view["arch"].encode())
+        for name in ("day_allocation_settings", "work_hour_rules"):
+            blocks = form.xpath(f"//block[@name='{name}']")
+            self.assertTrue(blocks)
+            self.assertTrue(all(block.get("invisible") == "1" for block in blocks))
+        self.assertFalse(form.xpath("//field[@name='bambus_ot_mode']"))
+        self.assertTrue(form.xpath("//field[@name='attendance_automation_template_id']"))

@@ -28,6 +28,30 @@ also template driven so schedules of different lengths remain valid full days.
 Weekly-off and public-holiday policies are independent and can either suppress
 overtime or propose every valid worked hour for HR review.
 
+### Attendance settings now live on templates
+
+With the attendance automation module installed, global Day Allocations, Work
+Hour Rules, and Overtime Mode controls are hidden in Settings. Keep using
+**Default Automation Rules** to select the company template. Configure late
+and post-break grace, half/full-day thresholds, and overtime on the template.
+Day-classification fields remain editable even when overtime is disabled.
+
+Payroll and XLSX summaries use the effective template's day thresholds.
+Stored template late minutes already include per-session grace; summaries no
+longer deduct the legacy global grace a second time. Existing saved global
+values remain available only to compatibility paths without an effective template.
+The standalone custom payroll module retains its original settings view.
+
+In **Hourly Pay**, enable **Use Template Hour Limit** to override the existing
+contract cap. Set **Hourly Wage Hour Limit** to the maximum billable hours per
+local day; zero means no cap. Raw punches remain unchanged. Existing templates
+keep their contract caps until this override is enabled, avoiding a silent pay
+change during upgrade. The same cap applies to detected and HR-reviewed hours.
+
+Upgrade all four affected modules: `custom_hr_payroll`,
+`bambus_hr_attendance_ot_fine`, `bambus_hr_daily_ops`, and
+`attendance_custom_report` (if installed).
+
 ### Template-driven weekly off
 
 Configure **Weekly Off** on each attendance automation template:

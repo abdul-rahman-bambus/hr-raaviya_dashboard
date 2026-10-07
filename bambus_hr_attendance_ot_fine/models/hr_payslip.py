@@ -12,6 +12,23 @@ _logger = logging.getLogger(__name__)
 class HrPayslip(models.Model):
     _inherit = "hr.payslip"
 
+    @api.depends(
+        "employee_id", "contract_id", "date_from", "date_to",
+        "contract_id.hourly_wage_hour_limit",
+        "employee_id.attendance_automation_template_id.hourly_pay_use_template_limit",
+        "employee_id.attendance_automation_template_id.hourly_wage_hour_limit",
+        "employee_id.attendance_automation_template_id.active",
+        "employee_id.attendance_automation_template_id.date_from",
+        "employee_id.attendance_automation_template_id.date_to",
+        "employee_id.company_id.attendance_automation_template_id.hourly_pay_use_template_limit",
+        "employee_id.company_id.attendance_automation_template_id.hourly_wage_hour_limit",
+        "employee_id.company_id.attendance_automation_template_id.active",
+        "employee_id.company_id.attendance_automation_template_id.date_from",
+        "employee_id.company_id.attendance_automation_template_id.date_to",
+    )
+    def _compute_worker_hours(self):
+        return super()._compute_worker_hours()
+
     def action_compute_sheet(self):
         """Refresh attendance buckets before evaluating payroll salary rules."""
         overtime_model = self.env["hr.attendance.overtime"].sudo()
@@ -148,6 +165,12 @@ class HrPayslip(models.Model):
         "employee_id.attendance_ids", "employee_id.attendance_ids.check_in", "employee_id.attendance_ids.check_out",
         "employee_id.attendance_ids.worked_hours", "employee_id.attendance_ids.overtime_hours", "employee_id.attendance_ids.bambus_scheduled_hours",
         "employee_id.attendance_ids.bambus_shortfall_hours",
+        "employee_id.attendance_automation_template_id.half_day_hours",
+        "employee_id.attendance_automation_template_id.full_day_basis",
+        "employee_id.attendance_automation_template_id.full_day_hours",
+        "employee_id.company_id.attendance_automation_template_id.half_day_hours",
+        "employee_id.company_id.attendance_automation_template_id.full_day_basis",
+        "employee_id.company_id.attendance_automation_template_id.full_day_hours",
         "employee_id.attendance_automation_template_id.active",
         "employee_id.attendance_automation_template_id.date_from",
         "employee_id.attendance_automation_template_id.date_to",
@@ -295,6 +318,8 @@ class HrPayslip(models.Model):
 
 
             late_by_month = defaultdict(int)
+            legacy_late_by_month = defaultdict(int)
+            template_late_minutes = 0
 
             for i in range(total_days):
                 d = slip.date_from + timedelta(days=i)
@@ -324,11 +349,13 @@ class HrPayslip(models.Model):
                     if has_sched:
                         scheduled_today = float(last.bambus_scheduled_hours or 0.0)
 
-                # fallback schedule if not stored
-                if scheduled_today <= 0:
-                    scheduled_today = float(full_day_hrs)
-
                 automation = emp._get_attendance_automation_template(d)
+                # Resolve day targets from the same template used by detection.
+                if scheduled_today <= 0:
+                    scheduled_today = (
+                        sum(end - start for start, end in emp._get_attendance_work_periods(d))
+                        or automation.full_day_hours
+                    ) if automation else float(full_day_hrs)
                 half_day_target = (
                     automation.half_day_hours if automation else half_day_hrs
                 )
@@ -394,6 +421,11 @@ class HrPayslip(models.Model):
 
 
                 late_by_month[(d.year, d.month)] += late_mins
+                if automation:
+                    # Stored detection already applies per-session template grace.
+                    template_late_minutes += late_mins
+                else:
+                    legacy_late_by_month[(d.year, d.month)] += late_mins
 
                 if is_weekend:
                     slip.weekend_worked += day_fraction
@@ -423,7 +455,9 @@ class HrPayslip(models.Model):
 
             total_late_raw = sum(late_by_month.values())
 
-            total_late_after = sum(max(0, m - grace_minutes) for m in late_by_month.values())
+            total_late_after = template_late_minutes + sum(
+                max(0, minutes - grace_minutes) for minutes in legacy_late_by_month.values()
+            )
 
             slip.total_late_login_minutes = total_late_raw / 60.0
             slip.total_late_after_grace = total_late_after / 60.0

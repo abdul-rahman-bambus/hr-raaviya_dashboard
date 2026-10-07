@@ -143,6 +143,17 @@ class AttendanceXlsxReport(models.AbstractModel):
         result = {}
 
         for d in dates:
+            automation = (
+                emp._get_attendance_automation_template(d)
+                if hasattr(emp, "_get_attendance_automation_template") else False
+            )
+            shifts = emp._get_attendance_work_periods(d)
+            day_half_hours = automation.half_day_hours if automation else half_day_hrs
+            day_full_hours = (
+                (sum(end - start for start, end in shifts) or automation.full_day_hours)
+                if automation and automation.full_day_basis == "schedule"
+                else automation.full_day_hours if automation else full_day_hrs
+            )
             day_att = by_day.get(d, Attendance.browse())
 
             worked = sum(day_att.mapped("worked_hours")) if day_att else 0.0
@@ -199,11 +210,11 @@ class AttendanceXlsxReport(models.AbstractModel):
             is_weekend = emp._is_attendance_weekly_off(d) and d not in public_holidays
             is_holiday = d in public_holidays
             # OT on special days must not erase the worked-day classification.
-            day_count_hours = worked if is_weekend or is_holiday else worked_excl_ot
-            if day_count_hours >= full_day_hrs:
+            day_count_hours = worked if automation or is_weekend or is_holiday else worked_excl_ot
+            if day_count_hours >= day_full_hours:
                 day_fraction = 1.0
-                base_hours = full_day_hrs
-            elif day_count_hours >= half_day_hrs:
+                base_hours = day_full_hours
+            elif day_count_hours >= day_half_hours:
                 day_fraction = 0.5
                 base_hours = day_count_hours
             else:
@@ -211,7 +222,6 @@ class AttendanceXlsxReport(models.AbstractModel):
                 base_hours = 0.0
 
             # Absent flag: schedule exists AND not weekend/holiday
-            shifts = wizard._get_shift_rules_for_employee_on_date(emp, d) if hasattr(wizard, "_get_shift_rules_for_employee_on_date") else []
             is_absent = (not day_att) and bool(shifts) and (not is_weekend) and (not is_holiday)
 
             # Sanity: Fine should match split (allow 1 minute rounding)
@@ -233,6 +243,7 @@ class AttendanceXlsxReport(models.AbstractModel):
                 "ot_amount": ot_amount,
 
                 "late_minutes": late_mins,
+                "uses_template": bool(automation),
                 "early_leave_minutes": early_mins,
                 "gap_minutes": gap_mins,
 
@@ -280,8 +291,15 @@ class AttendanceXlsxReport(models.AbstractModel):
         total_early_mins = sum(int(daily[d]["early_leave_minutes"] or 0) for d in dates)
         total_gap_mins = sum(int(daily[d]["gap_minutes"] or 0) for d in dates)
 
-        # ✅ Grace applies ONCE PER MONTH (overall), not per day
-        total_late_after_grace_mins = max(0, int(total_late_mins or 0) - int(grace_minutes or 0))
+        template_late = sum(info["late_minutes"] for info in daily.values() if info["uses_template"])
+        legacy_late = sum(info["late_minutes"] for info in daily.values() if not info["uses_template"])
+        # Template detection has already subtracted its session-specific grace.
+        total_late_after_grace_mins = template_late + max(0, legacy_late - grace_minutes)
+        for info in daily.values():
+            info["late_after_grace_minutes"] = (
+                info["late_minutes"] if info["uses_template"]
+                else max(0, info["late_minutes"] - grace_minutes)
+            )
 
 
         return {
@@ -479,7 +497,7 @@ class AttendanceXlsxReport(models.AbstractModel):
 
                     sheet_e.write(r, 10, self.float_to_time(info["fine_hours"]), row_fmt)
 
-                    late_after = max(0, int(info["late_minutes"] or 0) - grace_minutes)
+                    late_after = info["late_after_grace_minutes"]
                     sheet_e.write(r, 11, "-", row_fmt)
 
 
@@ -742,7 +760,7 @@ class AttendanceXlsxReport(models.AbstractModel):
 
                     sheet_e.write(r, 10, self.float_to_time(info["fine_hours"]), row_fmt)
 
-                    late_after = max(0, int(info["late_minutes"] or 0) - grace_minutes)
+                    late_after = info["late_after_grace_minutes"]
                     sheet_e.write(r, 11, "-", row_fmt)
 
                     sheet_e.write(r, 12, info["fine_amount"], row_fmt)

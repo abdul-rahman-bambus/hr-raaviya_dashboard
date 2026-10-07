@@ -1369,3 +1369,56 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(attendance.worked_hours, 3)
         self.assertFalse(self._base_overtime(employee, sunday).duration)
         self.assertFalse(attendance.overtime_hours)
+
+    def test_template_late_grace_not_deducted_again_by_global_payroll_setting(self):
+        self.env["ir.config_parameter"].sudo().set_param("custom_hr_payroll.late_login_grace_minutes", "60")
+        template = self._create_template("Per Session Grace", late_grace_minutes=5)
+        employee, contract = self._create_employee_contract("Template Grace Employee", template=template)
+        attendance = self._create_attendance(employee, (9, 10), (17, 0))
+        self.assertEqual(attendance.bambus_late_minutes, 5)
+        slip = self.env["hr.payslip"].create({
+            "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": self.test_day, "date_to": self.test_day,
+        })
+        slip._compute_all_stats()
+        self.assertAlmostEqual(slip.total_late_after_grace, 5 / 60)
+
+    def test_template_hourly_limit_overrides_contract_for_each_local_day(self):
+        template = self._create_template(
+            "Template Hour Cap", hourly_pay_use_template_limit=True, hourly_wage_hour_limit=5,
+        )
+        employee, contract = self._create_employee_contract("Template Hourly Cap", template=template)
+        contract.write({"wage_type": "hourly", "hourly_rate": 100, "hourly_wage_hour_limit": 2})
+        self._create_attendance(employee, (9, 0), (17, 0))
+        model = self.env["hr.payslip"]
+        hours, days = model._bambus_hourly_billable_hours(employee, contract, self.test_day, self.test_day)
+        self.assertEqual((hours, days), (5, 1))
+        slip = model.create({
+            "employee_id": employee.id, "contract_id": contract.id,
+            "date_from": self.test_day, "date_to": self.test_day,
+        })
+        self.assertEqual(slip.total_worker_hours, 5)
+        template.hourly_wage_hour_limit = 0
+        self.assertEqual(slip.total_worker_hours, 8)
+        self.assertEqual(model._bambus_hourly_billable_hours(employee, contract, self.test_day, self.test_day)[0], 8)
+        template.hourly_pay_use_template_limit = False
+        self.assertEqual(slip.total_worker_hours, 2)
+        self.assertEqual(model._bambus_hourly_billable_hours(employee, contract, self.test_day, self.test_day)[0], 2)
+        self.assertEqual(employee.attendance_ids.worked_hours, 8)
+
+    def test_template_cap_applies_to_hr_saved_hourly_pay(self):
+        template = self._create_template(
+            "Reviewed Template Cap", hourly_pay_use_template_limit=True, hourly_wage_hour_limit=5,
+        )
+        employee, contract = self._create_employee_contract("Reviewed Hour Cap", template=template)
+        contract.write({"wage_type": "hourly", "hourly_rate": 100, "hourly_wage_hour_limit": 2})
+        self._create_attendance(employee, (9, 0), (17, 0))
+        line = self._review_line(employee, contract, 0)
+        line.write({"hourly_pay_state": "approved", "hourly_pay_hours": 7, "hourly_pay_amount": 700})
+        billable, days = self.env["hr.payslip"]._bambus_hourly_billable_hours(employee, contract, self.test_day, self.test_day)
+        self.assertEqual((billable, days), (5, 1))
+
+    def test_template_hour_limit_rejects_negative_value(self):
+        from odoo.exceptions import ValidationError
+        with self.assertRaises(ValidationError), self.cr.savepoint():
+            self._create_template("Invalid Hour Cap", hourly_wage_hour_limit=-1)

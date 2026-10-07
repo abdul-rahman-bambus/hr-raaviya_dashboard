@@ -169,7 +169,7 @@
                                            invisible="overtime_rate_policy != 'fixed'"/>
                                 </group>
                             </group>
-                            <group string="Attendance Day Classification" invisible="not overtime_enabled">
+                            <group string="Attendance Day Classification">
                                 <field name="half_day_hours"/>
                                 <field name="full_day_basis"/>
                                 <field name="full_day_hours" invisible="full_day_basis != 'fixed'"/>
@@ -227,6 +227,9 @@
                             </div>
                             <group>
                                 <field name="hourly_pay_enabled"/>
+                                <field name="hourly_pay_use_template_limit"/>
+                                <field name="hourly_wage_hour_limit"
+                                       invisible="not hourly_pay_use_template_limit"/>
                                 <field name="hourly_pay_calculation_type"
                                        invisible="not hourly_pay_enabled"/>
                                 <field name="hourly_pay_rate" widget="monetary"

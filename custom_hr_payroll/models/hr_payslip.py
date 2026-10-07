@@ -40,7 +40,7 @@ class HrPayslip(models.Model):
     def _bambus_hourly_billable_hours(self, employee, contract, date_from, date_to):
         """
         Billable worked hours for an hourly-wage employee over [date_from, date_to],
-        where EACH LOCAL DAY is capped at contract.hourly_wage_hour_limit.
+        where each local day uses the effective template or contract hour limit.
 
         This is the single place the "Hourly Wage Hour Limit" is enforced:
         the field means "the employee cannot be billed beyond this time" *per day*.
@@ -58,8 +58,6 @@ class HrPayslip(models.Model):
             date_from = fields.Date.from_string(date_from)
         if isinstance(date_to, str):
             date_to = fields.Date.from_string(date_to)
-
-        limit = float(getattr(contract, "hourly_wage_hour_limit", 0.0) or 0.0)
 
         tzname = (contract.resource_calendar_id.tz
                   if contract.resource_calendar_id and contract.resource_calendar_id.tz
@@ -93,10 +91,10 @@ class HrPayslip(models.Model):
             d = fields.Datetime.context_timestamp(self.with_context(tz=tzname), att.check_in).date()
             per_day[d] += (att.worked_hours or 0.0)
 
-        if limit > 0:
-            billable = sum(min(hrs, limit) for hrs in per_day.values())
-        else:
-            billable = sum(per_day.values())
+        billable = 0.0
+        for day, hours in per_day.items():
+            limit = employee._get_attendance_hourly_limit(day, contract)
+            billable += min(hours, limit) if limit > 0 else hours
 
         return billable, len(per_day)
 

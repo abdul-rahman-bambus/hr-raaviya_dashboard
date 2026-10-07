@@ -17,7 +17,7 @@
 						<br />
 					</setting>
 				</block>
-				<block title="Work Hour Rules">
+				<block title="Work Hour Rules" name="work_hour_rules">
 				    <setting class="mt16">
 				        <label for="half_day_hours"/>
 				        <field name="half_day_hours" class="text-center" style="width:5ch;"/>
