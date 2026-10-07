@@ -3,11 +3,14 @@
   <t t-name="bambus_hr_daily_ops.EmployeeAttendance">
     <main class="o_bea_dashboard">
       <button type="button" class="o_bea_back" t-on-click="goBack"><i class="fa fa-arrow-left"/> Back</button>
-      <div t-if="state.loading" class="o_bea_state"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>
-      <div t-elif="state.error" class="alert alert-danger o_bea_state">
+      <div t-if="state.loading &amp;&amp; state.data" class="text-muted small py-1" role="status"><i class="fa fa-spinner fa-spin"/> Updating…</div>
+      <div t-if="state.loading &amp;&amp; !state.data" class="o_bea_state"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>
+      <div t-if="state.error" role="alert" class="alert alert-danger o_bea_state">
         <strong>Attendance could not be loaded.</strong> <span t-esc="state.error"/>
+        <span t-if="state.data">Showing <t t-esc="state.data.month"/>.</span>
+        <button class="btn btn-outline-danger btn-sm ms-2" t-on-click="() => this.load()">Try Again</button>
       </div>
-      <t t-elif="state.data">
+      <t t-if="state.data">
         <header class="o_bea_header">
           <h2><t t-esc="state.data.employee.name"/> <small t-if="state.data.employee.barcode">#<t t-esc="state.data.employee.barcode"/></small></h2>
           <button type="button" class="btn btn-outline-primary" t-on-click="downloadReport"><i class="fa fa-download"/> Download Report</button>
@@ -15,7 +18,7 @@
         <section class="o_bea_summary">
           <div class="o_bea_month">
             <button type="button" t-on-click="() => this.moveMonth(-1)" aria-label="Previous month"><i class="fa fa-chevron-left"/></button>
-            <label><span t-esc="state.data.month_label"/><input type="month" t-att-value="state.data.month" t-on-change="changeMonth" aria-label="Select month"/></label>
+            <label><span t-esc="state.data.month_label"/><input type="month" t-att-value="state.selectedMonth" t-on-change="changeMonth" aria-label="Select month"/></label>
             <button type="button" t-on-click="() => this.moveMonth(1)" aria-label="Next month"><i class="fa fa-chevron-right"/></button>
           </div>
           <div class="o_bea_approval"><i class="fa fa-check-circle"/> Attendance Summary</div>

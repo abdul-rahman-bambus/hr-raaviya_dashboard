@@ -23,37 +23,47 @@ export class EmployeeAttendance extends Component {
             loading: true,
             error: "",
             data: null,
+            selectedMonth: "",
             selectedDay: null,
             activeView: "daily",
         });
+        this.loadSequence = 0;
         onWillStart(() => this.load());
     }
 
     async load(month) {
+        const selectedMonth = month || this.state.selectedMonth || false;
+        const sequence = ++this.loadSequence;
+        this.state.selectedMonth = selectedMonth || "";
         this.state.loading = true;
         this.state.error = "";
         try {
             if (!this.employeeId) {
                 throw new Error("No employee was selected. Return to Employees and open Attendance again.");
             }
-            this.state.data = await this.orm.call(
-                "hr.employee",
-                "get_monthly_attendance",
-                [this.employeeId, month || false]
+            const data = await this.orm.call(
+                "hr.employee", "get_monthly_attendance", [this.employeeId, selectedMonth]
             );
+            if (sequence === this.loadSequence) {
+                if (data.month !== this.state.data?.month) this.state.selectedDay = null;
+                this.state.data = data;
+                this.state.selectedMonth = data.month;
+            }
         } catch (error) {
-            this.state.error = error.cause?.message || error.message || "Unable to load attendance.";
+            if (sequence === this.loadSequence) {
+                this.state.error = error.cause?.message || error.message || "Unable to load attendance.";
+            }
         } finally {
-            this.state.loading = false;
+            if (sequence === this.loadSequence) this.state.loading = false;
         }
     }
 
     changeMonth(event) {
-        this.load(event.target.value);
+        if (event.target.value) this.load(event.target.value);
     }
 
     moveMonth(offset) {
-        const date = new Date(`${this.state.data.month}-01T00:00:00Z`);
+        const date = new Date(`${this.state.selectedMonth}-01T00:00:00Z`);
         date.setUTCMonth(date.getUTCMonth() + offset);
         this.load(date.toISOString().slice(0, 7));
     }
@@ -136,7 +146,7 @@ export class EmployeeAttendance extends Component {
                 default_request_date_to: row.date,
             },
         }, {
-            onClose: () => this.load(this.state.data.month),
+            onClose: () => this.load(),
         });
     }
 

@@ -17,6 +17,7 @@ export class AttendanceDashboard extends Component {
         this.state = useState({
             loading: true,
             data: null,
+            selectedDate: this.initialDate || this.today(),
             error: "",
             query: "",
             statusFilter: actionParams.metric_filter || "all",
@@ -30,10 +31,15 @@ export class AttendanceDashboard extends Component {
     }
 
     async load(date) {
+        const selectedDate = date || this.state.selectedDate;
+        if (!selectedDate) return;
+        const dateChanged = selectedDate !== this.state.data?.date;
+        // Keep edits tied to their original day until autosave/dialogs finish.
+        if (dateChanged && this.dateNavigationLocked) return;
         const sequence = ++this.loadSequence;
+        this.state.selectedDate = selectedDate;
         this.state.loading = true;
         this.state.error = "";
-        const selectedDate = date || this.state.data?.date || this.today();
         try {
             const data = await this.orm.call(
                 "bambus.hr.attendance.sheet",
@@ -44,8 +50,12 @@ export class AttendanceDashboard extends Component {
             // A slower response for the previous date must never overwrite the
             // most recently selected date.
             if (sequence === this.loadSequence) {
+                if (dateChanged) this.state.logEmployee = null;
                 this.state.data = { ...data };
-                this.state.currentPage = 1;
+                this.state.currentPage = dateChanged ? 1 : Math.min(
+                    this.state.currentPage,
+                    this.refreshPageCount
+                );
             }
         } catch (error) {
             if (sequence === this.loadSequence) {
@@ -56,6 +66,19 @@ export class AttendanceDashboard extends Component {
                 this.state.loading = false;
             }
         }
+    }
+
+    get refreshPageCount() {
+        return this.dashboardPageCount;
+    }
+
+    get dateNavigationLocked() {
+        return Object.values(this.state.savingIds).some(Boolean) ||
+            Boolean(this.state.adjustment || this.state.timingAdjustment);
+    }
+
+    get canEditAttendance() {
+        return !this.state.loading && this.state.selectedDate === this.state.data?.date;
     }
 
     today() {
@@ -247,6 +270,7 @@ export class AttendanceDashboard extends Component {
     }
 
     async setStatus(employee, status) {
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) return;
         employee.status = status;
         employee.status_label = {
             present: "Present", absent: "Absent", halfday: "Half Day", leave: "Leave",
@@ -255,7 +279,7 @@ export class AttendanceDashboard extends Component {
     }
 
     async saveEmployee(employee) {
-        if (this.state.savingIds[employee.id]) {
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
         }
         this.state.savingIds[employee.id] = true;
@@ -305,10 +329,11 @@ export class AttendanceDashboard extends Component {
 
     async changeDate(ev) {
         await this.load(ev.target.value);
+        ev.target.value = this.state.selectedDate;
     }
 
     moveDate(offset) {
-        const date = new Date(`${this.state.data.date}T00:00:00Z`);
+        const date = new Date(`${this.state.selectedDate}T00:00:00Z`);
         date.setUTCDate(date.getUTCDate() + offset);
         this.load(date.toISOString().slice(0, 10));
     }
