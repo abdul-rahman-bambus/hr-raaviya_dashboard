@@ -16,6 +16,10 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.timingAdjustment = null;
     }
 
+    get refreshPageCount() {
+        return this.pageCount;
+    }
+
     get filteredDailyGroups() {
         const groups = new Map();
         for (const employee of this.filteredDailyEmployees) {
@@ -29,7 +33,7 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async updateEmployeeField(employee, field, event) {
-        if (this.state.savingIds[employee.id]) {
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
         }
         const previousStatus = employee.status;
@@ -48,7 +52,7 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     openTimingAdjustment(employee) {
-        if (this.state.savingIds[employee.id]) return;
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) return;
         this.state.timingAdjustment = {
             employee,
             checkIn: employee.check_in_value || "",
@@ -85,7 +89,7 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async setStatus(employee, status) {
-        if (this.state.savingIds[employee.id]) {
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
         }
         const previousStatus = employee.status;
@@ -124,7 +128,7 @@ export class AttendanceEditor extends AttendanceDashboard {
             await this.revokeStatus(employee, "halfday");
             return;
         }
-        if (this.state.savingIds[employee.id]) {
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
         }
         this.state.savingIds[employee.id] = true;
@@ -169,7 +173,7 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async revokeStatus(employee, status) {
-        if (this.state.savingIds[employee.id]) {
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
         }
         this.state.savingIds[employee.id] = true;
@@ -200,6 +204,8 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     openLeave(employee) {
+        if (!this.canEditAttendance) return;
+        const date = this.state.data.date;
         this.action.doAction({
             type: "ir.actions.act_window",
             name: employee.leave_id ? "Time Off" : "New Time Off Request",
@@ -214,18 +220,20 @@ export class AttendanceEditor extends AttendanceDashboard {
                 default_request_date_to: this.state.data.date,
             },
         }, {
-            onClose: () => this.syncEmployee(employee),
+            onClose: () => this.syncEmployee(employee, date),
         });
     }
 
-    async syncEmployee(employee) {
+    async syncEmployee(employee, date = this.state.data.date) {
+        const sequence = this.loadSequence;
         try {
             const data = await this.orm.call(
                 "bambus.hr.attendance.sheet",
                 "get_attendance_dashboard",
                 [],
-                { selected_date: this.state.data.date }
+                { selected_date: date }
             );
+            if (sequence !== this.loadSequence || date !== this.state.selectedDate) return;
             const updatedEmployee = data.daily_attendance.find((item) => item.id === employee.id);
             if (updatedEmployee) {
                 Object.assign(employee, updatedEmployee);
@@ -249,7 +257,8 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async openAdjustment(employee, adjustment) {
-        if (this.state.savingIds[employee.id]) {
+        const sequence = this.loadSequence;
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
         }
         try {
@@ -258,6 +267,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                 "get_dashboard_adjustment",
                 [employee.id, this.state.data.date, adjustment]
             );
+            if (sequence !== this.loadSequence || !this.canEditAttendance) return;
             this.state.adjustment = { ...data, employeeRecord: employee, saving: false };
         } catch (error) {
             this.notification.add(
@@ -348,7 +358,7 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async saveEmployee(employee, rollback = {}) {
-        if (this.state.savingIds[employee.id]) {
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
         }
         this.state.savingIds[employee.id] = true;
@@ -387,7 +397,7 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     isSaving(employeeId) {
-        return Boolean(this.state.savingIds[employeeId]);
+        return !this.canEditAttendance || Boolean(this.state.savingIds[employeeId]);
     }
 }
 

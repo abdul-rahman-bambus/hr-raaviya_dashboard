@@ -44,12 +44,13 @@
         </div>
       </section>
 
-      <div t-if="state.loading" class="o_bed_state"><i class="fa fa-spinner fa-spin"/> Loading staff…</div>
-      <div t-elif="state.error" class="alert alert-danger o_bed_state">
+      <div t-if="state.loading &amp;&amp; state.loaded" class="text-muted small py-1" role="status"><i class="fa fa-spinner fa-spin"/> Updating…</div>
+      <div t-if="state.loading &amp;&amp; !state.loaded" class="o_bed_state"><i class="fa fa-spinner fa-spin"/> Loading staff…</div>
+      <div t-if="state.error" class="alert alert-danger o_bed_state">
         <strong>Employee list could not be loaded.</strong> <span t-esc="state.error"/>
         <button type="button" class="btn btn-outline-danger btn-sm ms-2" t-on-click="load">Try Again</button>
       </div>
-      <section t-else="" class="o_bed_groups">
+      <section t-if="state.loaded" class="o_bed_groups">
         <div class="o_bed_group" t-foreach="employeeGroups" t-as="group" t-key="group.id">
           <div class="o_bed_group_title">
             <span t-esc="group.name"/>

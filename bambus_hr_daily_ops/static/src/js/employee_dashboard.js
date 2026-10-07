@@ -14,29 +14,37 @@ export class EmployeeDashboard extends Component {
         this.state = useState({
             employees: [],
             loading: true,
+            loaded: false,
             error: "",
             query: "",
             departmentId: "all",
             showFilters: false,
             selectedIds: [],
         });
+        this.loadSequence = 0;
         onWillStart(() => this.load());
     }
 
     async load() {
+        const sequence = ++this.loadSequence;
         this.state.loading = true;
         this.state.error = "";
         try {
-            this.state.employees = await this.orm.searchRead(
+            const employees = await this.orm.searchRead(
                 "hr.employee",
                 [["active", "=", true]],
                 ["name", "barcode", "job_id", "department_id", "work_email", "mobile_phone"],
                 { order: "name asc" }
             );
+            if (sequence === this.loadSequence) {
+                this.state.employees = employees;
+                this.state.loaded = true;
+            }
         } catch (error) {
+            if (sequence !== this.loadSequence) return;
             this.state.error = error.cause?.message || error.message || "Unable to load employees.";
         } finally {
-            this.state.loading = false;
+            if (sequence === this.loadSequence) this.state.loading = false;
         }
     }
 
