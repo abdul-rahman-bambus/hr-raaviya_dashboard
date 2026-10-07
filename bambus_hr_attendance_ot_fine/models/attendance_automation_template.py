@@ -51,10 +51,22 @@ class AttendanceAutomationTemplate(models.Model):
     overtime_enabled = fields.Boolean(string="Overtime Rule", default=True)
     minimum_overtime_minutes = fields.Integer(string="Minimum Overtime (Minutes)", default=0)
     weekend_overtime = fields.Boolean(string="Weekend / Holiday Overtime")
+    weekly_off_source = fields.Selection([
+        ("schedule", "Assigned Working Schedule"),
+        ("weekdays", "Selected Weekdays"),
+    ], string="Weekly Off Source", required=True, default="schedule",
+       help="Use dates with no assigned work periods, or only the weekdays selected below.")
+    weekly_off_monday = fields.Boolean(string="Monday")
+    weekly_off_tuesday = fields.Boolean(string="Tuesday")
+    weekly_off_wednesday = fields.Boolean(string="Wednesday")
+    weekly_off_thursday = fields.Boolean(string="Thursday")
+    weekly_off_friday = fields.Boolean(string="Friday")
+    weekly_off_saturday = fields.Boolean(string="Saturday")
+    weekly_off_sunday = fields.Boolean(string="Sunday")
     weekly_off_overtime_policy = fields.Selection([
         ("disabled", "Not Payable"),
         ("all", "All Worked Hours"),
-    ], required=True, default="disabled")
+    ], string="Weekly Off Policy", required=True, default="disabled")
     public_holiday_overtime_policy = fields.Selection([
         ("all", "All Worked Hours as Overtime"),
         ("disabled", "No Additional Overtime"),
@@ -288,6 +300,19 @@ class HrEmployee(models.Model):
         domain="[('company_id', '=', company_id)]",
         groups="hr.group_hr_user",
     )
+
+    def _is_attendance_weekly_off(self, day):
+        self.ensure_one()
+        day = fields.Date.to_date(day)
+        template = self._get_attendance_automation_template(day)
+        if template and template.weekly_off_source == "weekdays":
+            field_names = (
+                "weekly_off_monday", "weekly_off_tuesday", "weekly_off_wednesday",
+                "weekly_off_thursday", "weekly_off_friday", "weekly_off_saturday",
+                "weekly_off_sunday",
+            )
+            return bool(template[field_names[day.weekday()]])
+        return super()._is_attendance_weekly_off(day)
 
     def _get_attendance_automation_template(self, day=None):
         self.ensure_one()

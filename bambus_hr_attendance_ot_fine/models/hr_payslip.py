@@ -56,22 +56,6 @@ class HrPayslip(models.Model):
     total_fine_after_grace_hours = fields.Float(string="Fine After Grace", compute="_compute_all_stats", store=True)
 
 
-    def get_weekend_days(self):
-        Param = self.env['ir.config_parameter'].sudo()
-
-        weekend_days = []
-
-        if Param.get_param('hr_payroll.weekend_mon') == 'True': weekend_days.append(0)
-        if Param.get_param('hr_payroll.weekend_tue') == 'True': weekend_days.append(1)
-        if Param.get_param('hr_payroll.weekend_wed') == 'True': weekend_days.append(2)
-        if Param.get_param('hr_payroll.weekend_thu') == 'True': weekend_days.append(3)
-        if Param.get_param('hr_payroll.weekend_fri') == 'True': weekend_days.append(4)
-        if Param.get_param('hr_payroll.weekend_sat') == 'True': weekend_days.append(5)
-        if Param.get_param('hr_payroll.weekend_sun') == 'True': weekend_days.append(6)
-        #if check_in_date.weekday() in weekend_days:
-        return weekend_days
-
-
     # ---------------------------
     # Helpers
     # ---------------------------
@@ -156,7 +140,6 @@ class HrPayslip(models.Model):
         return dates
 
 
-
     # ---------------------------
     # Main compute
     # ---------------------------
@@ -165,17 +148,31 @@ class HrPayslip(models.Model):
         "employee_id.attendance_ids", "employee_id.attendance_ids.check_in", "employee_id.attendance_ids.check_out",
         "employee_id.attendance_ids.worked_hours", "employee_id.attendance_ids.overtime_hours", "employee_id.attendance_ids.bambus_scheduled_hours",
         "employee_id.attendance_ids.bambus_shortfall_hours",
+        "employee_id.attendance_automation_template_id.active",
+        "employee_id.attendance_automation_template_id.date_from",
+        "employee_id.attendance_automation_template_id.date_to",
+        "employee_id.attendance_automation_template_id.weekly_off_source",
+        "employee_id.attendance_automation_template_id.weekly_off_monday",
+        "employee_id.attendance_automation_template_id.weekly_off_tuesday",
+        "employee_id.attendance_automation_template_id.weekly_off_wednesday",
+        "employee_id.attendance_automation_template_id.weekly_off_thursday",
+        "employee_id.attendance_automation_template_id.weekly_off_friday",
+        "employee_id.attendance_automation_template_id.weekly_off_saturday",
+        "employee_id.attendance_automation_template_id.weekly_off_sunday",
+        "employee_id.company_id.attendance_automation_template_id.active",
+        "employee_id.company_id.attendance_automation_template_id.date_from",
+        "employee_id.company_id.attendance_automation_template_id.date_to",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_source",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_monday",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_tuesday",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_wednesday",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_thursday",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_friday",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_saturday",
+        "employee_id.company_id.attendance_automation_template_id.weekly_off_sunday",
     )
     def _compute_all_stats(self):
         Param = self.env["ir.config_parameter"].sudo()
-        weekend_days = []
-        if Param.get_param('hr_payroll.weekend_mon') == 'True': weekend_days.append(0)
-        if Param.get_param('hr_payroll.weekend_tue') == 'True': weekend_days.append(1)
-        if Param.get_param('hr_payroll.weekend_wed') == 'True': weekend_days.append(2)
-        if Param.get_param('hr_payroll.weekend_thu') == 'True': weekend_days.append(3)
-        if Param.get_param('hr_payroll.weekend_fri') == 'True': weekend_days.append(4)
-        if Param.get_param('hr_payroll.weekend_sat') == 'True': weekend_days.append(5)
-        if Param.get_param('hr_payroll.weekend_sun') == 'True': weekend_days.append(6)
 
         half_day_hrs = float(Param.get_param("hr_payroll.half_day_hours", 4) or 4)
         full_day_hrs = float(Param.get_param("hr_payroll.full_day_hours", 8) or 8)
@@ -213,7 +210,6 @@ class HrPayslip(models.Model):
             slip.total_fine_after_grace_hours = 0.0
 
 
-
             if not (slip.employee_id and slip.date_from and slip.date_to):
                 continue
 
@@ -229,14 +225,19 @@ class HrPayslip(models.Model):
                 contract, slip.date_from, slip.date_to, tzname
             )
             total_days = (slip.date_to - slip.date_from).days + 1
+            weekly_off_dates = {
+                slip.date_from + timedelta(days=i) for i in range(total_days)
+                if emp._is_attendance_weekly_off(slip.date_from + timedelta(days=i))
+            }
             slip.weekend_days = float(sum(
                 1 for i in range(total_days)
-                if (slip.date_from + timedelta(days=i)).weekday() in weekend_days
+                if (slip.date_from + timedelta(days=i)) in weekly_off_dates
+                and (slip.date_from + timedelta(days=i)) not in public_holidays
             ))
             slip.holiday_days = float(len(public_holidays))
             slip.days_excl_weekend_holidays = float(sum(
                 1 for i in range(total_days)
-                if (slip.date_from + timedelta(days=i)).weekday() not in weekend_days
+                if (slip.date_from + timedelta(days=i)) not in weekly_off_dates
                 and (slip.date_from + timedelta(days=i)) not in public_holidays
             ))
 
@@ -291,7 +292,6 @@ class HrPayslip(models.Model):
             has_short = ("bambus_shortfall_hours" in Attendance._fields)
             has_early = ("bambus_early_leave_minutes" in Attendance._fields)
             has_gap = ("bambus_gap_minutes" in Attendance._fields)
-
 
 
             late_by_month = defaultdict(int)
@@ -352,7 +352,7 @@ class HrPayslip(models.Model):
                 base_hours = max(0.0, float(worked or 0.0) - float(ot or 0.0))
 
 
-                is_weekend = d.weekday() in weekend_days
+                is_weekend = d in weekly_off_dates and d not in public_holidays
                 is_holiday = d in public_holidays
 
                 # late/fine from LAST attendance of the day only (stored values)
@@ -446,6 +446,7 @@ class HrPayslip(models.Model):
                 )
                 if (
                     day_template
+                    and slip.employee_id._is_attendance_weekly_off(current_day)
                     and day_template.overtime_enabled
                     and day_template.weekly_off_overtime_policy != "disabled"
                 ):

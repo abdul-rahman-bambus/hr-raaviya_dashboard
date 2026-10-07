@@ -119,13 +119,30 @@
                                 <field name="allowed_break_minutes" invisible="not break_enabled"/>
                             </group>
                         </page>
+                        <page string="Weekly Off">
+                            <group>
+                                <field name="weekly_off_source"/>
+                                <group string="Weekly Off Days" invisible="weekly_off_source != 'weekdays'">
+                                    <field name="weekly_off_monday"/>
+                                    <field name="weekly_off_tuesday"/>
+                                    <field name="weekly_off_wednesday"/>
+                                    <field name="weekly_off_thursday"/>
+                                    <field name="weekly_off_friday"/>
+                                    <field name="weekly_off_saturday"/>
+                                    <field name="weekly_off_sunday"/>
+                                </group>
+                                <field name="weekly_off_overtime_policy"/>
+                                <div class="text-muted">
+                                    All Worked Hours proposes overtime for HR review when
+                                    the Overtime Rule is enabled. Not Payable proposes no overtime.
+                                </div>
+                            </group>
+                        </page>
                         <page string="Overtime">
                             <group>
                                 <group>
                                     <field name="overtime_enabled"/>
                                     <field name="minimum_overtime_minutes" invisible="not overtime_enabled"/>
-                                    <field name="weekly_off_overtime_policy" invisible="not overtime_enabled"/>
-                                    <field name="weekend_overtime" invisible="1"/>
                                     <field name="overtime_start_mode" invisible="not overtime_enabled"/>
                                     <field name="overtime_start_offset_minutes"
                                            invisible="not overtime_enabled or overtime_start_mode != 'offset'"/>

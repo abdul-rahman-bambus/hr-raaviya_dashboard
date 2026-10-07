@@ -36,52 +36,7 @@
 				        <span class="ms-2">Hours</span>
 				    </setting>
 
-					<setting string="OT for weekend and festivals" >
-                            <field name="ot_for_weekend_and_festival"/>
-                    </setting>
-
 				</block>
-				<block title="Weekend Configuration" name="weekend_config">
-			        <setting>
-			        	<div class="d-flex flex-column">
-				            <div>
-				            	<field name="is_monday_weekend"/>
-				            	<label for="is_monday_weekend" class="o_form_label"></label>
-						        
-						    </div>
-						    <div>
-						    	<field name="is_tuesday_weekend"/>
-				            	<label for="is_tuesday_weekend" class="o_form_label"></label>
-						        
-						    </div>
-						    <div>
-						    	<field name="is_wednesday_weekend"/>
-				            	<label for="is_wednesday_weekend" class="o_form_label"></label>
-						        
-						    </div>
-						    <div>
-						    	<field name="is_thursday_weekend"/>
-				            	<label for="is_thursday_weekend" class="o_form_label"></label>
-						        
-						    </div>
-						    <div>
-						    	<field name="is_friday_weekend"/>
-				            	<label for="is_friday_weekend" class="o_form_label"></label>
-						        
-						    </div>
-						    <div>
-						    	<field name="is_saturday_weekend"/>
-				            	<label for="is_saturday_weekend" class="o_form_label"></label>
-						        
-						    </div>
-						    <div>
-						    	<field name="is_sunday_weekend"/>
-				            	<label for="is_sunday_weekend" class="o_form_label"></label>
-						        
-						    </div>
-						</div>
-			        </setting>
-                </block>
 			</xpath>
 		</field>
 	</record>

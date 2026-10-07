@@ -33,33 +33,7 @@ class HrAttendanceOvertime(models.Model):
         return (cal.tz if cal and cal.tz else False) or (self.env.user.tz or "UTC")
 
     def _get_shift_rules_for_employee_on_date(self, employee, dt_date):
-        """
-        Return working periods.
-        Include day_period morning/afternoon AND also lines with no day_period (common calendars).
-        Exclude lunch/break if it exists.
-        """
-        contract = employee.contract_id or (employee.contract_ids[:1] if employee.contract_ids else False)
-        if not contract or not contract.resource_calendar_id:
-            return []
-        cal = contract.resource_calendar_id
-
-        dow = dt_date.weekday()
-        def _is_work(r):
-            dp = (r.day_period or "").lower()
-            if dp in ("lunch", "break"):
-                return False
-            # include morning/afternoon OR empty
-            return (not dp) or (dp in ("morning", "afternoon"))
-
-        rules = cal.attendance_ids.filtered(
-            lambda r:
-                r.dayofweek is not None
-                and str(int(float(r.dayofweek))) == str(dow)
-                and _is_work(r)
-        )
-
-        shifts = [(float(r.hour_from or 0.0), float(r.hour_to or 0.0)) for r in rules]
-        return sorted(shifts, key=lambda x: x[0])
+        return employee._get_attendance_work_periods(dt_date)
 
     def _shift_bounds_local(self, tz, d, shifts):
         bounds = []
@@ -218,17 +192,8 @@ class HrAttendanceOvertime(models.Model):
     @api.model
     def bambus_recompute_range(self, employee_ids, date_start, date_end):
         Attendance = self.env["hr.attendance"].sudo()
-        Param = self.env["ir.config_parameter"].sudo()
         Overtime = self.sudo()
 
-        weekend_days = []
-        if Param.get_param('hr_payroll.weekend_mon') == 'True': weekend_days.append(0)
-        if Param.get_param('hr_payroll.weekend_tue') == 'True': weekend_days.append(1)
-        if Param.get_param('hr_payroll.weekend_wed') == 'True': weekend_days.append(2)
-        if Param.get_param('hr_payroll.weekend_thu') == 'True': weekend_days.append(3)
-        if Param.get_param('hr_payroll.weekend_fri') == 'True': weekend_days.append(4)
-        if Param.get_param('hr_payroll.weekend_sat') == 'True': weekend_days.append(5)
-        if Param.get_param('hr_payroll.weekend_sun') == 'True': weekend_days.append(6)
 
         # safe flags (won't break if fields are not yet added)
         has_fine_hours = "bambus_fine_hours" in Attendance._fields
@@ -287,7 +252,7 @@ class HrAttendanceOvertime(models.Model):
                 # --------------------------
                 shifts = self._get_shift_rules_for_employee_on_date(emp, d)
                 bounds = self._shift_bounds_local(tz, d, shifts) if shifts else []
-                is_weekly_off = d.weekday() in weekend_days or not shifts
+                is_weekly_off = emp._is_attendance_weekly_off(d)
                 is_public_holiday = self._is_public_holiday(contract, tz, d)
 
                 leave_intervals = self._get_validated_leave_intervals_local(emp, tzname, tz, d) if bounds else []
@@ -305,7 +270,7 @@ class HrAttendanceOvertime(models.Model):
                 # ---> NEW FIX: Save the true schedule length (usually 8.0) before zeroing it <---
                 base_shift_hours = scheduled if scheduled > 0 else 8.0
 
-                # ---> NEW FIX: FORCE GLOBAL WEEKENDS TO BE OFF-DAYS <---
+                # Weekly-off classification comes from the effective employee template.
                 if is_weekly_off or is_public_holiday:
                     scheduled = 0.0
 
@@ -338,7 +303,7 @@ class HrAttendanceOvertime(models.Model):
                         day_att.with_context(bambus_skip_recompute=True).write(clear_vals)
 
                     if ot_mode == "custom" or automation:
-                        # 1. Check if weekend/festival OT is enabled in settings
+                        # Apply the explicit template policy; legacy switches cannot override it.
                         if automation:
                             policy = (
                                 automation.public_holiday_overtime_policy
@@ -346,12 +311,10 @@ class HrAttendanceOvertime(models.Model):
                                 else automation.weekly_off_overtime_policy
                             )
                             allow_weekend_ot = (
-                                policy == "all" or automation.weekend_overtime
+                                (is_weekly_off or is_public_holiday) and policy == "all"
                             )
                         else:
-                            allow_weekend_ot = (
-                                Param.get_param("hr_payroll.ot_for_weekend_and_festival") == "True"
-                            )
+                            allow_weekend_ot = False
                         
                         # 2. Apply the effective template; the contract only supplies wage terms.
                         allow_ot = bool(

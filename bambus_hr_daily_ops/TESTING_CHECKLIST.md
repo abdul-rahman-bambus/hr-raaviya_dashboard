@@ -82,6 +82,24 @@ The plain-language [user guide](docs/ATTENDANCE_AUTOMATION_USER_GUIDE.md),
 [automated coverage matrix](docs/ATTENDANCE_AUTOMATION_TEST_MATRIX.md) explain
 the inputs and expected results without requiring knowledge of the source code.
 
+## Weekly-off regression coverage
+
+The automated suite also covers all seven selected weekdays, schedule-based
+fallback, employee/company precedence, effective dates, historical contracts,
+date-limited and alternating-week schedules, strict Not Payable behavior,
+clearing existing overtime, public-holiday overlap, and payroll bucket refresh.
+The `attendance_custom_report` suite compares payroll/report counts and reads a
+generated XLSX workbook to verify the selected day is classified as weekly off.
+Run the report suite with the attendance automation modules installed to execute
+its optional template integration tests:
+
+```bash
+./odoo-bin -c <config> -d <isolated_test_database> --http-port=8070 \
+  -u custom_hr_payroll,bambus_hr_attendance_ot_fine,bambus_hr_daily_ops,attendance_custom_report \
+  --test-enable --test-tags /bambus_hr_daily_ops,/custom_hr_payroll,/attendance_custom_report \
+  --stop-after-init --log-level=test --workers=0
+```
+
 ## Required browser/UAT checks
 
 - [ ] Confirm only employees from the selected company appear in the assignment
