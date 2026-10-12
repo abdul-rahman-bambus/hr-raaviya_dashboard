@@ -39,8 +39,8 @@ class AttendanceXlsxReport(models.AbstractModel):
             cur = cur + timedelta(days=1)
         return res
 
-    def _get_emp_tzname(self, emp):
-        contract = emp.contract_id or (emp.contract_ids[:1] if emp.contract_ids else False)
+    def _get_emp_tzname(self, emp, contract=None):
+        contract = contract or emp.contract_id or (emp.contract_ids[:1] if emp.contract_ids else False)
         cal = contract.resource_calendar_id if contract else False
         return (cal.tz if cal and cal.tz else False) or (self.env.user.tz or "UTC")
 
@@ -51,10 +51,11 @@ class AttendanceXlsxReport(models.AbstractModel):
         return day_att.sorted(key=lambda a: ((a.check_out or a.check_in), a.id))[-1] if day_att else False
 
     # ---------------- attendance fetch/group ----------------
-    def _search_attendances(self, emp, start_date, end_date):
+    def _search_attendances(self, emp, start_date, end_date, tzname=None):
         Attendance = self.env["hr.attendance"].sudo()
-        start_dt = datetime.combine(start_date, time.min)
-        end_dt = datetime.combine(end_date, time.max)
+        tz = pytz.timezone(tzname or self._get_emp_tzname(emp))
+        start_dt = tz.localize(datetime.combine(start_date, time.min)).astimezone(pytz.UTC).replace(tzinfo=None)
+        end_dt = tz.localize(datetime.combine(end_date, time.max)).astimezone(pytz.UTC).replace(tzinfo=None)
         return Attendance.search([
             ("employee_id", "=", emp.id),
             ("check_in", "<=", fields.Datetime.to_string(end_dt)),
@@ -75,21 +76,24 @@ class AttendanceXlsxReport(models.AbstractModel):
                 by_day[d] |= a
         return by_day
 
-    def _get_public_holidays_for_emp(self, emp, start_date, end_date, tzname):
+    def _get_public_holidays_for_emp(self, emp, start_date, end_date, tzname, contract=None):
         """Schedule-specific and database-wide holidays for the employee."""
-        contract = emp.contract_id or (emp.contract_ids[:1] if emp.contract_ids else False)
+        contract = contract or emp.contract_id or (emp.contract_ids[:1] if emp.contract_ids else False)
         cal = contract.resource_calendar_id if contract else False
         if not cal:
             return set()
 
+        timezone = pytz.timezone(tzname)
+        utc_start = timezone.localize(datetime.combine(start_date, time.min)).astimezone(pytz.UTC).replace(tzinfo=None)
+        utc_end = timezone.localize(datetime.combine(end_date, time.max)).astimezone(pytz.UTC).replace(tzinfo=None)
         CalendarLeave = self.env["resource.calendar.leaves"].sudo()
         leaves = CalendarLeave.search([
             ("resource_id", "=", False),
             "|",
             ("calendar_id", "=", cal.id),
             ("calendar_id", "=", False),
-            ("date_from", "<=", fields.Datetime.to_string(datetime.combine(end_date, time.max))),
-            ("date_to", ">=", fields.Datetime.to_string(datetime.combine(start_date, time.min))),
+            ("date_from", "<=", fields.Datetime.to_string(utc_end)),
+            ("date_to", ">=", fields.Datetime.to_string(utc_start)),
         ])
 
         dates = set()
@@ -106,20 +110,20 @@ class AttendanceXlsxReport(models.AbstractModel):
         return dates
 
     # ---------------- core daily computation (READ ONLY from attendance) ----------------
-    def _compute_employee_daily(self, emp, wizard):
+    def _compute_employee_daily(self, emp, wizard, contract=None):
         Attendance = self.env["hr.attendance"].sudo()
         start_date = wizard.date_start
         end_date = wizard.date_end
 
-        tzname = self._get_emp_tzname(emp)
-        public_holidays = self._get_public_holidays_for_emp(emp, start_date, end_date, tzname)
+        tzname = self._get_emp_tzname(emp, contract)
+        public_holidays = self._get_public_holidays_for_emp(emp, start_date, end_date, tzname, contract)
 
         # config: half/full day thresholds
         Param = self.env["ir.config_parameter"].sudo()
         half_day_hrs = float(Param.get_param("hr_payroll.half_day_hours", 4) or 4)
         full_day_hrs = float(Param.get_param("hr_payroll.full_day_hours", 8) or 8)
 
-        atts = self._search_attendances(emp, start_date, end_date)
+        atts = self._search_attendances(emp, start_date, end_date, tzname)
         by_day = self._group_by_local_day(atts, tzname, start_date, end_date)
         reviewed_by_day = {}
         if "bambus.hr.attendance.sheet.line" in self.env:
