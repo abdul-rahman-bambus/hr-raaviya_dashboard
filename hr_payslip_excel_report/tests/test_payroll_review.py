@@ -76,15 +76,65 @@ class TestPayrollReview(TransactionCase):
         self.assertEqual(row['worked_hours'], 0)
         self.assertEqual(data['summary'][0]['net'], 8700)
 
-    def test_multiple_payslips_are_kept_and_overlaps_flagged(self):
-        for _ in range(2):
-            self.finance(self.slip())
+    def test_duplicate_period_uses_latest_computed_slip_once(self):
+        old = self.slip()
+        self.finance(old)
+        latest = self.slip()
+        self.finance(latest)
         data = self.report._data(self.wizard())
-        self.assertEqual(len(data['register']), 2)
-        self.assertTrue(all('Overlapping' in row['issues'] for row in data['register']))
-        self.assertEqual(data['summary'][0]['payslips'], 2)
-        self.assertEqual(data['summary'][0]['employees'], 1)
-        self.assertEqual(data['summary'][0]['net'], 17400)
+        self.assertEqual(len(data['register']), 1)
+        self.assertEqual(data['summary'][0]['payslips'], 1)
+        self.assertEqual(data['summary'][0]['net'], 8700)
+        self.assertEqual(data['excluded_count'], 1)
+        self.assertIn('Duplicate Payslip Excluded', {item['issue'] for item in data['exceptions']})
+        self.assertTrue(old.exists() and latest.exists())
+
+    def test_confirmed_slip_precedes_new_draft_and_computed_precedes_empty(self):
+        done = self.slip(state='done')
+        self.finance(done)
+        self.finance(self.slip())
+        selected, excluded = self.report._resolve_duplicate_periods(self.wizard()._selected_payslips())
+        self.assertEqual(selected, done)
+        done.state = 'draft'
+        empty = self.slip()
+        selected, excluded = self.report._resolve_duplicate_periods(self.wizard()._selected_payslips())
+        self.assertNotIn(empty, selected)
+
+    def test_summary_merges_split_periods_without_losing_salary(self):
+        self.finance(self.slip(date_to='2026-09-15'))
+        self.finance(self.slip(date_from='2026-09-16'))
+        data = self.report._data(self.wizard(report_type='summary'))
+        rows = self.report._employee_summary_rows(data['register'])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['net'], 17400)
+        self.assertEqual(data['excluded_count'], 0)
+
+    def test_summary_credit_note_reverses_money_without_repeating_days(self):
+        self.finance(self.slip())
+        self.finance(self.slip(credit_note=True))
+        data = self.report._data(self.wizard(report_type='summary'))
+        rows = self.report._employee_summary_rows(data['register'])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['net'], 0)
+        self.assertEqual(rows[0]['payable_days'], 26)
+
+    def test_different_contracts_are_preserved_and_partial_overlap_is_flagged(self):
+        self.finance(self.slip())
+        other_contract = self.contract.copy({'name': 'Second Contract'})
+        self.finance(self.slip(contract_id=other_contract.id))
+        data = self.report._data(self.wizard(report_type='summary'))
+        self.assertEqual(data['excluded_count'], 0)
+        rows = self.report._employee_summary_rows(data['register'])
+        self.assertEqual(rows[0]['net'], 17400)
+        self.assertEqual(rows[0]['payable_days'], 26)
+        self.finance(self.slip(date_from='2026-09-15'))
+        data = self.report._data(self.wizard(report_type='summary'))
+        self.assertIsNone(self.report._employee_summary_rows(data['register'])[0]['payable_days'])
+
+    def test_hrms_shortcut_opens_existing_report_action(self):
+        menu = self.env.ref('hr_payslip_excel_report.menu_hrms_payroll_reports')
+        self.assertEqual(menu.parent_id, self.env.ref('bambus_hr_daily_ops.menu_bambus_hrms_payroll'))
+        self.assertEqual(menu.action, self.env.ref('hr_payslip_excel_report.hr_payslip_excel_report_action'))
 
     def test_credit_notes_reverse_salary_totals(self):
         self.finance(self.slip())
@@ -247,7 +297,10 @@ class TestPayrollReview(TransactionCase):
                 ['Payroll Summary', 'Employee Payroll Register', 'Attendance & Adjustments', 'Review Exceptions'])
             register = ET.fromstring(archive.read('xl/worksheets/sheet2.xml'))
             self.assertIsNotNone(register.find('s:autoFilter', ns))
-            self.assertIsNotNone(register.find('s:sheetViews/s:sheetView/s:pane', ns))
+            self.assertIsNone(register.find('s:sheetViews/s:sheetView/s:pane', ns))
+            view = workbook.find('s:bookViews/s:workbookView', ns)
+            self.assertEqual(view.attrib['showHorizontalScroll'], '0')
+            self.assertEqual(view.attrib['showVerticalScroll'], '0')
             name_cell = register.find("s:sheetData/s:row/s:c[@r='B7']", ns)
             self.assertEqual(name_cell.attrib['t'], 's')
             self.assertIsNone(name_cell.find('s:f', ns))

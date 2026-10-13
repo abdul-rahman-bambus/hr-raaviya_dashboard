@@ -1,7 +1,7 @@
 
 {
     "name": "HR Payslip Excel Report",
-    "version": "18.0.4.2.0",
+    "version": "18.0.4.3.0",
     "summary": "HR Payslip Excel Report",
     "author": "Bambus Technologies LLP",
     "license": "LGPL-3",

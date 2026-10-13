@@ -18,6 +18,8 @@
                 <div class="alert alert-info" role="status">
                     Payslips must fall entirely within the selected period. Salary amounts come from payslip lines;
                     this export does not recalculate or prorate salary.
+                    Payslip Summary has one row per employee. Exact duplicate periods use the highest status,
+                    then computed totals, then latest update; Payroll Review lists excluded payslips.
                     <span invisible="report_type != 'review'">Attendance and review information shows current records.
                     Missing payslips and pending adjustments appear in Review Exceptions.</span>
                 </div>
@@ -37,4 +39,8 @@
     </record>
     <menuitem id="menu_payroll_report" name="Report" parent="hr_payroll_community.menu_hr_payroll_community_root" groups="hr_payroll_community.group_hr_payroll_community_user"/>
     <menuitem id="menu_payslip_excel_download" name="Payroll Reports" action="hr_payslip_excel_report_action" parent="menu_payroll_report" groups="hr_payroll_community.group_hr_payroll_community_user"/>
+    <menuitem id="menu_hrms_payroll_reports" name="Payroll Reports"
+              parent="bambus_hr_daily_ops.menu_bambus_hrms_payroll"
+              action="hr_payslip_excel_report_action" sequence="40"
+              groups="hr_payroll_community.group_hr_payroll_community_user"/>
 </odoo>
