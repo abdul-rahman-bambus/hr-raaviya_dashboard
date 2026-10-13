@@ -43,10 +43,14 @@ def main():
 
         employee = rpc('hr.employee', 'create', [{'name': 'Payroll Browser Verification', 'company_id': company}])
         payslips = []
+        contract = False
         try:
+            contract = rpc('hr.contract', 'create', [{'name': 'Browser Monthly Contract',
+                'employee_id': employee, 'company_id': company, 'date_start': '2026-09-01',
+                'wage_type': 'monthly', 'wage': 9000}])
             for index in range(2):
                 payslips.append(rpc('hr.payslip', 'create', [{'name': f'Browser Duplicate {index}',
-                    'employee_id': employee, 'company_id': company,
+                    'employee_id': employee, 'company_id': company, 'contract_id': contract,
                     'date_from': '2026-09-01', 'date_to': '2026-09-30'}]))
             shortcut = rpc('ir.model.data', 'search_read', [[['module', '=', 'hr_payslip_excel_report'],
                 ['name', '=', 'menu_hrms_payroll_reports']]], {'fields': ['res_id']})[0]['res_id']
@@ -98,6 +102,11 @@ def main():
             summary_path = Path(args.output).with_name('summary-' + Path(args.output).name)
             summary_event.value.save_as(str(summary_path))
             with zipfile.ZipFile(summary_path) as archive:
+                workbook = ET.fromstring(archive.read('xl/workbook.xml'))
+                assert [item.attrib['name'] for item in workbook.findall('s:sheets/s:sheet', namespace)] == [
+                    'Monthly', 'Hourly', 'Daily', 'Final Summary']
+                final = ET.fromstring(archive.read('xl/worksheets/sheet4.xml'))
+                assert final.find("s:sheetData/s:row[@r='10']", namespace) is None
                 text = archive.read('xl/sharedStrings.xml')
                 for label in (b'Total CTC / Contract Salary', b'Week-off Leave Days', b'Absent Days',
                               b'Public Holiday Days', b'Public Holiday Worked Days', b'Public Holiday Pay',
@@ -112,6 +121,8 @@ def main():
         finally:
             if payslips:
                 rpc('hr.payslip', 'unlink', [payslips])
+            if contract:
+                rpc('hr.contract', 'unlink', [[contract]])
             rpc('hr.employee', 'unlink', [[employee]])
             browser.close()
 

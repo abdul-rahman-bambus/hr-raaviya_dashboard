@@ -62,7 +62,7 @@ class TestPayrollReview(TransactionCase):
                                       ('GROSS', 9000., 'GROSS'), ('NET', 8700., 'NET')]:
             self.salary(slip, code, amount, category)
         self.env['hr.payslip.worked.days'].create({'name': 'Paid days', 'code': 'WORK100',
-            'payslip_id': slip.id, 'contract_id': self.contract.id, 'number_of_days': 26., 'number_of_hours': 208.})
+            'payslip_id': slip.id, 'contract_id': slip.contract_id.id, 'number_of_days': 26., 'number_of_hours': 208.})
 
     def test_salary_without_attendance_is_not_skipped(self):
         slip = self.slip()
@@ -375,13 +375,82 @@ class TestPayrollReview(TransactionCase):
         data = self.report._data(self.wizard(report_type='summary'))
         self.assertIsNone(self.report._employee_summary_rows(data['register'])[0]['ctc'])
 
+    def test_salary_type_tabs_and_three_final_total_rows(self):
+        self.finance(self.slip())
+        for basis in ('hourly', 'daily'):
+            employee = self.employee.copy({'name': basis.title() + ' Staff', 'employee_number': False})
+            contract = self.contract.copy({'name': basis.title() + ' Contract', 'employee_id': employee.id,
+                                           'wage_type': basis, 'hourly_rate': 100, 'daily_wage': 500})
+            self.finance(self.slip(employee_id=employee.id, contract_id=contract.id))
+        wizard = self.wizard(report_type='summary', employee_ids=[Command.clear()])
+        data = self.report._data(wizard)
+        grouped = self.report._salary_type_rows(data['register'])
+        self.assertEqual([len(grouped[key]) for key in ('monthly', 'hourly', 'daily')], [1, 1, 1])
+        with zipfile.ZipFile(io.BytesIO(wizard._generate_xlsx())) as archive:
+            ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+            workbook = ET.fromstring(archive.read('xl/workbook.xml'))
+            self.assertEqual([item.attrib['name'] for item in workbook.findall('s:sheets/s:sheet', ns)],
+                             ['Monthly', 'Hourly', 'Daily', 'Final Summary'])
+            final = ET.fromstring(archive.read('xl/worksheets/sheet4.xml'))
+            for index, name in enumerate(('Monthly', 'Hourly', 'Daily'), 7):
+                net_cell = final.find(f"s:sheetData/s:row/s:c[@r='V{index}']", ns)
+                self.assertEqual(float(net_cell.find('s:v', ns).text), 8700)
+                self.assertEqual(net_cell.find('s:f', ns).text, f"'{name}'!V9")
+                count_cell = final.find(f"s:sheetData/s:row/s:c[@r='B{index}']/s:v", ns)
+                self.assertEqual(float(count_cell.text), 1)
+            self.assertIsNone(final.find("s:sheetData/s:row[@r='10']", ns))
+            self.assertIsNone(final.find('s:sheetViews/s:sheetView/s:pane', ns))
+
+    def test_empty_salary_types_have_zero_totals_and_populated_unknown_amounts_stay_blank(self):
+        self.slip()
+        content = self.wizard(report_type='summary')._generate_xlsx()
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+            final = ET.fromstring(archive.read('xl/worksheets/sheet4.xml'))
+            monthly_net = final.find("s:sheetData/s:row/s:c[@r='V7']", ns)
+            self.assertTrue(monthly_net is None or monthly_net.find('s:v', ns) is None)
+            for coordinate in ('V8', 'V9', 'B8', 'B9'):
+                self.assertEqual(float(final.find(f"s:sheetData/s:row/s:c[@r='{coordinate}']/s:v", ns).text), 0)
+
+    def test_one_employee_with_two_salary_types_stays_in_both_correct_groups(self):
+        self.finance(self.slip(date_to='2026-09-15'))
+        hourly = self.contract.copy({'name': 'Hourly Second Half', 'wage_type': 'hourly', 'hourly_rate': 100})
+        self.finance(self.slip(date_from='2026-09-16', contract_id=hourly.id))
+        data = self.report._data(self.wizard(report_type='summary'))
+        grouped = self.report._salary_type_rows(data['register'])
+        self.assertEqual(len(grouped['monthly']), 1)
+        self.assertEqual(len(grouped['hourly']), 1)
+        self.assertEqual(grouped['monthly'][0]['net'], 8700)
+        self.assertEqual(grouped['hourly'][0]['net'], 8700)
+        self.assertEqual(grouped['daily'], [])
+
+    def test_type_summary_preserves_credit_notes_and_duplicate_resolution(self):
+        self.finance(self.slip())
+        self.finance(self.slip())
+        self.finance(self.slip(credit_note=True))
+        data = self.report._data(self.wizard(report_type='summary'))
+        self.assertEqual(data['excluded_count'], 1)
+        grouped = self.report._salary_type_rows(data['register'])
+        self.assertEqual(len(grouped['monthly']), 1)
+        self.assertEqual(grouped['monthly'][0]['net'], 0)
+        self.assertEqual(grouped['monthly'][0]['payable_days'], 26)
+
+    def test_missing_contract_is_not_silently_classified_as_monthly(self):
+        self.slip(contract_id=False)
+        with self.assertRaises(UserError):
+            self.wizard(report_type='summary')._generate_xlsx()
+        self.assertTrue(self.wizard(report_type='review')._generate_xlsx())
+
     def test_legacy_summary_retained_and_empty_selection_explained(self):
         with self.assertRaises(UserError):
             self.wizard(report_type='summary')._generate_xlsx()
         self.finance(self.slip())
         content = self.wizard(report_type='summary')._generate_xlsx()
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
-            self.assertNotIn('xl/worksheets/sheet2.xml', archive.namelist())
+            root = ET.fromstring(archive.read('xl/workbook.xml'))
+            ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+            self.assertEqual([item.attrib['name'] for item in root.findall('s:sheets/s:sheet', ns)],
+                             ['Monthly', 'Hourly', 'Daily', 'Final Summary'])
             self.assertIn(b'Net Pay Amount', archive.read('xl/sharedStrings.xml'))
 
 
