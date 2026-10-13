@@ -1,6 +1,6 @@
 # Payroll Reports
 
-Open **Payroll → Report → Payroll Reports**. Select **Payslip Summary** (the existing
+Open **HRMS → Payroll → Payroll Reports** or **Payroll → Report → Payroll Reports**. Select **Payslip Summary** (the existing
 single-sheet layout) or **Payroll Review** (the new four-sheet workbook).
 
 Choose a company enabled in your session, Current Month or a custom date range,
@@ -17,7 +17,7 @@ Download Excel stays on the current Odoo screen.
   the overall employee count is distinct across groups.
 - **Employee Payroll Register:** employee identity, period/status, salary basis/rate,
   payable days, attendance/leave, actual and payable hours, salary components, deductions,
-  net pay, pending reviews, and flags. Every selected payslip has its own row. Staff with
+  net pay, pending reviews, and flags. Each resolved payslip has its own row in Payroll Review; Payslip Summary combines these into one row per employee. Staff with
   no matching payslip have a clearly labelled row with blank monetary amounts.
 - **Attendance & Adjustments:** local-date punches, effective template, weekly-off source
   and policy, holiday classification, detected proposals, approved values, saved payslip
@@ -26,7 +26,7 @@ Download Excel stays on the current Odoo screen.
   unmapped payable-day buckets, pending reviews, missing punch outs, dates without an
   effective template, snapshot differences, and salary reconciliation mismatches.
 
-All sheets have frozen headers and filters. Monetary/duration totals use numeric Excel
+All sheets have filters and no frozen rows or columns. Workbook preferences hide horizontal and vertical scrollbars; spreadsheet applications can override those preferences. Monetary/duration totals use numeric Excel
 cells. Durations display HH:MM; they are Excel time values, not text or decimal hours.
 Filtered totals use SUBTOTAL. Warning rows are highlighted. Formula-like employee
 names and notes are written as literal strings.
@@ -64,9 +64,18 @@ by its salary rules. Pending items and changed HR/snapshot amounts prompt review
 never silently removes amounts from an existing payslip. Hourly payable hours use the
 payslip's billable-hour figure; raw HR-updated hours appear separately in the daily sheet.
 
-Overlapping payslips are included and flagged, never silently discarded. Review these
-before using totals. Attendance can repeat across overlapping payslip/credit-note rows;
-register attendance totals therefore count rows, not distinct employee-days.
+Regular payslips for the exact same employee, contract, and date range are duplicates.
+Choose Done before Waiting before Draft; within the same status prefer computed GROSS/NET
+lines, then the latest update and highest ID. Payroll Review lists each excluded payslip
+and the selected ID. No database payslips are modified or deleted. Different contracts,
+nonidentical periods, and credit notes remain included.
+
+Payslip Summary has one row per employee. Salary totals combine resolved split periods
+and reverse credit notes. Attendance for an identical period counts once and ignores
+credit-note repetitions. Partially overlapping periods retain their salary totals but
+leave summary day/hour figures blank for manual review. Payroll Review still shows the
+underlying resolved periods and flags overlaps; its detail attendance can repeat across
+those periods or credit notes.
 
 Payroll group permissions, company scope, payslip record rules, and transient-wizard
 ownership apply to the download. No payslip searches use sudo.

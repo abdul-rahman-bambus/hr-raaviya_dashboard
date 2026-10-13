@@ -42,7 +42,16 @@ def main():
             return result['result']
 
         employee = rpc('hr.employee', 'create', [{'name': 'Payroll Browser Verification', 'company_id': company}])
+        payslips = []
         try:
+            for index in range(2):
+                payslips.append(rpc('hr.payslip', 'create', [{'name': f'Browser Duplicate {index}',
+                    'employee_id': employee, 'company_id': company,
+                    'date_from': '2026-09-01', 'date_to': '2026-09-30'}]))
+            shortcut = rpc('ir.model.data', 'search_read', [[['module', '=', 'hr_payslip_excel_report'],
+                ['name', '=', 'menu_hrms_payroll_reports']]], {'fields': ['res_id']})[0]['res_id']
+            menus = rpc('ir.ui.menu', 'load_menus', [False])
+            assert str(shortcut) in menus, 'HRMS report shortcut must be visible to this payroll user'
             action = rpc('ir.model.data', 'search_read', [[['module', '=', 'hr_payslip_excel_report'],
                 ['name', '=', 'hr_payslip_excel_report_action']]], {'fields': ['res_id']})[0]['res_id']
             page = context.new_page()
@@ -75,9 +84,19 @@ def main():
                 namespace = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
                 assert [sheet.attrib['name'] for sheet in workbook.findall('s:sheets/s:sheet', namespace)] == [
                     'Payroll Summary', 'Employee Payroll Register', 'Attendance & Adjustments', 'Review Exceptions']
+                register = ET.fromstring(archive.read('xl/worksheets/sheet2.xml'))
+                employee_cells = register.findall("s:sheetData/s:row/s:c[@r='B7']", namespace)
+                self_panes = register.findall('s:sheetViews/s:sheetView/s:pane', namespace)
+                assert len(employee_cells) == 1
+                assert register.find("s:sheetData/s:row/s:c[@r='B8']", namespace) is None
+                assert not self_panes
+                assert b'Duplicate Payslip Excluded' in archive.read('xl/sharedStrings.xml')
+                assert workbook.find('s:bookViews/s:workbookView', namespace).attrib['showHorizontalScroll'] == '0'
             assert not errors, errors
-            print('Browser wizard, custom dates, employee filter, four-sheet download, and persistent web client: passed')
+            print('Browser wizard, custom dates, employee filter, HRMS shortcut, duplicate resolution, no frozen panes, four-sheet download, and persistent web client: passed')
         finally:
+            if payslips:
+                rpc('hr.payslip', 'unlink', [payslips])
             rpc('hr.employee', 'unlink', [[employee]])
             browser.close()
 

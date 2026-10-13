@@ -2,6 +2,7 @@ from collections import defaultdict
 from datetime import datetime, time
 from types import SimpleNamespace
 import io
+import zipfile
 
 import pytz
 import xlsxwriter
@@ -117,8 +118,57 @@ class PayrollReviewReport(models.AbstractModel):
             return None
         return sum(line.number_of_days for line in slip.worked_days_line_ids if line.code in paid_codes)
 
+    def _resolve_duplicate_periods(self, slips):
+        """Choose one regular slip per employee/contract/period; retain refunds."""
+        groups = defaultdict(list)
+        selected = self.env['hr.payslip']
+        excluded = []
+        for slip in slips:
+            if slip.credit_note:
+                selected |= slip
+            else:
+                groups[(slip.employee_id.id, slip.contract_id.id, slip.date_from, slip.date_to)].append(slip)
+        state_rank = {'done': 3, 'verify': 2, 'draft': 1, 'cancel': 0}
+        for candidates in groups.values():
+            def rank(slip):
+                codes = set(slip.line_ids.mapped('code'))
+                return (state_rank.get(slip.state, 0), {'GROSS', 'NET'} <= codes,
+                        slip.write_date or slip.create_date, slip.id)
+            winner = max(candidates, key=rank)
+            selected |= winner
+            excluded.extend((slip, winner) for slip in candidates if slip != winner)
+        return selected.sorted(key=lambda slip: (slip.employee_id.name or '', slip.date_from, slip.id)), excluded
+
+    def _employee_summary_rows(self, rows):
+        """Salary sums include refunds; repeated attendance periods count once."""
+        grouped = defaultdict(list)
+        for row in rows:
+            grouped[row['employee_id']].append(row)
+        output = []
+        salary_keys = ('basic', 'all_allowances', 'earnings', 'deductions', 'net')
+        attendance_keys = ('payable_days', 'present', 'weekly_off_worked', 'holiday_worked',
+                           'worked_hours', 'ot_hours', 'fine_hours')
+        for employee_rows in grouped.values():
+            merged = dict(employee_rows[0])
+            for key in salary_keys:
+                values = [row.get(key) for row in employee_rows]
+                merged[key] = sum(values) if all(value is not None for value in values) else None
+            periods = {}
+            for row in employee_rows:
+                if row['credit'] == 'No':
+                    periods.setdefault((row['date_from'], row['date_to']), row)
+            periods = list(periods.values())
+            overlaps = any(left['date_from'] <= right['date_to'] and right['date_from'] <= left['date_to']
+                           for i, left in enumerate(periods) for right in periods[i + 1:])
+            for key in attendance_keys:
+                values = [row.get(key) for row in periods]
+                merged[key] = sum(values) if periods and not overlaps and all(value is not None for value in values) else None
+            merged['issues'] = '; '.join(dict.fromkeys(row['issues'] for row in employee_rows if row.get('issues')))
+            output.append(merged)
+        return output
+
     def _data(self, wizard):
-        slips = wizard._selected_payslips()
+        slips, excluded = self._resolve_duplicate_periods(wizard._selected_payslips())
         if wizard.report_type == 'summary' and not slips:
             raise UserError(_('No payslips match the selected period and filters.'))
         employees = wizard._scope_employees() | slips.employee_id
@@ -132,6 +182,13 @@ class PayrollReviewReport(models.AbstractModel):
 
         def issue(base, kind, message, day=None):
             exceptions.append({**base, 'date': str(day or ''), 'issue': kind, 'message': message})
+
+        for skipped, winner in excluded:
+            issue({**self._identity(skipped.employee_id, skipped.contract_id),
+                   'payslip': skipped.number or skipped.name or str(skipped.id)},
+                  'Duplicate Payslip Excluded',
+                  f'ID {skipped.id} excluded; ID {winner.id} selected for {winner.date_from} to {winner.date_to}. '
+                  'Selection: Done, Waiting, Draft; then computed totals; then latest update and ID.')
 
         for employee in employees.sorted('name'):
             employee_slips = slips.filtered(lambda slip: slip.employee_id == employee)
@@ -168,7 +225,7 @@ class PayrollReviewReport(models.AbstractModel):
                 if payable_days is None:
                     flags.append('Payable days unavailable')
                     issue(base, 'Payable Days', 'Worked-day buckets are missing or have unmapped leave codes; payable days are left blank.')
-                row = {**base, **finance, 'date_from': str(slip.date_from), 'date_to': str(slip.date_to),
+                row = {**base, **finance, 'employee_id': employee.id, 'date_from': str(slip.date_from), 'date_to': str(slip.date_to),
                        'state': dict(slip._fields['state']._description_selection(self.env)).get(slip.state, slip.state),
                        'credit': 'Yes' if slip.credit_note else 'No', 'currency': slip.company_id.currency_id.name,
                        'basis': dict(contract._fields['wage_type']._description_selection(self.env)).get(contract.wage_type, '') if contract else '',
@@ -199,7 +256,7 @@ class PayrollReviewReport(models.AbstractModel):
         summary = [{**group, 'staff_type': staff_type, 'employees': len(group['employees'])}
                    for staff_type, group in sorted(groups.items())]
         return {'register': register, 'daily': daily_rows, 'exceptions': exceptions, 'summary': summary,
-                'employee_count': len(employees)}
+                'employee_count': len(employees), 'excluded_count': len(excluded)}
 
     def _daily_data(self, slip, base, daily, issue):
         employee = slip.employee_id
@@ -318,12 +375,11 @@ class PayrollReviewReport(models.AbstractModel):
         status_label = dict(wizard._fields['payslip_status']._description_selection(self.env))[wizard.payslip_status]
         sheet.write_string(1, 0, f'{wizard.company_id.name} | {start} to {end} | {wizard.company_id.currency_id.name} | Status: {status_label}')
         sheet.write_string(2, 0, 'Salary: saved payslip lines. Attendance/reviews: current records. Durations: HH:MM. Blank values: unavailable.')
-        sheet.write_string(3, 0, 'Present days include half-day equivalents. Overlapping/credit payslips repeat attendance; review flagged overlaps before using totals.')
+        sheet.write_string(3, 0, 'Summary: one row per employee. Exact duplicate payslips are resolved; Payroll Review lists exclusions. Overlapping periods need review.')
         for col, (key, label, kind) in enumerate(columns):
             sheet.write_string(5, col, label, header)
             sheet.set_column(col, col, 25 if kind == 'text' else 18, formats[kind])
         sheet.set_row(5, 42)
-        sheet.freeze_panes(6, min(2, len(columns)))
         for index, row in enumerate(rows, 6):
             for col, (key, label, kind) in enumerate(columns):
                 value = row.get(key)
@@ -368,6 +424,17 @@ class PayrollReviewReport(models.AbstractModel):
                 self._write_sheet(workbook, 'Attendance & Adjustments', DAILY, data['daily'], wizard)
                 self._write_sheet(workbook, 'Review Exceptions', EXCEPTIONS, data['exceptions'], wizard)
             else:
-                rows = [dict(row, number=index) for index, row in enumerate(data['register'], 1)]
-                self._write_sheet(workbook, 'Report', LEGACY, rows, wizard, totals=True)
-        return output.getvalue()
+                rows = [dict(row, number=index) for index, row in enumerate(self._employee_summary_rows(data['register']), 1)]
+                sheet = self._write_sheet(workbook, 'Report', LEGACY, rows, wizard, totals=True)
+                sheet.write_string(4, 0, f"Duplicate payslips excluded: {data['excluded_count']}. No payslips are changed or deleted. Open Payroll Review for selection details.")
+        # Workbook-level scrollbars are a supported Excel view preference.
+        # Keep all cells available; spreadsheet applications may override it.
+        result = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(output.getvalue())) as source, zipfile.ZipFile(result, 'w') as target:
+            for entry in source.infolist():
+                content = source.read(entry.filename)
+                if entry.filename == 'xl/workbook.xml':
+                    content = content.replace(b'<workbookView ',
+                        b'<workbookView showHorizontalScroll="0" showVerticalScroll="0" ', 1)
+                target.writestr(entry, content)
+        return result.getvalue()
