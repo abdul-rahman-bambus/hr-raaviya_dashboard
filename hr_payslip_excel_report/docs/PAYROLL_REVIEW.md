@@ -120,9 +120,10 @@ The summary displays hours as numeric decimal hours (1.75 means 1h 45m). The det
 review workbook continues to use numeric Excel durations displayed as HH:MM.
 
 Total CTC / Contract Salary is the monthly salary on the selected contract, matching the
-reference's monthly salary concept; it is not annual employer cost. It is blank for
-hourly/daily contracts or multiple differing salaries across the selected periods. It
-is never summed across split payslips. Gross Salary and Total Earnings both use the
+reference's monthly salary concept; it is not annual employer cost. On the Monthly sheet it remains blank for multiple differing monthly salaries. The
+Hourly sheet instead shows Hourly Rate (per Hour) from contract.hourly_rate, and the
+Daily sheet shows Daily Wage (per Day) from contract.daily_wage. A rate is displayed once
+per employee, rather than added across split payslips. Gross Salary and Total Earnings both use the
 saved GROSS line in this payroll flow. System Overtime uses OT, System Fine uses LATE/LF,
 and Public Holiday Pay uses PH alone, excluding the broader SWD special-day allowance.
 
@@ -148,9 +149,8 @@ Row numbering starts at one on each sheet. Duplicate-period selection, credit no
 company filters, record rules, and public-holiday precedence continue to apply.
 
 The last sheet has exactly three data rows: **Monthly**, **Hourly**, and **Daily**. It
-shows employee counts and totals of all numeric detail columns, including monthly
-contract salary, days, hours, public-holiday pay, earnings, fines, deductions, and net
-pay. Totals use available values; a populated type with wholly unavailable amounts
+shows employee counts and totals of all numeric detail columns, including the displayed contract salary/rates, days, hours, public-holiday pay, earnings,
+fines, deductions, and net pay. Totals use available values; a populated type with wholly unavailable amounts
 remains blank, while an empty type totals zero. Employee counts are distinct within
 each type, not a global count across all types.
 
@@ -159,3 +159,17 @@ for readers that do not calculate formulas. Applying filters on a detail tab upd
 corresponding final-summary totals in Excel. This adds no separate grand-total row.
 Rows/columns remain unfrozen and the workbook's scrollbar preferences are preserved.
 The separate Payroll Review export retains its audit-oriented four-sheet structure.
+
+## Contract salary and daily/hourly rates
+
+The first monetary column uses the matching contract field and a heading with its units:
+Monthly: Total CTC / Contract Salary (`wage`); Hourly: Hourly Rate (per Hour)
+(`hourly_rate`); Daily: Daily Wage (per Day) (`daily_wage`). Zero configured rates remain
+numeric zero. If selected payslips for one employee have different rates, the single
+summary rate is blank and the row flags Multiple contract rates; Payroll Review shows
+each underlying rate. No rate is inferred from earned salary.
+
+The Final Summary column is Contract Salary / Rate Total and links to each detail
+subtotal. Its hourly/daily values are sums of the displayed configured rates, not earned
+wages or payroll expense. Gross Salary, Total Earnings, deductions, and Net Pay continue
+to come from saved payslip amounts. Cell comments explain the different rate units.
