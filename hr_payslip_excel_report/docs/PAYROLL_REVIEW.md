@@ -1,7 +1,7 @@
 # Payroll Reports
 
 Open **HRMS → Payroll → Payroll Reports** or **Payroll → Report → Payroll Reports**. Select **Payslip Summary** (the existing
-single-sheet layout) or **Payroll Review** (the new four-sheet workbook).
+single-sheet employee summary) or **Payroll Review** (the new four-sheet workbook).
 
 Choose a company enabled in your session, Current Month or a custom date range,
 optional department/employees, and payslip status. Default status includes all except
@@ -108,3 +108,27 @@ python hr_payslip_excel_report/tests/browser/verify_report_wizard.py \
 It requires Playwright/Chromium, a running test Odoo instance, and this module installed.
 The database name must include `test`. It creates and removes one verification employee.
 Use `ODOO_TEST_LOGIN`, `ODOO_TEST_PASSWORD`, and `CHROMIUM_BIN` to override test defaults.
+
+## Detailed employee summary
+
+Payslip Summary includes the reference workbook's CTC/contract salary, gross salary,
+payable/present days, weekly-off leave and absence, worked/OT/fine hours, basic pay,
+system overtime, total earnings, system fine, and net pay. It additionally separates
+public-holiday days, public-holiday worked days, public-holiday pay, and weekly-off worked
+days, while retaining allowances and total deductions.
+
+The summary displays hours as numeric decimal hours (1.75 means 1h 45m). The detailed
+review workbook continues to use numeric Excel durations displayed as HH:MM.
+
+Total CTC / Contract Salary is the monthly salary on the selected contract, matching the
+reference's monthly salary concept; it is not annual employer cost. It is blank for
+hourly/daily contracts or multiple differing salaries across the selected periods. It
+is never summed across split payslips. Gross Salary and Total Earnings both use the
+saved GROSS line in this payroll flow. System Overtime uses OT, System Fine uses LATE/LF,
+and Public Holiday Pay uses PH alone, excluding the broader SWD special-day allowance.
+
+Week-off Leave Days are unworked weekly-off equivalents from the effective template or
+assigned schedule, not a claim of paid leave entitlement. Public holidays take precedence
+and are counted separately. Present/absent/holiday figures and actual worked hours use
+the same daily attendance/leave classifications in both report modes. Payable Days still
+comes from saved payroll buckets; none of these display changes recalculates salary.

@@ -308,6 +308,73 @@ class TestPayrollReview(TransactionCase):
             self.assertEqual(float(net.text), 8700)
         self.assertEqual(slip.line_ids.filtered(lambda line: line.code == 'NET').total, 8700)
 
+    def test_detailed_summary_salary_components_and_contract_salary(self):
+        self.finance(self.slip())
+        data = self.report._data(self.wizard(report_type='summary'))
+        row = self.report._employee_summary_rows(data['register'])[0]
+        self.assertEqual(row['ctc'], 9000)
+        self.assertEqual((row['basic'], row['overtime'], row['public_holiday_pay'], row['fine']),
+                         (8000, 300, 200, 100))
+        self.assertEqual((row['earnings'], row['deductions'], row['net']), (9000, 300, 8700))
+
+    def test_summary_public_holiday_takes_precedence_over_weekly_off(self):
+        self.env['resource.calendar.leaves'].create({'name': 'Sunday Public Holiday',
+            'calendar_id': self.calendar.id, 'date_from': datetime(2026, 9, 5, 18, 30),
+            'date_to': datetime(2026, 9, 6, 18, 29, 59)})
+        self.env['hr.attendance'].create({'employee_id': self.employee.id,
+            'check_in': datetime(2026, 9, 6, 3, 30), 'check_out': datetime(2026, 9, 6, 11, 30)})
+        self.finance(self.slip(date_from='2026-09-06', date_to='2026-09-06'))
+        data = self.report._data(self.wizard(report_type='summary'))
+        row = self.report._employee_summary_rows(data['register'])[0]
+        self.assertEqual((row['holidays'], row['holiday_worked'], row['weekly_off_leave']), (1, 1, 0))
+        self.assertEqual(row['worked_hours'], 8)
+        self.assertEqual(row['public_holiday_pay'], 200)
+        self.assertEqual(row['net'], 8700)
+
+    def test_summary_unused_weekly_off_and_absence_are_separate(self):
+        self.finance(self.slip(date_from='2026-09-06', date_to='2026-09-07'))
+        data = self.report._data(self.wizard(report_type='summary'))
+        row = self.report._employee_summary_rows(data['register'])[0]
+        self.assertEqual((row['weekly_off_leave'], row['weekly_off_worked'], row['absent'], row['holidays']),
+                         (1, 0, 1, 0))
+
+    def test_detailed_summary_headers_and_decimal_hours(self):
+        self.env['hr.attendance'].create({'employee_id': self.employee.id,
+            'check_in': datetime(2026, 9, 7, 3, 45), 'check_out': datetime(2026, 9, 7, 13, 15)})
+        sheet = self.env['bambus.hr.attendance.sheet'].create({'date': '2026-09-07', 'company_id': self.company.id})
+        self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id, 'employee_id': self.employee.id,
+            'overtime_state': 'approved', 'overtime_hours': 1.75, 'overtime_amount': 300,
+            'fine_state': 'approved', 'fine_hours': .25, 'fine_amount': 100})
+        slip = self.slip()
+        self.finance(slip)
+        ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+        content = self.wizard(report_type='summary')._generate_xlsx()
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            strings = ET.fromstring(archive.read('xl/sharedStrings.xml'))
+            strings = [''.join(item.itertext()) for item in strings]
+            sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
+            headers = [strings[int(cell.find('s:v', ns).text)]
+                       for cell in sheet.findall("s:sheetData/s:row[@r='6']/s:c", ns)]
+            for label in ('Total CTC / Contract Salary', 'Gross Salary', 'Payable Days', 'Present Days',
+                          'Week-off Leave Days', 'Absent Days', 'Public Holiday Days',
+                          'Public Holiday Worked Days', 'System Overtime', 'Public Holiday Pay',
+                          'Total Earnings', 'System Fine', 'Net Pay Amount'):
+                self.assertIn(label, headers)
+            values = {cell.attrib['r']: float(cell.find('s:v', ns).text)
+                      for cell in sheet.findall("s:sheetData/s:row[@r='7']/s:c", ns)
+                      if cell.attrib.get('t') != 's' and cell.find('s:v', ns) is not None}
+            self.assertEqual(values['C7'], 9000)
+            self.assertEqual(values['M7'], 1.75)
+            self.assertEqual(values['N7'], .25)
+            self.assertEqual(values['Q7'], 200)
+            self.assertIsNone(sheet.find('s:sheetViews/s:sheetView/s:pane', ns))
+
+    def test_summary_does_not_invent_monthly_ctc_for_hourly_contract(self):
+        self.contract.write({'wage_type': 'hourly', 'hourly_rate': 100})
+        self.finance(self.slip())
+        data = self.report._data(self.wizard(report_type='summary'))
+        self.assertIsNone(self.report._employee_summary_rows(data['register'])[0]['ctc'])
+
     def test_legacy_summary_retained_and_empty_selection_explained(self):
         with self.assertRaises(UserError):
             self.wizard(report_type='summary')._generate_xlsx()

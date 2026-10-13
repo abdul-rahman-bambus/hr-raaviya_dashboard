@@ -52,12 +52,18 @@ SUMMARY = [('staff_type', 'Staff Type', 'text'), ('employees', 'Employees', 'num
            ('deductions', 'Total Deductions', 'money'), ('net', 'Net Pay', 'money'),
            ('pending', 'Pending Review Items', 'number'), ('missing', 'Staff Without Matching Payslip', 'number')]
 LEGACY = [('number', 'S.No', 'number'), ('name', 'Staff Name', 'text'),
+          ('ctc', 'Total CTC / Contract Salary', 'money'), ('earnings', 'Gross Salary', 'money'),
           ('payable_days', 'Payable Days', 'number'), ('present', 'Present Days', 'number'),
-          ('weekly_off_worked', 'Weekly-Off Working Days', 'number'), ('holiday_worked', 'Holiday Working Days', 'number'),
-          ('worked_hours', 'Total Work Hours', 'duration'), ('ot_hours', 'Overtime Hours', 'duration'),
-          ('fine_hours', 'Fine Hours', 'duration'), ('basic', 'Basic', 'money'),
-          ('all_allowances', 'Allowance', 'money'), ('earnings', 'Gross Salary', 'money'),
-          ('deductions', 'Total Deduction', 'money'), ('net', 'Net Pay Amount', 'money')]
+          ('weekly_off_leave', 'Week-off Leave Days', 'number'), ('absent', 'Absent Days', 'number'),
+          ('holidays', 'Public Holiday Days', 'number'), ('holiday_worked', 'Public Holiday Worked Days', 'number'),
+          ('weekly_off_worked', 'Week-off Worked Days', 'number'),
+          ('worked_hours', 'Total Work Hours', 'number'), ('ot_hours', 'Overtime Hours', 'number'),
+          ('fine_hours', 'Fine Hours', 'number'), ('basic', 'Basic', 'money'),
+          ('overtime', 'System Overtime', 'money'), ('public_holiday_pay', 'Public Holiday Pay', 'money'),
+          ('earnings', 'Total Earnings', 'money'), ('all_allowances', 'Allowance', 'money'),
+          ('fine', 'System Fine', 'money'), ('deductions', 'Total Deductions', 'money'),
+          ('net', 'Net Pay Amount', 'money')]
+
 
 
 class PayrollReviewReport(models.AbstractModel):
@@ -82,7 +88,7 @@ class PayrollReviewReport(models.AbstractModel):
     def _financials(self, slip):
         if not slip.line_ids:
             return dict.fromkeys(('basic', 'overtime', 'holiday_pay', 'allowances', 'all_allowances',
-                                  'earnings', 'fine', 'advance', 'other_deductions', 'deductions', 'net'))
+                                  'earnings', 'fine', 'advance', 'other_deductions', 'deductions', 'net', 'public_holiday_pay'))
         sign = -1 if slip.credit_note else 1
         by_code = defaultdict(float)
         for line in slip.line_ids:
@@ -97,7 +103,7 @@ class PayrollReviewReport(models.AbstractModel):
         # Missing computed totals are blank, never an invented zero salary.
         codes = set(slip.line_ids.mapped('code'))
         return {'basic': basic if slip.line_ids else None, 'overtime': overtime,
-                'holiday_pay': holiday, 'allowances': allowances - overtime - holiday,
+                'holiday_pay': holiday, 'public_holiday_pay': by_code['PH'], 'allowances': allowances - overtime - holiday,
                 'all_allowances': allowances, 'earnings': by_code['GROSS'] if 'GROSS' in codes else None,
                 'fine': fine, 'advance': advance, 'other_deductions': deductions - fine - advance,
                 'deductions': deductions if slip.line_ids else None,
@@ -145,8 +151,8 @@ class PayrollReviewReport(models.AbstractModel):
         for row in rows:
             grouped[row['employee_id']].append(row)
         output = []
-        salary_keys = ('basic', 'all_allowances', 'earnings', 'deductions', 'net')
-        attendance_keys = ('payable_days', 'present', 'weekly_off_worked', 'holiday_worked',
+        salary_keys = ('basic', 'all_allowances', 'earnings', 'deductions', 'net', 'overtime', 'fine', 'public_holiday_pay')
+        attendance_keys = ('payable_days', 'present', 'weekly_off_leave', 'absent', 'holidays', 'weekly_off_worked', 'holiday_worked',
                            'worked_hours', 'ot_hours', 'fine_hours')
         for employee_rows in grouped.values():
             merged = dict(employee_rows[0])
@@ -163,6 +169,8 @@ class PayrollReviewReport(models.AbstractModel):
             for key in attendance_keys:
                 values = [row.get(key) for row in periods]
                 merged[key] = sum(values) if periods and not overlaps and all(value is not None for value in values) else None
+            monthly_salaries = {row.get('ctc') for row in periods}
+            merged['ctc'] = next(iter(monthly_salaries)) if len(monthly_salaries) == 1 else None
             merged['issues'] = '; '.join(dict.fromkeys(row['issues'] for row in employee_rows if row.get('issues')))
             output.append(merged)
         return output
@@ -229,23 +237,22 @@ class PayrollReviewReport(models.AbstractModel):
                        'state': dict(slip._fields['state']._description_selection(self.env)).get(slip.state, slip.state),
                        'credit': 'Yes' if slip.credit_note else 'No', 'currency': slip.company_id.currency_id.name,
                        'basis': dict(contract._fields['wage_type']._description_selection(self.env)).get(contract.wage_type, '') if contract else '',
+                       'ctc': contract.wage if contract and contract.wage_type == 'monthly' else None,
                        'rate': (contract.hourly_rate if contract.wage_type == 'hourly' else contract.daily_wage if contract.wage_type == 'daily' else contract.wage) if contract else None,
                        'payable_days': payable_days, 'present': slip.total_working_days + slip.weekend_worked + slip.holiday_worked,
                        'weekly_off_worked': slip.weekend_worked, 'holiday_worked': slip.holiday_worked,
                        'payable_hours': slip.total_worker_hours if contract and contract.wage_type == 'hourly' else None,
                        'ot_hours': slip.total_validated_overtime, 'fine_hours': slip.total_fine_hours, 'pending': 0}
+                key = (employee.id, slip.date_from, slip.date_to, contract.id)
+                if key not in day_cache:
+                    day_cache[key] = attendance_report._compute_employee_daily(employee,
+                        SimpleNamespace(date_start=slip.date_from, date_end=slip.date_to), contract=contract)
+                daily, counts = self._daily_data(slip, base, day_cache[key], issue)
                 if wizard.report_type == 'review':
-                    key = (employee.id, slip.date_from, slip.date_to, contract.id)
-                    if key not in day_cache:
-                        day_cache[key] = attendance_report._compute_employee_daily(employee,
-                            SimpleNamespace(date_start=slip.date_from, date_end=slip.date_to), contract=contract)
-                    daily, counts = self._daily_data(slip, base, day_cache[key], issue)
                     daily_rows.extend(daily)
-                    row.update(counts)
-                    if row['pending']:
-                        flags.append('Pending attendance reviews')
-                else:
-                    row['worked_hours'] = slip.total_worked_hours_excl_ot + slip.total_validated_overtime
+                row.update(counts)
+                if row['pending']:
+                    flags.append('Pending attendance reviews')
                 row['issues'] = '; '.join(flags)
                 register.append(row)
                 group = groups[base['staff_type']]
@@ -271,7 +278,7 @@ class PayrollReviewReport(models.AbstractModel):
         leaves = self.env['hr.leave'].search([('employee_id', '=', employee.id), ('state', '=', 'validate'),
                                             ('date_from', '<=', utc_end), ('date_to', '>=', utc_start)])
         counts = dict.fromkeys(('present', 'half_days', 'paid_leave', 'unpaid_leave', 'absent',
-                               'weekly_off', 'weekly_off_worked', 'holidays', 'holiday_worked', 'worked_hours', 'pending'), 0)
+                               'weekly_off', 'weekly_off_leave', 'weekly_off_worked', 'holidays', 'holiday_worked', 'worked_hours', 'pending'), 0)
         rows = []
         for day, info in sorted(daily.items()):
             template = employee._get_attendance_automation_template(day)
@@ -305,6 +312,7 @@ class PayrollReviewReport(models.AbstractModel):
             counts['paid_leave'] += paid
             counts['unpaid_leave'] += unpaid
             counts['absent'] += max(0., 1 - fraction - paid - unpaid) if work_periods and not info['is_weekend'] and not info['is_holiday'] else 0
+            counts['weekly_off_leave'] += max(0., 1 - fraction) if info['is_weekend'] else 0
             counts['weekly_off'] += info['is_weekend']
             counts['weekly_off_worked'] += fraction if info['is_weekend'] else 0
             counts['holidays'] += info['is_holiday']
@@ -374,7 +382,8 @@ class PayrollReviewReport(models.AbstractModel):
         sheet.write_string(0, 0, name, title)
         status_label = dict(wizard._fields['payslip_status']._description_selection(self.env))[wizard.payslip_status]
         sheet.write_string(1, 0, f'{wizard.company_id.name} | {start} to {end} | {wizard.company_id.currency_id.name} | Status: {status_label}')
-        sheet.write_string(2, 0, 'Salary: saved payslip lines. Attendance/reviews: current records. Durations: HH:MM. Blank values: unavailable.')
+        units = 'Hours: decimal hours.' if name == 'Report' else 'Durations: HH:MM.'
+        sheet.write_string(2, 0, 'Salary: saved payslip lines. Attendance/reviews: current records. ' + units + ' Blank values: unavailable.')
         sheet.write_string(3, 0, 'Summary: one row per employee. Exact duplicate payslips are resolved; Payroll Review lists exclusions. Overlapping periods need review.')
         for col, (key, label, kind) in enumerate(columns):
             sheet.write_string(5, col, label, header)
@@ -397,7 +406,7 @@ class PayrollReviewReport(models.AbstractModel):
         sheet.autofilter(5, 0, max(5, last), len(columns) - 1)
         if totals and rows:
             for col, (key, label, kind) in enumerate(columns):
-                if kind in ('money', 'number', 'duration') and key not in ('rate', 'number'):
+                if kind in ('money', 'number', 'duration') and key not in ('rate', 'number', 'ctc'):
                     # SUBTOTAL respects Excel filters; cache values for readers without Excel.
                     values = [row[key] for row in rows if row.get(key) is not None]
                     if values:
@@ -426,6 +435,8 @@ class PayrollReviewReport(models.AbstractModel):
             else:
                 rows = [dict(row, number=index) for index, row in enumerate(self._employee_summary_rows(data['register']), 1)]
                 sheet = self._write_sheet(workbook, 'Report', LEGACY, rows, wizard, totals=True)
+                sheet.write_comment(5, 2, 'Monthly contract salary, matching the reference report. This is not an annual employer-cost calculation. Blank for hourly/daily or varying contract salaries.')
+                sheet.write_comment(5, 6, 'Unworked weekly-off day equivalents from the effective template/schedule; this does not establish paid-leave entitlement. Public holidays are counted separately.')
                 sheet.write_string(4, 0, f"Duplicate payslips excluded: {data['excluded_count']}. No payslips are changed or deleted. Open Payroll Review for selection details.")
         # Workbook-level scrollbars are a supported Excel view preference.
         # Keep all cells available; spreadsheet applications may override it.

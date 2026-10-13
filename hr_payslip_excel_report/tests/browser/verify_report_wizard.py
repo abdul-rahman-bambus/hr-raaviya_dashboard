@@ -92,8 +92,23 @@ def main():
                 assert not self_panes
                 assert b'Duplicate Payslip Excluded' in archive.read('xl/sharedStrings.xml')
                 assert workbook.find('s:bookViews/s:workbookView', namespace).attrib['showHorizontalScroll'] == '0'
+            report.select_option(label='Payslip Summary')
+            with page.expect_download() as summary_event:
+                page.get_by_role('button', name='Download Excel', exact=True).click()
+            summary_path = Path(args.output).with_name('summary-' + Path(args.output).name)
+            summary_event.value.save_as(str(summary_path))
+            with zipfile.ZipFile(summary_path) as archive:
+                text = archive.read('xl/sharedStrings.xml')
+                for label in (b'Total CTC / Contract Salary', b'Week-off Leave Days', b'Absent Days',
+                              b'Public Holiday Days', b'Public Holiday Worked Days', b'Public Holiday Pay',
+                              b'System Overtime', b'System Fine', b'Total Earnings'):
+                    assert label in text, label
+                sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
+                assert sheet.find("s:sheetData/s:row/s:c[@r='B8']", namespace) is None
+                assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace) is None
+            assert page.evaluate('originalWebClient.isConnected')
             assert not errors, errors
-            print('Browser wizard, custom dates, employee filter, HRMS shortcut, duplicate resolution, no frozen panes, four-sheet download, and persistent web client: passed')
+            print('Browser wizard, custom dates, employee filter, HRMS shortcut, duplicate resolution, detailed holiday summary, no frozen panes, both exports, and persistent web client: passed')
         finally:
             if payslips:
                 rpc('hr.payslip', 'unlink', [payslips])
