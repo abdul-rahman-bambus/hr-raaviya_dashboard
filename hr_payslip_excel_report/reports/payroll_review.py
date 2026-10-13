@@ -171,7 +171,11 @@ class PayrollReviewReport(models.AbstractModel):
                 merged[key] = sum(values) if periods and not overlaps and all(value is not None for value in values) else None
             monthly_salaries = {row.get('ctc') for row in periods}
             merged['ctc'] = next(iter(monthly_salaries)) if len(monthly_salaries) == 1 else None
+            contract_rates = {row.get('rate') for row in employee_rows}
+            merged['rate'] = next(iter(contract_rates)) if len(contract_rates) == 1 else None
             merged['issues'] = '; '.join(dict.fromkeys(row['issues'] for row in employee_rows if row.get('issues')))
+            if len(contract_rates) > 1:
+                merged['issues'] = '; '.join(filter(None, (merged['issues'], 'Multiple contract rates; see Payroll Review')))
             output.append(merged)
         return output
 
@@ -187,26 +191,34 @@ class PayrollReviewReport(models.AbstractModel):
 
     def _write_salary_summary(self, workbook, data, wizard):
         groups = self._salary_type_rows(data['register'])
-        final_columns = [('salary_type', 'Salary Type', 'text'), ('employees', 'Employees', 'number')] + LEGACY[2:]
+        final_columns = [('salary_type', 'Salary Type', 'text'), ('employees', 'Employees', 'number'),
+                         ('contract_value', 'Contract Salary / Rate Total', 'money')] + LEGACY[3:]
         final_rows, source_refs = [], []
         for wage_type, name in (('monthly', 'Monthly'), ('hourly', 'Hourly'), ('daily', 'Daily')):
             rows = [dict(row, number=index) for index, row in enumerate(groups[wage_type], 1)]
-            sheet = self._write_sheet(workbook, name, LEGACY, rows, wizard, totals=True,
-                                      include_ctc=True, empty_totals=True, decimal_hours=True)
-            sheet.write_comment(5, 2, 'Monthly contract salary, not annual employer cost. Blank for hourly/daily or varying monthly salaries.')
+            columns = list(LEGACY)
+            if wage_type == 'hourly':
+                columns[2] = ('rate', 'Hourly Rate (per Hour)', 'money')
+            elif wage_type == 'daily':
+                columns[2] = ('rate', 'Daily Wage (per Day)', 'money')
+            sheet = self._write_sheet(workbook, name, columns, rows, wizard, totals=True,
+                                      include_ctc=True, include_rates=True, empty_totals=True, decimal_hours=True)
+            sheet.write_comment(5, 2, 'Monthly salary uses contract.wage; hourly uses hourly_rate; daily uses daily_wage. '
+                                    'Totals sum configured salaries/rates, not earned pay. Varying rates remain blank; see Payroll Review.')
             sheet.write_comment(5, 6, 'Unworked weekly-off equivalents, not a new paid-leave entitlement. Public holidays are separate.')
             sheet.write_string(4, 0, f"Salary type: {name}. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")
             final = {'salary_type': name, 'employees': len(rows)}
-            for key, label, kind in LEGACY[2:]:
+            for column, (key, label, kind) in enumerate(columns[2:], 2):
                 values = [row[key] for row in rows if row.get(key) is not None]
-                final[key] = sum(values) if values else (None if rows else 0)
+                final['contract_value' if column == 2 else key] = sum(values) if values else (None if rows else 0)
             final_rows.append(final)
             # Excel row of the type sheet's SUBTOTAL footer.
             source_refs.append((name, max(7, 6 + len(rows)), 8 + len(rows)))
         sheet = self._write_sheet(workbook, 'Final Summary', final_columns, final_rows,
                                   wizard, decimal_hours=True)
         sheet.write_string(3, 0, 'Three salary-type totals. Formulas follow filters on the detail sheets; only available values are summed.')
-        sheet.write_string(4, 0, 'CTC is monthly contract salary; unavailable figures remain blank.')
+        sheet.write_string(4, 0, 'Contract column: monthly salary, hourly rate, or daily wage by row. Rate totals are not earned pay.')
+        sheet.write_comment(5, 2, 'Monthly totals are monthly contract salaries. Hourly/daily totals are sums of configured per-hour/per-day rates. Gross and Net columns show actual payslip amounts.')
         number_format = workbook.add_format({'num_format': '0.##'})
         money_format = workbook.add_format({'num_format': '#,##0.00;[Red]-#,##0.00'})
         for index, (row, (name, last, footer)) in enumerate(zip(final_rows, source_refs), 6):
@@ -413,7 +425,7 @@ class PayrollReviewReport(models.AbstractModel):
         return rows, counts
 
     def _write_sheet(self, workbook, name, columns, rows, wizard, totals=False, employee_count=None,
-                     include_ctc=False, empty_totals=False, decimal_hours=False):
+                     include_ctc=False, include_rates=False, empty_totals=False, decimal_hours=False):
         sheet = workbook.add_worksheet(name)
         title = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#233B53'})
         header = workbook.add_format({'bold': True, 'bg_color': '#DDEBF7', 'border': 1, 'text_wrap': True})
@@ -450,7 +462,7 @@ class PayrollReviewReport(models.AbstractModel):
         sheet.autofilter(5, 0, max(5, last), len(columns) - 1)
         if totals and (rows or empty_totals):
             for col, (key, label, kind) in enumerate(columns):
-                if kind in ('money', 'number', 'duration') and key not in ('rate', 'number') and (key != 'ctc' or include_ctc):
+                if kind in ('money', 'number', 'duration') and key != 'number' and (key != 'rate' or include_rates) and (key != 'ctc' or include_ctc):
                     # SUBTOTAL respects Excel filters; cache values for readers without Excel.
                     values = [row[key] for row in rows if row.get(key) is not None]
                     if values or not rows:

@@ -373,7 +373,9 @@ class TestPayrollReview(TransactionCase):
         self.contract.write({'wage_type': 'hourly', 'hourly_rate': 100})
         self.finance(self.slip())
         data = self.report._data(self.wizard(report_type='summary'))
-        self.assertIsNone(self.report._employee_summary_rows(data['register'])[0]['ctc'])
+        row = self.report._employee_summary_rows(data['register'])[0]
+        self.assertIsNone(row['ctc'])
+        self.assertEqual(row['rate'], 100)
 
     def test_salary_type_tabs_and_three_final_total_rows(self):
         self.finance(self.slip())
@@ -392,6 +394,14 @@ class TestPayrollReview(TransactionCase):
             self.assertEqual([item.attrib['name'] for item in workbook.findall('s:sheets/s:sheet', ns)],
                              ['Monthly', 'Hourly', 'Daily', 'Final Summary'])
             final = ET.fromstring(archive.read('xl/worksheets/sheet4.xml'))
+            for sheet_index, (header, expected) in enumerate((('Total CTC / Contract Salary', 9000),
+                                                            ('Hourly Rate (per Hour)', 100),
+                                                            ('Daily Wage (per Day)', 500)), 1):
+                detail = ET.fromstring(archive.read(f'xl/worksheets/sheet{sheet_index}.xml'))
+                self.assertEqual(float(detail.find("s:sheetData/s:row/s:c[@r='C7']/s:v", ns).text), expected)
+                final_rate = final.find(f"s:sheetData/s:row/s:c[@r='C{sheet_index + 6}']/s:v", ns)
+                self.assertEqual(float(final_rate.text), expected)
+                self.assertIn(header.encode(), archive.read('xl/sharedStrings.xml'))
             for index, name in enumerate(('Monthly', 'Hourly', 'Daily'), 7):
                 net_cell = final.find(f"s:sheetData/s:row/s:c[@r='V{index}']", ns)
                 self.assertEqual(float(net_cell.find('s:v', ns).text), 8700)
@@ -434,6 +444,27 @@ class TestPayrollReview(TransactionCase):
         self.assertEqual(len(grouped['monthly']), 1)
         self.assertEqual(grouped['monthly'][0]['net'], 0)
         self.assertEqual(grouped['monthly'][0]['payable_days'], 26)
+
+    def test_split_periods_show_rate_once_and_keep_multiple_rates_explicit(self):
+        self.contract.write({'wage_type': 'hourly', 'hourly_rate': 100})
+        self.finance(self.slip(date_to='2026-09-15'))
+        self.finance(self.slip(date_from='2026-09-16'))
+        data = self.report._data(self.wizard(report_type='summary'))
+        row = self.report._salary_type_rows(data['register'])['hourly'][0]
+        self.assertEqual(row['rate'], 100)
+        self.assertEqual(row['net'], 17400)
+        different = self.contract.copy({'name': 'Different Hourly Contract', 'hourly_rate': 120})
+        self.finance(self.slip(contract_id=different.id))
+        data = self.report._data(self.wizard(report_type='summary'))
+        row = self.report._salary_type_rows(data['register'])['hourly'][0]
+        self.assertIsNone(row['rate'])
+        self.assertIn('Multiple contract rates', row['issues'])
+
+    def test_zero_hourly_rate_is_a_number_not_missing(self):
+        self.contract.write({'wage_type': 'hourly', 'hourly_rate': 0})
+        self.finance(self.slip())
+        data = self.report._data(self.wizard(report_type='summary'))
+        self.assertEqual(self.report._salary_type_rows(data['register'])['hourly'][0]['rate'], 0)
 
     def test_missing_contract_is_not_silently_classified_as_monthly(self):
         self.slip(contract_id=False)
