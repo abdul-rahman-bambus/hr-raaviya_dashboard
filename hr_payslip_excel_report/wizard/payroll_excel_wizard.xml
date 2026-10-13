@@ -18,7 +18,7 @@
                 <div class="alert alert-info" role="status">
                     Payslips must fall entirely within the selected period. Salary amounts come from payslip lines;
                     this export does not recalculate or prorate salary.
-                    Payslip Summary has one row per employee. Exact duplicate periods use the highest status,
+                    Payslip Summary has Monthly, Hourly, Daily, and Final Summary sheets, with one employee row per salary type. Exact duplicate periods use the highest status,
                     then computed totals, then latest update; Payroll Review lists excluded payslips.
                     <span invisible="report_type != 'review'">Attendance and review information shows current records.
                     Missing payslips and pending adjustments appear in Review Exceptions.</span>

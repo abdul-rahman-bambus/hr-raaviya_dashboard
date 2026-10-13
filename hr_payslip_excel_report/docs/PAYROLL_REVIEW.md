@@ -1,7 +1,6 @@
 # Payroll Reports
 
-Open **HRMS → Payroll → Payroll Reports** or **Payroll → Report → Payroll Reports**. Select **Payslip Summary** (the existing
-single-sheet employee summary) or **Payroll Review** (the new four-sheet workbook).
+Open **HRMS → Payroll → Payroll Reports** or **Payroll → Report → Payroll Reports**. Select **Payslip Summary** (salary-type employee sheets and final totals) or **Payroll Review** (the new four-sheet workbook).
 
 Choose a company enabled in your session, Current Month or a custom date range,
 optional department/employees, and payslip status. Default status includes all except
@@ -132,3 +131,31 @@ assigned schedule, not a claim of paid leave entitlement. Public holidays take p
 and are counted separately. Present/absent/holiday figures and actual worked hours use
 the same daily attendance/leave classifications in both report modes. Payable Days still
 comes from saved payroll buckets; none of these display changes recalculates salary.
+
+## Salary-type sheet separation
+
+Payslip Summary downloads **Monthly**, **Hourly**, **Daily**, and **Final Summary**, in that
+order. All three detail tabs remain present even when a type has no matching employees.
+Salary type comes from each selected payslip's contract `wage_type`, not the employee's
+current contract or translated labels. Missing/unsupported salary types are reported as
+a validation error rather than silently putting someone in the wrong sheet; Payroll
+Review remains available to inspect missing contracts.
+
+Each detail tab has one row per employee within that salary type and the existing
+attendance, holiday, and salary columns. If an employee has different salary types
+across the selected periods, the appropriate amounts appear on each respective tab.
+Row numbering starts at one on each sheet. Duplicate-period selection, credit notes,
+company filters, record rules, and public-holiday precedence continue to apply.
+
+The last sheet has exactly three data rows: **Monthly**, **Hourly**, and **Daily**. It
+shows employee counts and totals of all numeric detail columns, including monthly
+contract salary, days, hours, public-holiday pay, earnings, fines, deductions, and net
+pay. Totals use available values; a populated type with wholly unavailable amounts
+remains blank, while an empty type totals zero. Employee counts are distinct within
+each type, not a global count across all types.
+
+Final Summary uses formulas linked to the detail-tab subtotal cells, with cached values
+for readers that do not calculate formulas. Applying filters on a detail tab updates its
+corresponding final-summary totals in Excel. This adds no separate grand-total row.
+Rows/columns remain unfrozen and the workbook's scrollbar preferences are preserved.
+The separate Payroll Review export retains its audit-oriented four-sheet structure.

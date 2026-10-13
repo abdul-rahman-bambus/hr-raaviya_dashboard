@@ -175,6 +175,48 @@ class PayrollReviewReport(models.AbstractModel):
             output.append(merged)
         return output
 
+    def _salary_type_rows(self, rows):
+        groups = {'monthly': [], 'hourly': [], 'daily': []}
+        for row in rows:
+            wage_type = row.get('wage_type')
+            if wage_type not in groups:
+                raise UserError(_('Payslip %s has no Monthly, Hourly, or Daily salary type on its contract. '
+                                  'Correct the contract or use Payroll Review to inspect it.') % row['payslip'])
+            groups[wage_type].append(row)
+        return {wage_type: self._employee_summary_rows(items) for wage_type, items in groups.items()}
+
+    def _write_salary_summary(self, workbook, data, wizard):
+        groups = self._salary_type_rows(data['register'])
+        final_columns = [('salary_type', 'Salary Type', 'text'), ('employees', 'Employees', 'number')] + LEGACY[2:]
+        final_rows, source_refs = [], []
+        for wage_type, name in (('monthly', 'Monthly'), ('hourly', 'Hourly'), ('daily', 'Daily')):
+            rows = [dict(row, number=index) for index, row in enumerate(groups[wage_type], 1)]
+            sheet = self._write_sheet(workbook, name, LEGACY, rows, wizard, totals=True,
+                                      include_ctc=True, empty_totals=True, decimal_hours=True)
+            sheet.write_comment(5, 2, 'Monthly contract salary, not annual employer cost. Blank for hourly/daily or varying monthly salaries.')
+            sheet.write_comment(5, 6, 'Unworked weekly-off equivalents, not a new paid-leave entitlement. Public holidays are separate.')
+            sheet.write_string(4, 0, f"Salary type: {name}. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")
+            final = {'salary_type': name, 'employees': len(rows)}
+            for key, label, kind in LEGACY[2:]:
+                values = [row[key] for row in rows if row.get(key) is not None]
+                final[key] = sum(values) if values else (None if rows else 0)
+            final_rows.append(final)
+            # Excel row of the type sheet's SUBTOTAL footer.
+            source_refs.append((name, max(7, 6 + len(rows)), 8 + len(rows)))
+        sheet = self._write_sheet(workbook, 'Final Summary', final_columns, final_rows,
+                                  wizard, decimal_hours=True)
+        sheet.write_string(3, 0, 'Three salary-type totals. Formulas follow filters on the detail sheets; only available values are summed.')
+        sheet.write_string(4, 0, 'CTC is monthly contract salary; unavailable figures remain blank.')
+        number_format = workbook.add_format({'num_format': '0.##'})
+        money_format = workbook.add_format({'num_format': '#,##0.00;[Red]-#,##0.00'})
+        for index, (row, (name, last, footer)) in enumerate(zip(final_rows, source_refs), 6):
+            sheet.write_formula(index, 1, f"=SUBTOTAL(103,'{name}'!B7:B{last})", number_format, row['employees'])
+            for column, (key, label, kind) in enumerate(final_columns[2:], 2):
+                if row[key] is not None:
+                    letter = xlsxwriter.utility.xl_col_to_name(column)
+                    sheet.write_formula(index, column, f"='{name}'!{letter}{footer}",
+                                        money_format if kind == 'money' else number_format, row[key])
+
     def _data(self, wizard):
         slips, excluded = self._resolve_duplicate_periods(wizard._selected_payslips())
         if wizard.report_type == 'summary' and not slips:
@@ -235,6 +277,7 @@ class PayrollReviewReport(models.AbstractModel):
                     issue(base, 'Payable Days', 'Worked-day buckets are missing or have unmapped leave codes; payable days are left blank.')
                 row = {**base, **finance, 'employee_id': employee.id, 'date_from': str(slip.date_from), 'date_to': str(slip.date_to),
                        'state': dict(slip._fields['state']._description_selection(self.env)).get(slip.state, slip.state),
+                       'wage_type': contract.wage_type if contract else False,
                        'credit': 'Yes' if slip.credit_note else 'No', 'currency': slip.company_id.currency_id.name,
                        'basis': dict(contract._fields['wage_type']._description_selection(self.env)).get(contract.wage_type, '') if contract else '',
                        'ctc': contract.wage if contract and contract.wage_type == 'monthly' else None,
@@ -369,7 +412,8 @@ class PayrollReviewReport(models.AbstractModel):
             rows.append(row)
         return rows, counts
 
-    def _write_sheet(self, workbook, name, columns, rows, wizard, totals=False, employee_count=None):
+    def _write_sheet(self, workbook, name, columns, rows, wizard, totals=False, employee_count=None,
+                     include_ctc=False, empty_totals=False, decimal_hours=False):
         sheet = workbook.add_worksheet(name)
         title = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#233B53'})
         header = workbook.add_format({'bold': True, 'bg_color': '#DDEBF7', 'border': 1, 'text_wrap': True})
@@ -382,7 +426,7 @@ class PayrollReviewReport(models.AbstractModel):
         sheet.write_string(0, 0, name, title)
         status_label = dict(wizard._fields['payslip_status']._description_selection(self.env))[wizard.payslip_status]
         sheet.write_string(1, 0, f'{wizard.company_id.name} | {start} to {end} | {wizard.company_id.currency_id.name} | Status: {status_label}')
-        units = 'Hours: decimal hours.' if name == 'Report' else 'Durations: HH:MM.'
+        units = 'Hours: decimal hours.' if decimal_hours else 'Durations: HH:MM.'
         sheet.write_string(2, 0, 'Salary: saved payslip lines. Attendance/reviews: current records. ' + units + ' Blank values: unavailable.')
         sheet.write_string(3, 0, 'Summary: one row per employee. Exact duplicate payslips are resolved; Payroll Review lists exclusions. Overlapping periods need review.')
         for col, (key, label, kind) in enumerate(columns):
@@ -404,18 +448,18 @@ class PayrollReviewReport(models.AbstractModel):
                                          {'type': 'formula', 'criteria': '=TRUE', 'format': warning})
         last = 5 + len(rows)
         sheet.autofilter(5, 0, max(5, last), len(columns) - 1)
-        if totals and rows:
+        if totals and (rows or empty_totals):
             for col, (key, label, kind) in enumerate(columns):
-                if kind in ('money', 'number', 'duration') and key not in ('rate', 'number', 'ctc'):
+                if kind in ('money', 'number', 'duration') and key not in ('rate', 'number') and (key != 'ctc' or include_ctc):
                     # SUBTOTAL respects Excel filters; cache values for readers without Excel.
                     values = [row[key] for row in rows if row.get(key) is not None]
-                    if values:
+                    if values or not rows:
                         letter = xlsxwriter.utility.xl_col_to_name(col)
                         total = sum(values) / (24 if kind == 'duration' else 1)
                         if key == 'employees' and employee_count is not None:
                             sheet.write_number(last + 2, col, employee_count, formats[kind])
                             continue
-                        sheet.write_formula(last + 2, col, f'=SUBTOTAL(109,{letter}7:{letter}{last+1})', formats[kind], total)
+                        sheet.write_formula(last + 2, col, f'=SUBTOTAL(109,{letter}7:{letter}{max(7, last+1)})', formats[kind], total)
             sheet.write_string(last + 2, 0, 'Filtered Totals', header)
         sheet.set_landscape()
         sheet.fit_to_pages(1, 0)
@@ -433,11 +477,7 @@ class PayrollReviewReport(models.AbstractModel):
                 self._write_sheet(workbook, 'Attendance & Adjustments', DAILY, data['daily'], wizard)
                 self._write_sheet(workbook, 'Review Exceptions', EXCEPTIONS, data['exceptions'], wizard)
             else:
-                rows = [dict(row, number=index) for index, row in enumerate(self._employee_summary_rows(data['register']), 1)]
-                sheet = self._write_sheet(workbook, 'Report', LEGACY, rows, wizard, totals=True)
-                sheet.write_comment(5, 2, 'Monthly contract salary, matching the reference report. This is not an annual employer-cost calculation. Blank for hourly/daily or varying contract salaries.')
-                sheet.write_comment(5, 6, 'Unworked weekly-off day equivalents from the effective template/schedule; this does not establish paid-leave entitlement. Public holidays are counted separately.')
-                sheet.write_string(4, 0, f"Duplicate payslips excluded: {data['excluded_count']}. No payslips are changed or deleted. Open Payroll Review for selection details.")
+                self._write_salary_summary(workbook, data, wizard)
         # Workbook-level scrollbars are a supported Excel view preference.
         # Keep all cells available; spreadsheet applications may override it.
         result = io.BytesIO()
