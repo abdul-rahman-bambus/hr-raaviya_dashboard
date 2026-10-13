@@ -8,6 +8,7 @@
             <xpath expr='//field[@name="attendance_manager_id"]' position='after'>
                 <field name="is_enrolled" string="Is Enrolled"  />
 		<field name="last_photo_update_time" string="Last photo update time"/>
+                <field name="track_employee" string="Track Employee" />
             </xpath>
         </field>
     </record>

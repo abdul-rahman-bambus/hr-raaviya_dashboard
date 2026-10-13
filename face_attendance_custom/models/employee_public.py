@@ -14,3 +14,8 @@ class HrEmployeePublicInherit(models.Model):
         readonly=True,
         compute_sudo=True,
     )
+    track_employee = fields.Boolean(
+        related="employee_id.track_employee",
+        readonly=True,
+        compute_sudo=True,
+    )

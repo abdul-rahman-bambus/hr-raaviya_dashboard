@@ -80,6 +80,7 @@ class PortalCalendar(http.Controller):
             "image_1920",
             "is_enrolled",
             "last_photo_update_time",
+            "track_employee",
         )
         return {
             field_name: employee_data.get(field_name)
@@ -99,6 +100,8 @@ class PortalCalendar(http.Controller):
             "in_longitude",
             "out_latitude",
             "out_longitude",
+            "checkin_address",
+            "checkout_address",
             "in_mode",
             "out_mode"
         )
@@ -109,6 +112,28 @@ class PortalCalendar(http.Controller):
         }
         values["employee_id"] = employee_id
         return values
+
+    @staticmethod
+    def _prepare_open_attendance_update_values(attendance_data):
+        allowed_fields = (
+            "recognized_face_checkin",
+            "recognized_face_checkout",
+            "attendance_client_id",
+            "in_latitude",
+            "in_longitude",
+            "out_latitude",
+            "out_longitude",
+            "checkin_address",
+            "checkout_address",
+            "in_mode",
+            "out_mode",
+            "check_out",
+        )
+        return {
+            field_name: attendance_data.get(field_name)
+            for field_name in allowed_fields
+            if field_name in attendance_data
+        }
 
     @http.route(["/face_attendance"], type="json", auth="user")
     def portal_check_user(self, **kw):
@@ -155,7 +180,15 @@ class PortalCalendar(http.Controller):
 
             values = {
                 field_name: old_attendance.get(field_name)
-                for field_name in ("check_out", "recognized_face_checkout", "out_latitude", "out_longitude", "out_mode")
+                for field_name in (
+                    "check_out",
+                    "recognized_face_checkout",
+                    "out_latitude",
+                    "out_longitude",
+                    "checkin_address",
+                    "checkout_address",
+                    "out_mode",
+                )
                 if field_name in old_attendance
             }
             if values:
@@ -163,10 +196,9 @@ class PortalCalendar(http.Controller):
 
         new_attendances = kw.get("create_attendance") or []
         attendance_ids = Attendance.browse()
+        attendance_ids_by_client_id = {}
         for attendance_data in new_attendances:
             client_id = attendance_data.get("attendance_client_id")
-            if not client_id:
-                continue
 
             attendance_company = self._get_company(attendance_data.get("company_id")) or company
             target_employee = self._get_target_employee(
@@ -177,21 +209,43 @@ class PortalCalendar(http.Controller):
 
             values = self._prepare_attendance_values(attendance_data, target_employee.id)
             attendance_env = Attendance.with_company(target_employee.company_id)
-            existing = attendance_env.search(
-                [
-                    ("attendance_client_id", "=", client_id),
-                    ("employee_id", "=", target_employee.id),
-                ],
-                limit=1,
-            )
+            existing = attendance_env.browse()
+            matched_by_client_id = False
+            if client_id:
+                existing = attendance_env.search(
+                    [
+                        ("attendance_client_id", "=", client_id),
+                        ("employee_id", "=", target_employee.id),
+                    ],
+                    limit=1,
+                )
+                matched_by_client_id = bool(existing)
+
+            if not existing:
+                existing = attendance_env.search(
+                    [
+                        ("employee_id", "=", target_employee.id),
+                        ("check_out", "=", False),
+                    ],
+                    order="check_in desc",
+                    limit=1,
+                )
 
             if existing:
-                existing.write(values)
+                update_values = values if matched_by_client_id else self._prepare_open_attendance_update_values(attendance_data)
+                if update_values:
+                    existing.write(update_values)
                 attendance_ids |= existing
+                if client_id:
+                    attendance_ids_by_client_id[client_id] = existing.id
             else:
-                attendance_ids |= attendance_env.create(values)
+                created_attendance = attendance_env.create(values)
+                attendance_ids |= created_attendance
+                if client_id:
+                    attendance_ids_by_client_id[client_id] = created_attendance.id
 
         return {
             "new_attendance_ids": attendance_ids.ids,
+            "new_attendance_ids_by_client_id": attendance_ids_by_client_id,
             "deleted_attendance_ids": deleted_ids,
         }

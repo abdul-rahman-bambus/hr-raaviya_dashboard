@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Payroll and Attendance Manual Testing Guide</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 0 24px;
+    color: #222;
+    line-height: 1.5;
+}
+h1, h2 { color: #1f4e78; }
+h1 { border-bottom: 3px solid #1f4e78; padding-bottom: 10px; }
+h2 { margin-top: 32px; border-bottom: 1px solid #ccc; }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+}
+th, td {
+    border: 1px solid #aaa;
+    padding: 8px;
+    text-align: left;
+}
+th { background: #d9eaf7; }
+code, pre {
+    font-family: Consolas, monospace;
+    background: #f4f4f4;
+}
+pre {
+    padding: 12px;
+    border-left: 4px solid #1f4e78;
+    white-space: pre-wrap;
+}
+.warning {
+    background: #fff3cd;
+    border: 1px solid #e0b400;
+    padding: 12px;
+}
+.pass {
+    background: #e8f5e9;
+    border: 1px solid #4caf50;
+    padding: 12px;
+}
+@media print {
+    body { margin: 10mm; max-width: none; }
+    h2 { break-after: avoid; }
+    table { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<h1>Payroll and Attendance Manual Testing Guide</h1>
+
+<p><strong>Audience:</strong> HR and payroll testers</p>
+<p><strong>Purpose:</strong> Verify daily salary, salary-per-minute fines,
+working-day Basic Salary, overtime, public-holiday allowance, hourly pay, and
+final payslip totals.</p>
+
+<div class="warning">
+Use a test database and fictional employees. Do not use real employee salary or
+personal information in screenshots or test evidence.
+</div>
+
+<h2>1. Test Employees</h2>
+
+<table>
+<tr><th>Employee</th><th>Wage Type</th><th>Wage/Rate</th><th>Salary Structure</th></tr>
+<tr><td>Monthly Test Employee</td><td>Monthly</td><td>₹12,000/month</td><td>Monthly Salary Structure</td></tr>
+<tr><td>Daily Test Employee</td><td>Daily</td><td>₹800/day</td><td>Daily Wage Structure</td></tr>
+<tr><td>Hourly Test Employee</td><td>Hourly</td><td>₹100/hour</td><td>Hourly Wage Structure</td></tr>
+</table>
+
+<p>For monthly and daily employees, assign a working schedule and an effective
+Attendance Automation Template.</p>
+
+<h2>2. Daily Salary Calculation</h2>
+
+<h3>Monthly Employee</h3>
+
+<pre>Daily salary = Monthly wage ÷ 30
+
+Example:
+₹12,000 ÷ 30 = ₹400 per day</pre>
+
+<h3>Daily Employee</h3>
+
+<pre>Daily salary = Contract daily wage
+
+Example:
+Contract daily wage = ₹800
+Daily salary = ₹800</pre>
+
+<h3>Hourly Employee</h3>
+
+<pre>Hourly pay = HR-approved payable hours × Contract hourly rate
+
+Example:
+7.5 hours × ₹100 = ₹750</pre>
+
+<p>Under the agreed workflow, hourly employees should not receive regular OT,
+public-holiday allowance, or late/fine deductions.</p>
+
+<h2>3. Salary-Per-Minute Fine</h2>
+
+<pre>Scheduled minutes = Scheduled hours × 60
+Salary per minute = Daily salary ÷ Scheduled minutes
+Fine amount = Chargeable fine minutes × Salary per minute</pre>
+
+<h3>Monthly Employee: Eight-Hour Schedule</h3>
+
+<pre>Monthly wage       = ₹12,000
+Daily salary       = ₹12,000 ÷ 30 = ₹400
+Scheduled minutes  = 8 × 60 = 480
+Salary per minute  = ₹400 ÷ 480 = ₹0.833333
+10-minute fine     = 10 × ₹0.833333 = ₹8.33</pre>
+
+<h3>Daily Employee: Eight-Hour Schedule</h3>
+
+<pre>Daily wage         = ₹800
+Scheduled minutes  = 480
+Salary per minute  = ₹800 ÷ 480 = ₹1.666667
+10-minute fine     = 10 × ₹1.666667 = ₹16.67</pre>
+
+<h3>Monthly Employee: Split Shift</h3>
+
+<pre>Morning            = 09:45–14:00 = 4h 15m
+Afternoon          = 14:45–18:45 = 4h 00m
+Scheduled minutes  = 495
+Daily salary       = ₹12,000 ÷ 30 = ₹400
+Salary per minute  = ₹400 ÷ 495 = ₹0.808081
+70-minute fine     = 70 × ₹0.808081 = ₹56.57</pre>
+
+<h2>4. Fine Calculation Types</h2>
+
+<table>
+<tr><th>Calculation Type</th><th>Formula</th></tr>
+<tr><td>Fixed Amount</td><td>Configured fixed amount</td></tr>
+<tr><td>Fixed Amount per Hour</td><td>Fine hours × configured rate</td></tr>
+<tr><td>Half Day</td><td>Daily salary ÷ 2</td></tr>
+<tr><td>Full Day</td><td>Daily salary</td></tr>
+<tr><td>Regularize</td><td>Zero</td></tr>
+<tr><td>Per Minute from Daily Salary</td><td>Fine minutes × daily salary ÷ scheduled minutes</td></tr>
+<tr><td>1x Salary</td><td>Fine hours × derived hourly salary</td></tr>
+<tr><td>1.5x Salary</td><td>Fine hours × derived hourly salary × 1.5</td></tr>
+<tr><td>2x Salary</td><td>Fine hours × derived hourly salary × 2</td></tr>
+</table>
+
+<h2>5. Fine Test Cases</h2>
+
+<p>Use a monthly salary of ₹12,000, an eight-hour schedule, and
+“Per Minute from Daily Salary” unless stated otherwise.</p>
+
+<table>
+<tr><th>ID</th><th>Scenario</th><th>Expected Duration</th><th>Expected Fine</th></tr>
+<tr><td>F01</td><td>09:00 start; 5m grace; punch 09:04</td><td>0m</td><td>₹0.00</td></tr>
+<tr><td>F02</td><td>09:00 start; 5m grace; punch 09:05</td><td>0m</td><td>₹0.00</td></tr>
+<tr><td>F03</td><td>09:00 start; 5m grace; punch 09:06</td><td>1m</td><td>₹0.83</td></tr>
+<tr><td>F04</td><td>09:00 start; 5m grace; punch 09:15</td><td>10m</td><td>₹8.33</td></tr>
+<tr><td>F05</td><td>17:00 end; 5m grace; punch-out 16:55</td><td>0m</td><td>₹0.00</td></tr>
+<tr><td>F06</td><td>17:00 end; 5m grace; punch-out 16:50</td><td>5m</td><td>₹4.17</td></tr>
+<tr><td>F07</td><td>Allowed break 45m; actual break 60m</td><td>15m</td><td>₹12.50</td></tr>
+<tr><td>F08</td><td>Post-break start 14:45; grace 0; return 14:46; split shift</td><td>1m</td><td>₹0.81</td></tr>
+<tr><td>F09</td><td>Morning chargeable late 65m plus post-break late 5m; split shift</td><td>70m</td><td>₹56.57</td></tr>
+<tr><td>F10</td><td>Fine rules disabled</td><td>0m</td><td>₹0.00</td></tr>
+</table>
+
+<p>For every test, compare:</p>
+<ol>
+<li>Attendance Dashboard Fine duration.</li>
+<li>Fine review wizard detected duration.</li>
+<li>Salary per minute.</li>
+<li>Calculated fine amount.</li>
+<li>Payslip Deductions date-wise row.</li>
+<li>Payslip Late/Fine salary-rule result.</li>
+</ol>
+
+<h2>6. OT and Public-Holiday Tests</h2>
+
+<table>
+<tr><th>ID</th><th>Scenario</th><th>Expected Result</th></tr>
+<tr><td>O01</td><td>Regular day, approved 1h OT</td><td>Overtime 1h; not Public Holiday</td></tr>
+<tr><td>O02</td><td>Regular-day OT rejected</td><td>No OT earning</td></tr>
+<tr><td>O03</td><td>Regular-day OT pending</td><td>Review before payroll confirmation</td></tr>
+<tr><td>P01</td><td>Public holiday with approved worked hours</td><td>Public Holiday earning; regular OT zero</td></tr>
+<tr><td>P02</td><td>Public-holiday policy disabled</td><td>No PH earning</td></tr>
+<tr><td>P03</td><td>Public-holiday earning rejected</td><td>No PH earning</td></tr>
+<tr><td>H01</td><td>Hourly employee with punches</td><td>Hourly Pay only; no OT, PH, or fine</td></tr>
+</table>
+
+<pre>Approved regular/weekly-off OT rows = Payslip Overtime amount
+Approved public-holiday rows = Payslip Public Holiday amount
+Approved fine rows = Payslip Late/Fine deduction amount</pre>
+
+<p>Public-holiday hours must not also appear in regular OT totals.</p>
+
+<h2>7. Working-Day-Based Basic Salary</h2>
+
+<pre>Basic pay = Monthly wage × Payable days ÷ Expected working days</pre>
+
+<p>Using currently available payslip fields:</p>
+
+<pre>expected_days = payslip.days_excl_weekend_holidays or 0.0
+payable_days = payslip.total_working_days or 0.0
+
+result = (
+    (contract.wage or 0.0) * payable_days / expected_days
+    if expected_days
+    else 0.0
+)</pre>
+
+<h3>Example</h3>
+
+<pre>Monthly wage          = ₹30,000
+Expected working days = 25
+Payable days          = 23.5
+Per working day       = ₹30,000 ÷ 25 = ₹1,200
+Basic pay             = ₹1,200 × 23.5 = ₹28,200</pre>
+
+<div class="warning">
+<strong>Important:</strong> total_working_days is attendance-based. Do not use
+this Basic formula in production until HR confirms how paid leave, unpaid leave,
+public holidays, weekly offs, joining dates, resignation dates, and approved
+regularization contribute to payable days.
+</div>
+
+<h2>8. Basic Salary Test Cases</h2>
+
+<table>
+<tr><th>ID</th><th>Wage</th><th>Expected Days</th><th>Payable Days</th><th>Expected Basic</th></tr>
+<tr><td>B01</td><td>₹30,000</td><td>25</td><td>25</td><td>₹30,000</td></tr>
+<tr><td>B02</td><td>₹30,000</td><td>25</td><td>24</td><td>₹28,800</td></tr>
+<tr><td>B03</td><td>₹30,000</td><td>25</td><td>23.5</td><td>₹28,200</td></tr>
+<tr><td>B04</td><td>₹30,000</td><td>25</td><td>0</td><td>₹0</td></tr>
+</table>
+
+<h2>9. Salary Structures</h2>
+
+<h3>Monthly Salary Structure</h3>
+<ul>
+<li>Monthly Basic</li>
+<li>Overtime</li>
+<li>Public Holiday Allowance</li>
+<li>Late/Fine deduction</li>
+<li>Gross</li>
+<li>Net</li>
+</ul>
+
+<h3>Daily Wage Structure</h3>
+<ul>
+<li>Daily Wage Basic</li>
+<li>Overtime</li>
+<li>Public Holiday Allowance</li>
+<li>Late/Fine deduction</li>
+<li>Gross</li>
+<li>Net</li>
+</ul>
+
+<h3>Hourly Wage Structure</h3>
+<ul>
+<li>Hourly Pay</li>
+<li>Gross</li>
+<li>Net</li>
+<li>Do not add OT, PH, Late/Fine, or Special Working Days</li>
+</ul>
+
+<p>Every structure must have only one Basic, one Gross, and one Net rule.
+Do not include both LATE and LF. Do not include the legacy SWD rule.</p>
+
+<h2>10. Final Payslip Verification</h2>
+
+<pre>Gross = Basic + Allowances
+Net = Gross - Positive deductions</pre>
+
+<table>
+<tr><th>Salary Component</th><th>Example Amount</th></tr>
+<tr><td>Basic Salary</td><td>₹20,000</td></tr>
+<tr><td>Overtime</td><td>₹1,000</td></tr>
+<tr><td>Public Holiday Allowance</td><td>₹800</td></tr>
+<tr><td>Gross Salary</td><td>₹21,800</td></tr>
+<tr><td>Late/Fine Deduction</td><td>₹500</td></tr>
+<tr><td>Net Salary</td><td>₹21,300</td></tr>
+</table>
+
+<p>A fine must reduce Net Salary exactly once. It must never increase Net Salary.</p>
+
+<h2>11. Test Evidence</h2>
+
+<table>
+<tr><th>Field</th><th>Tester Entry</th></tr>
+<tr><td>Test ID</td><td></td></tr>
+<tr><td>Test database</td><td></td></tr>
+<tr><td>Employee</td><td></td></tr>
+<tr><td>Wage type</td><td></td></tr>
+<tr><td>Contract wage/rate</td><td></td></tr>
+<tr><td>Working schedule</td><td></td></tr>
+<tr><td>Automation template</td><td></td></tr>
+<tr><td>Test date</td><td></td></tr>
+<tr><td>Punches</td><td></td></tr>
+<tr><td>Expected duration</td><td></td></tr>
+<tr><td>Actual duration</td><td></td></tr>
+<tr><td>Expected amount</td><td></td></tr>
+<tr><td>Actual amount</td><td></td></tr>
+<tr><td>Payslip result</td><td></td></tr>
+<tr><td>Pass/Fail</td><td></td></tr>
+<tr><td>Tester</td><td></td></tr>
+<tr><td>Notes/screenshots</td><td></td></tr>
+</table>
+
+<h2>12. Release Acceptance</h2>
+
+<ul>
+<li>All OT, public-holiday, and fine entries have been reviewed.</li>
+<li>Rejected entries contribute zero.</li>
+<li>Public-holiday earnings are not duplicated in OT.</li>
+<li>Hourly employees receive hourly pay only.</li>
+<li>Date-wise Earnings and Deductions reconcile with salary-rule totals.</li>
+<li>Gross and Net calculations reconcile manually.</li>
+<li>Confirmed payslips retain their historical detail values.</li>
+</ul>
+
+<div class="pass">
+<strong>HR Approval:</strong><br><br>
+Name: ___________________________<br><br>
+Signature: ______________________<br><br>
+Date: ___________________________
+</div>
+
+</body>
+</html>

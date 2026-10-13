@@ -1,16 +1,5 @@
-import logging
+from odoo import fields, models
 
-from odoo import api, models, fields
-
-try:
-    from geopy.exc import GeocoderServiceError
-    from geopy.geocoders import Nominatim
-except ImportError:  # pragma: no cover - depends on Odoo env
-    GeocoderServiceError = Exception
-    Nominatim = None
-
-
-_logger = logging.getLogger(__name__)
 
 class HrAttendanceInherit(models.Model):
     _inherit = "hr.attendance"
@@ -18,54 +7,47 @@ class HrAttendanceInherit(models.Model):
     recognized_face_checkin=fields.Image("Recognized Face Check-In",max_width=320,max_height=240)
     recognized_face_checkout=fields.Image("Recognized Face Check-Out",max_width=320,max_height=240)
     attendance_client_id=fields.Char("Attendance client ID")
-    checkin_reverse_address = fields.Char(
-        "Check-In Address",
-        compute="_compute_reverse_addresses",
-        store=True,
-        readonly=True,
-    )
-    checkout_reverse_address = fields.Char(
-        "Check-Out Address",
-        compute="_compute_reverse_addresses",
-        store=True,
-        readonly=True,
-    )
+    checkin_address = fields.Char("Check-In Address")
+    checkout_address = fields.Char("Check-Out Address")
 
-    @api.depends("in_latitude", "in_longitude", "out_latitude", "out_longitude")
-    def _compute_reverse_addresses(self):
-        for attendance in self:
-            attendance.checkin_reverse_address = attendance._reverse_geocode_coordinates(
-                attendance.in_latitude,
-                attendance.in_longitude,
-            )
-            attendance.checkout_reverse_address = attendance._reverse_geocode_coordinates(
-                attendance.out_latitude,
-                attendance.out_longitude,
-            )
+    expected_checkout_time = fields.Datetime("Expected Checkout Time", compute="_compute_expected_checkout_time")
 
-    @api.model
-    def _reverse_geocode_coordinates(self, latitude, longitude):
-        if latitude in (False, None) or longitude in (False, None):
-            return False
-        if not Nominatim:
-            return False
-
-        try:
-            geolocator = Nominatim(user_agent="face_attendance_custom", timeout=5)
-            result = geolocator.reverse(
-                (float(latitude), float(longitude)),
-                exactly_one=True,
-                language="en",
-            )
-        except (GeocoderServiceError, ValueError):
-            _logger.exception(
-                "Reverse geocoding failed for attendance coordinates lat=%s lon=%s",
-                latitude,
-                longitude,
-            )
-            return False
-
-        if not result:
-            return False
-
-        return result.address or False
+    def _compute_expected_checkout_time(self):
+        import pytz
+        from datetime import timedelta
+        for record in self:
+            if not record.check_in or not record.employee_id:
+                record.expected_checkout_time = False
+                continue
+            
+            calendar = record.employee_id.resource_calendar_id
+            if not calendar:
+                record.expected_checkout_time = record.check_in + timedelta(hours=8)
+                continue
+                
+            fallback_hours = calendar.hours_per_day if hasattr(calendar, 'hours_per_day') and calendar.hours_per_day else 8.0
+            
+                
+            tz_name = calendar.tz or self.env.user.tz or 'UTC'
+            tz = pytz.timezone(tz_name)
+            
+            check_in_utc = record.check_in.replace(tzinfo=pytz.utc)
+            check_in_local = check_in_utc.astimezone(tz)
+            
+            day_of_week = str(check_in_local.weekday())
+            day_attendances = calendar.attendance_ids.filtered(lambda a: a.dayofweek == day_of_week)
+            
+            if not day_attendances:
+                record.expected_checkout_time = record.check_in + timedelta(hours=fallback_hours)
+                continue
+                
+            max_hour_to = max(day_attendances.mapped('hour_to'))
+            hours = int(max_hour_to)
+            minutes = int((max_hour_to - hours) * 60)
+            
+            checkout_local = check_in_local.replace(hour=hours, minute=minutes, second=0, microsecond=0)
+            if checkout_local <= check_in_local:
+                # Checked in after shift ends, fallback to standard daily hours
+                record.expected_checkout_time = record.check_in + timedelta(hours=fallback_hours)
+            else:
+                record.expected_checkout_time = checkout_local.astimezone(pytz.utc).replace(tzinfo=None)
