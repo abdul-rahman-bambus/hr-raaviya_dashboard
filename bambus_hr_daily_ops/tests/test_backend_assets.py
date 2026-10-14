@@ -317,3 +317,33 @@ class TestBackendAssets(TransactionCase):
             self.assertTrue(all(block.get("invisible") == "1" for block in blocks))
         self.assertFalse(form.xpath("//field[@name='bambus_ot_mode']"))
         self.assertTrue(form.xpath("//field[@name='attendance_automation_template_id']"))
+
+    def test_payslip_payables_use_payroll_fields_and_correct_units(self):
+        from lxml import etree
+
+        view = self.env['hr.payslip'].get_view(
+            view_id=self.env.ref('hr_payroll_community.hr_payslip_view_form').id,
+            view_type='form',
+        )
+        form = etree.fromstring(view['arch'].encode())
+        group = form.xpath("//group[@name='payables']")[0]
+        amounts = {
+            'total_overtime_amount', 'total_public_holiday_amount',
+            'total_fine_amount', 'basic_pay', 'gross_pay', 'net_pay',
+        }
+        visible_fields = group.xpath('.//field')
+        self.assertTrue(amounts.issubset({node.get('name') for node in visible_fields}))
+        for node in visible_fields:
+            name = node.get('name')
+            self.assertEqual(node.get('readonly'), '1', name)
+            self.assertIn(name, self.env['hr.payslip']._fields)
+            if name in amounts:
+                self.assertEqual(node.get('widget'), 'monetary', name)
+            elif 'hours' in name or name in {'total_validated_overtime', 'total_late_login_minutes', 'total_late_after_grace'}:
+                self.assertEqual(node.get('widget'), 'float_time', name)
+            else:
+                self.assertNotEqual(node.get('widget'), 'float_time', name)
+        self.assertEqual(
+            self.env['hr.payslip']._fields['currency_id'].related,
+            'company_id.currency_id',
+        )
