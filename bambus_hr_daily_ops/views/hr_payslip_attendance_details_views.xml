@@ -5,6 +5,50 @@
     <field name="model">hr.payslip</field>
     <field name="inherit_id" ref="hr_payroll_community.hr_payslip_view_form"/>
     <field name="arch" type="xml">
+      <xpath expr="//sheet/notebook" position="before">
+        <field name="currency_id" invisible="1"/>
+        <group name="payables" string="Payables">
+          <div colspan="2" class="text-muted">
+            Attendance amounts are payroll calculation inputs. Basic, Gross and Net Pay
+            come from the saved salary lines. Use Compute Sheet after approving attendance changes.
+          </div>
+          <group string="Payroll Amounts">
+            <field name="total_overtime_amount" string="Overtime Amount" readonly="1" widget="monetary"/>
+            <field name="total_public_holiday_amount" string="Public Holiday Amount" readonly="1" widget="monetary"/>
+            <field name="total_fine_amount" string="Fine Amount (Deduction)" readonly="1" widget="monetary"/>
+            <field name="basic_pay" string="Basic Pay" readonly="1" widget="monetary"/>
+            <field name="gross_pay" string="Gross Pay" readonly="1" widget="monetary"/>
+            <field name="net_pay" string="Net Pay" readonly="1" widget="monetary"/>
+          </group>
+          <group string="Days">
+            <field name="days_excl_weekend_holidays" string="Scheduled Regular Days" readonly="1"/>
+            <field name="total_working_days" string="Regular Worked Days" readonly="1"/>
+            <field name="total_worker_days" string="Hourly Pay Worked Days" readonly="1"/>
+            <field name="weekend_days" string="Weekly-off Days" readonly="1"/>
+            <field name="weekend_worked" string="Weekly-off Worked Days" readonly="1"/>
+            <field name="holiday_days" string="Public Holiday Days" readonly="1"/>
+            <field name="holiday_worked" string="Public Holiday Worked Days" readonly="1"/>
+          </group>
+          <group string="Hours">
+            <field name="total_worked_hours_excl_ot" string="Regular Worked Hours (Excluding OT)" readonly="1" widget="float_time"/>
+            <field name="total_worker_hours" string="Hourly Pay Hours" readonly="1" widget="float_time"/>
+            <field name="total_validated_overtime" string="Approved Overtime Hours" readonly="1" widget="float_time"/>
+            <field name="weekend_hours" string="Weekly-off Worked Hours" readonly="1" widget="float_time"/>
+            <field name="holiday_hours" string="Public Holiday Worked Hours" readonly="1" widget="float_time"/>
+            <field name="total_scheduled_hours" string="Scheduled Hours" readonly="1" widget="float_time"/>
+          </group>
+          <group string="Fine and Shortfall Hours">
+            <field name="total_fine_hours" string="Fine Hours" readonly="1" widget="float_time"/>
+            <field name="total_fine_after_grace_hours" string="Fine Hours After Grace" readonly="1" widget="float_time"/>
+            <field name="total_shortfall_hours" string="Shortfall Hours" readonly="1" widget="float_time"/>
+            <field name="total_late_hours" string="Late Hours" readonly="1" widget="float_time"/>
+            <field name="total_early_leave_hours" string="Early Leave Hours" readonly="1" widget="float_time"/>
+            <field name="total_gap_hours" string="Gap Hours" readonly="1" widget="float_time"/>
+            <field name="total_late_login_minutes" string="Late Login Hours" readonly="1" widget="float_time"/>
+            <field name="total_late_after_grace" string="Late Login Hours After Grace" readonly="1" widget="float_time"/>
+          </group>
+        </group>
+      </xpath>
       <xpath expr="//notebook" position="inside">
         <page name="attendance_earnings" string="Earnings">
           <field name="attendance_earning_detail_ids" readonly="1">

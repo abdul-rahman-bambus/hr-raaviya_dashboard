@@ -9,6 +9,10 @@ from odoo import api, fields, models
 class HrPayslip(models.Model):
     _inherit = "hr.payslip"
 
+    currency_id = fields.Many2one(
+        related="company_id.currency_id", readonly=True
+    )
+
     attendance_detail_ids = fields.One2many(
         "bambus.hr.payslip.attendance.detail",
         "payslip_id",
