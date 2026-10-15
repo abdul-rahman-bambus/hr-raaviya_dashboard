@@ -218,6 +218,7 @@ class DashboardUpdates(unittest.TestCase):
         self.assertIn('₹ 150.00', dialog.inner_text())
         self.assertEqual(dialog.get_by_role('button', name='Delete / Ignore').count(), 3)
         dialog.get_by_role('button', name='Delete / Ignore').nth(2).click()
+        self.tick()
         self.assertEqual(dialog.get_by_role('button', name='Delete / Ignore').count(), 2)
         dialog.get_by_role('button', name='Approve Remaining Items').click()
         self.tick()
@@ -229,6 +230,43 @@ class DashboardUpdates(unittest.TestCase):
         self.tick()
         self.assertTrue(self.page.evaluate('row.isConnected'))
         self.assertEqual(self.page.get_by_role('dialog').count(), 0)
+
+    def test_combined_review_scrolls_body_and_keeps_buttons_visible(self):
+        self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate("""() => {
+            component.state.adjustment = {wizard_id: 7, adjustment: 'review',
+                employee: 'Employee 1', date: '2026-10-07', daily_rate: 100, hourly_rate: 12.5,
+                currency: {symbol: '₹', position: 'before', decimal_places: 2},
+                items: ['Overtime', 'Late Fine', 'Break / Gap Fine', 'Early Exit Fine'].map((label, id) => ({
+                    id, label, hours: 1, detected_hours: 1, rate: 100, note: '',
+                    calculation_type: 'salary_1_5', calculation_options: [['fixed', 'Fixed Amount'], ['salary_1_5', '1.5x Salary']]
+                }))};
+        }""")
+        for width, height in ((1366, 600), (1024, 768), (390, 640), (800, 320)):
+            with self.subTest(viewport=(width, height)):
+                self.page.set_viewport_size({'width': width, 'height': height})
+                self.tick()
+                bounds = self.page.evaluate("""() => {
+                    const modal = document.querySelector('.o_baa_modal');
+                    const body = modal.querySelector('.o_baa_body');
+                    const header = modal.querySelector('.o_baa_header');
+                    const footer = modal.querySelector('.o_baa_footer');
+                    const before = [header.getBoundingClientRect().top, footer.getBoundingClientRect().bottom];
+                    body.scrollTop = body.scrollHeight;
+                    return {top: modal.getBoundingClientRect().top, bottom: modal.getBoundingClientRect().bottom,
+                        scrollable: body.scrollHeight > body.clientHeight, scroll: body.scrollTop,
+                        overflow: getComputedStyle(body).overflowY,
+                        before, after: [header.getBoundingClientRect().top, footer.getBoundingClientRect().bottom]};
+                }""")
+                self.assertGreaterEqual(bounds['top'], 0)
+                self.assertLessEqual(bounds['bottom'], height)
+                self.assertEqual(self.page.get_by_role('dialog').locator('select').first.input_value(), 'salary_1_5')
+                self.assertTrue(bounds['scrollable'])
+                self.assertGreater(bounds['scroll'], 0)
+                self.assertEqual(bounds['overflow'], 'auto')
+                self.assertEqual(bounds['before'], bounds['after'])
+                self.page.get_by_role('button', name='Approve Remaining Items').click(trial=True)
 
 
 if __name__ == '__main__':
