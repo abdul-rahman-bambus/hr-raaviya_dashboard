@@ -1,0 +1,54 @@
+<odoo>
+  <record id="view_attendance_review_wizard" model="ir.ui.view">
+    <field name="name">bambus.hr.attendance.review.wizard.form</field>
+    <field name="model">bambus.hr.attendance.review.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Review Attendance Adjustments">
+        <field name="line_id" invisible="1"/>
+        <field name="currency_id" invisible="1"/>
+        <field name="show_overtime" invisible="1"/>
+        <field name="initial_fines" invisible="1"/>
+        <field name="source_write_date" invisible="1"/>
+        <group><field name="employee_id"/><field name="date"/></group>
+        <div class="alert alert-info">Approve the applicable items together. Delete a fine row or select Ignore Overtime to exclude it permanently when you approve. Cancel discards these changes.</div>
+        <group string="Overtime" invisible="not show_overtime">
+          <group>
+            <field name="ignore_overtime"/>
+            <field name="detected_overtime_hours" widget="float_time"/>
+            <field name="overtime_hours" widget="float_time" readonly="ignore_overtime"/>
+            <field name="calculation_type" readonly="ignore_overtime"/>
+            <field name="rate" invisible="calculation_type not in ['fixed','fixed_hour']" readonly="ignore_overtime"/>
+            <field name="overtime_amount"/>
+            <field name="note"/>
+          </group>
+          <group>
+            <field name="automation_template_id"/>
+            <field name="is_public_holiday"/>
+            <field name="salary_basis_amount"/>
+            <field name="resolved_rate"/>
+            <field name="overtime_slab_id"/>
+            <field name="rate_resolution_warning" invisible="not rate_resolution_warning"/>
+            <field name="rate_override_reason"/>
+          </group>
+        </group>
+        <separator string="Late, Break and Early Exit Fines"/>
+        <field name="fine_line_ids" nolabel="1">
+          <list editable="bottom" create="0" delete="1">
+            <field name="currency_id" column_invisible="1"/>
+            <field name="kind" readonly="1"/>
+            <field name="detected_hours" widget="float_time"/>
+            <field name="hours" widget="float_time"/>
+            <field name="calculation_type"/>
+            <field name="rate"/>
+            <field name="amount" sum="Total Fine"/>
+            <field name="note"/>
+          </list>
+        </field>
+        <footer>
+          <button name="action_save" string="Approve Remaining Items" type="object" class="btn-primary"/>
+          <button string="Cancel" special="cancel" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+</odoo>

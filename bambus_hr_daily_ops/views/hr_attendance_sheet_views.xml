@@ -197,8 +197,8 @@
                             <button name="action_edit_attendance" type="object" class="btn btn-sm btn-outline-primary">Punch</button>
                             <button name="action_mark_halfday_leave" type="object" class="btn btn-sm btn-outline-secondary">Half</button>
                             <button name="action_mark_full_leave" type="object" class="btn btn-sm btn-outline-secondary">Leave</button>
-                            <button name="action_edit_overtime" type="object" class="btn btn-sm btn-outline-success">OT</button>
-                            <button name="action_edit_fine" type="object" class="btn btn-sm btn-outline-danger">Fine</button>
+                            <button name="action_review_adjustments" type="object" class="btn btn-sm btn-outline-success">OT</button>
+                            <button name="action_review_adjustments" type="object" class="btn btn-sm btn-outline-danger">Fine</button>
                           </div>
                         </div>
                       </t>
@@ -234,8 +234,8 @@
                     <button name="action_edit_attendance" type="object" string="Punch" class="btn-link"/>
                     <button name="action_mark_halfday_leave" type="object" string="Half Day" class="btn-link"/>
                     <button name="action_mark_full_leave" type="object" string="Leave" class="btn-link"/>
-                    <button name="action_edit_overtime" type="object" string="OT" class="btn-link"/>
-                    <button name="action_edit_fine" type="object" string="Fine" class="btn-link"/>
+                    <button name="action_review_adjustments" type="object" string="OT" class="btn-link"/>
+                    <button name="action_review_adjustments" type="object" string="Fine" class="btn-link"/>
                     <button name="action_force_absent" type="object" string="Absent" class="btn-link"/>
                     <button name="action_refresh" type="object" string="Refresh" class="btn-link"/>
                   </list>
@@ -273,8 +273,8 @@
           <button name="action_edit_attendance" type="object" string="Punch" class="btn-link"/>
           <button name="action_mark_halfday_leave" type="object" string="Half Day" class="btn-link"/>
           <button name="action_mark_full_leave" type="object" string="Leave" class="btn-link"/>
-          <button name="action_edit_overtime" type="object" string="OT" class="btn-link"/>
-          <button name="action_edit_fine" type="object" string="Fine" class="btn-link"/>
+          <button name="action_review_adjustments" type="object" string="OT" class="btn-link"/>
+          <button name="action_review_adjustments" type="object" string="Fine" class="btn-link"/>
           <button name="action_refresh" type="object" string="Refresh" class="btn-link"/>
         </list>
       </field>

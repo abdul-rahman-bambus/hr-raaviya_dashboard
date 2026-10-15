@@ -208,6 +208,13 @@ class AttendanceXlsxReport(models.AbstractModel):
                 elif review.fine_state == "rejected":
                     fine_hours, fine_amount = 0.0, 0.0
 
+            if contract and contract.wage_type == 'hourly':
+                ot, ot_amount = 0.0, 0.0
+            elif automation and not (review and review.overtime_state == 'approved'):
+                ot_amount = 0.0
+            if automation and not (review and review.fine_state == 'approved'):
+                fine_amount = 0.0
+
             # Keep punch-level detection intact while reporting final HR amounts.
             worked_excl_ot = max(0.0, worked - ot)
 

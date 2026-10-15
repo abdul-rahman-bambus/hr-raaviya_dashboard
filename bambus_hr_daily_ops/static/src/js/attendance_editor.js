@@ -264,8 +264,8 @@ export class AttendanceEditor extends AttendanceDashboard {
         try {
             const data = await this.orm.call(
                 "bambus.hr.attendance.sheet",
-                "get_dashboard_adjustment",
-                [employee.id, this.state.data.date, adjustment]
+                adjustment === "hourly_pay" ? "get_dashboard_adjustment" : "get_dashboard_review",
+                adjustment === "hourly_pay" ? [employee.id, this.state.data.date, adjustment] : [employee.id, this.state.data.date]
             );
             if (sequence !== this.loadSequence || !this.canEditAttendance) return;
             this.state.adjustment = { ...data, employeeRecord: employee, saving: false };
@@ -311,7 +311,11 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     get adjustmentAmount() {
-        const item = this.state.adjustment;
+        return this.adjustmentItemAmount(this.state.adjustment);
+    }
+
+    adjustmentItemAmount(item) {
+        item = { ...this.state.adjustment, ...item };
         if (!item) {
             return 0;
         }
@@ -327,6 +331,21 @@ export class AttendanceEditor extends AttendanceDashboard {
         return hours * item.hourly_rate * (multipliers[item.calculation_type] || 0);
     }
 
+    updateReviewField(item, field, event) {
+        if (field === "hours") {
+            const match = /^\s*(\d+):([0-5]\d)\s*$/.exec(event.target.value);
+            event.target.setCustomValidity(match ? "" : "Use HH:MM, for example 01:30.");
+            item.invalidHours = !match;
+            if (match) item.hours = Number(match[1]) + Number(match[2]) / 60;
+        } else {
+            item[field] = field === "rate" ? Number(event.target.value) : event.target.value;
+        }
+    }
+
+    ignoreReviewItem(item) {
+        this.state.adjustment.items = this.state.adjustment.items.filter(row => row.id !== item.id);
+    }
+
     async saveAdjustment() {
         const adjustment = this.state.adjustment;
         if (!adjustment || adjustment.saving) {
@@ -334,21 +353,26 @@ export class AttendanceEditor extends AttendanceDashboard {
         }
         adjustment.saving = true;
         try {
-            await this.orm.call(
-                "bambus.hr.attendance.sheet",
-                "save_dashboard_adjustment",
-                [adjustment.wizard_id, adjustment.adjustment, {
-                    hours: adjustment.hours,
-                    calculation_type: adjustment.calculation_type,
-                    rate: adjustment.rate,
-                    note: adjustment.note,
-                }]
-            );
+            if (adjustment.adjustment === "review") {
+                await this.orm.call("bambus.hr.attendance.sheet", "save_dashboard_review",
+                    [adjustment.wizard_id, adjustment.items]);
+            } else {
+                await this.orm.call(
+                    "bambus.hr.attendance.sheet",
+                    "save_dashboard_adjustment",
+                    [adjustment.wizard_id, adjustment.adjustment, {
+                        hours: adjustment.hours,
+                        calculation_type: adjustment.calculation_type,
+                        rate: adjustment.rate,
+                        note: adjustment.note,
+                    }]
+                );
+            }
             const employee = adjustment.employeeRecord;
             this.state.adjustment = null;
             await this.syncEmployee(employee);
             this.notification.add(
-                `${adjustment.adjustment === "overtime" ? "Overtime" : (adjustment.adjustment === "hourly_pay" ? "Hourly pay" : "Late / fine")} saved for ${adjustment.employee}.`,
+                `${adjustment.adjustment === "review" ? "Attendance adjustments" : adjustment.adjustment === "overtime" ? "Overtime" : (adjustment.adjustment === "hourly_pay" ? "Hourly pay" : "Late / fine")} saved for ${adjustment.employee}.`,
                 { type: "success" }
             );
         } catch (error) {

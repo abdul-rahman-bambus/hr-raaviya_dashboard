@@ -356,7 +356,7 @@ class TestPayrollReview(TransactionCase):
             headers = [strings[int(cell.find('s:v', ns).text)]
                        for cell in sheet.findall("s:sheetData/s:row[@r='6']/s:c", ns)]
             for label in ('Total CTC / Contract Salary', 'Gross Salary', 'Payable Days', 'Present Days',
-                          'Week-off Leave Days', 'Absent Days', 'Public Holiday Days',
+                          'Paid Weekly-off Days', 'Absent Days', 'Public Holiday Days',
                           'Public Holiday Worked Days', 'System Overtime', 'Public Holiday Pay',
                           'Total Earnings', 'System Fine', 'Net Pay Amount'):
                 self.assertIn(label, headers)

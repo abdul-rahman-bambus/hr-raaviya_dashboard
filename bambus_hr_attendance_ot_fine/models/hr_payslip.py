@@ -73,6 +73,11 @@ class HrPayslip(models.Model):
     total_fine_after_grace_hours = fields.Float(string="Fine After Grace", compute="_compute_all_stats", store=True)
 
 
+    uses_template_regular_pay = fields.Boolean(compute="_compute_all_stats", store=True)
+    paid_weekly_off_days = fields.Float(string="Paid Weekly-off Days", compute="_compute_all_stats", store=True)
+    paid_weekly_off_amount = fields.Float(string="Paid Weekly-off Amount", compute="_compute_all_stats", store=True)
+    total_regular_pay_amount = fields.Float(string="Regular Pay Amount", compute="_compute_all_stats", store=True)
+
     # ---------------------------
     # Helpers
     # ---------------------------
@@ -162,6 +167,9 @@ class HrPayslip(models.Model):
     # ---------------------------
     @api.depends(
         "date_from", "date_to", "employee_id", "contract_id",
+        "contract_id.wage", "contract_id.wage_type", "contract_id.daily_wage", "contract_id.hourly_rate",
+        "contract_id.date_start", "contract_id.date_end", "contract_id.resource_calendar_id.hours_per_day",
+        "total_worker_hours",
         "employee_id.attendance_ids", "employee_id.attendance_ids.check_in", "employee_id.attendance_ids.check_out",
         "employee_id.attendance_ids.worked_hours", "employee_id.attendance_ids.overtime_hours", "employee_id.attendance_ids.bambus_scheduled_hours",
         "employee_id.attendance_ids.bambus_shortfall_hours",
@@ -219,6 +227,10 @@ class HrPayslip(models.Model):
             slip.holiday_worked = 0.0
             slip.holiday_hours = 0.0
 
+            slip.uses_template_regular_pay = False
+            slip.paid_weekly_off_days = 0.0
+            slip.paid_weekly_off_amount = 0.0
+            slip.total_regular_pay_amount = 0.0
             slip.total_overtime_amount = 0.0
             slip.total_public_holiday_amount = 0.0
             slip.total_fine_hours = 0.0
@@ -317,6 +329,11 @@ class HrPayslip(models.Model):
             has_gap = ("bambus_gap_minutes" in Attendance._fields)
 
 
+            paid_leaves = self.env['hr.leave'].sudo().search([
+                ('employee_id', '=', emp.id), ('state', '=', 'validate'),
+                ('holiday_status_id.unpaid', '=', False),
+                ('request_date_from', '<=', slip.date_to), ('request_date_to', '>=', slip.date_from),
+            ])
             late_by_month = defaultdict(int)
             legacy_late_by_month = defaultdict(int)
             template_late_minutes = 0
@@ -342,6 +359,11 @@ class HrPayslip(models.Model):
                     ot = 0.0
                     ot_amount = 0.0
 
+                if contract.wage_type == 'hourly' or (emp._get_attendance_automation_template(d) and not (approval_line and approval_line.overtime_state == 'approved')):
+                    # Detection is a proposal, never an earning before HR approval.
+                    ot = 0.0
+                    ot_amount = 0.0
+
                 # last-attendance values (stored values only)
                 scheduled_today = 0.0
                 if day_att:
@@ -350,6 +372,8 @@ class HrPayslip(models.Model):
                         scheduled_today = float(last.bambus_scheduled_hours or 0.0)
 
                 automation = emp._get_attendance_automation_template(d)
+                if automation:
+                    slip.uses_template_regular_pay = True
                 # Resolve day targets from the same template used by detection.
                 if scheduled_today <= 0:
                     scheduled_today = (
@@ -420,6 +444,31 @@ class HrPayslip(models.Model):
                     fine_amt = 0.0
 
 
+                if automation and not (approval_line and approval_line.fine_state == 'approved'):
+                    fine_h = fine_amt = 0.0
+
+                # Normal pay and additional approved OT are independent buckets.
+                # A Monthly weekly off without attendance is paid without consuming leave.
+                if (contract and contract.wage_type in ('daily', 'monthly')
+                        and (not contract.date_start or d >= contract.date_start)
+                        and (not contract.date_end or d <= contract.date_end)):
+                    day_rate = contract.daily_wage if contract.wage_type == 'daily' else contract.wage / 30.0
+                    hours_per_day = contract.resource_calendar_id.hours_per_day or 8.0
+                    if is_weekend and not day_att and contract.wage_type == 'monthly':
+                        slip.paid_weekly_off_days += 1
+                        slip.paid_weekly_off_amount += day_rate
+                        slip.total_regular_pay_amount += day_rate
+                    elif is_weekend or is_holiday:
+                        slip.total_regular_pay_amount += worked * day_rate / hours_per_day
+                    else:
+                        paid_fraction = 0.0
+                        for leave in paid_leaves.filtered(lambda leave: leave.request_date_from <= d <= leave.request_date_to):
+                            if leave.request_unit_hours:
+                                paid_fraction += min(1.0, max(0.0, leave.request_hour_to - leave.request_hour_from) / (scheduled_today or hours_per_day))
+                            else:
+                                paid_fraction += 0.5 if leave.request_unit_half else 1.0
+                        slip.total_regular_pay_amount += min(1.0, day_fraction + paid_fraction) * day_rate
+
                 late_by_month[(d.year, d.month)] += late_mins
                 if automation:
                     # Stored detection already applies per-session template grace.
@@ -452,6 +501,9 @@ class HrPayslip(models.Model):
                 slip.total_fine_amount += fine_amt
                 slip.total_scheduled_hours += sched_h
                 slip.total_shortfall_hours += short_h
+
+            if contract.wage_type == 'hourly':
+                slip.total_regular_pay_amount = slip.total_worker_hours * contract.hourly_rate
 
             total_late_raw = sum(late_by_month.values())
 
@@ -510,7 +562,7 @@ class HrPayslip(models.Model):
             # Use the standard payroll buckets when no template handles
             # weekly-off/public-holiday work, or for hourly contracts.
             if (not template_handles_weekly_off
-                    and not template_handles_holidays) \
+                    and not template_handles_holidays and not slip.paid_weekly_off_days) \
                 or contract.wage_type == 'hourly':
 
                 return default_res
@@ -527,6 +579,13 @@ class HrPayslip(models.Model):
                 'number_of_hours': slip.total_worked_hours_excl_ot,
                 'contract_id': contract.id,
             })
+
+            if slip.paid_weekly_off_days:
+                res.append({
+                    'name': 'Paid Weekly Off', 'sequence': 4, 'code': 'PAID_WEEKLY_OFF',
+                    'number_of_days': slip.paid_weekly_off_days, 'number_of_hours': 0.0,
+                    'contract_id': contract.id,
+                })
 
             # WEEKEND worked ONLY IF enabled
             if slip.weekend_worked > 0 and template_handles_weekly_off:
@@ -553,4 +612,6 @@ class HrPayslip(models.Model):
                     'contract_id': contract.id,
                 })
 
+            leave_codes = set(self.env['hr.leave.type'].search([]).mapped('code')) - {False}
+            res.extend(line for line in default_res if line['code'] in leave_codes)
             return res

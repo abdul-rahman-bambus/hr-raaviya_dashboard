@@ -135,6 +135,12 @@ class HrPayslip(models.Model):
                 elif review and review.overtime_state == "submitted":
                     overtime_state = "pending"
 
+                if contract.wage_type == 'hourly':
+                    overtime_hours = overtime_amount = 0.0
+                elif template and overtime_state != 'approved':
+                    overtime_amount = 0.0
+                    overtime_state = 'pending'
+
                 if overtime_hours > 0 or overtime_amount > 0:
                     is_public_holiday = day in public_holidays
                     earning_type = (
@@ -183,6 +189,10 @@ class HrPayslip(models.Model):
                 elif review and review.fine_state == "submitted":
                     fine_state = "pending"
 
+                if template and fine_state != 'approved':
+                    fine_amount = 0.0
+                    fine_state = 'pending'
+
                 if fine_hours > 0 or fine_amount > 0:
                     components = []
                     if last.bambus_late_minutes:
@@ -203,6 +213,12 @@ class HrPayslip(models.Model):
                                 last.bambus_gap_minutes / 60.0
                             )
                         )
+                    if review and review.fine_review_data:
+                        labels = {'late': 'Late Entry', 'break': 'Break / Gap', 'early': 'Early Exit', 'fine': 'Attendance Fine'}
+                        components = [
+                            "%s %s" % (labels[kind], self._bambus_duration_label(value['hours']))
+                            for kind, value in review.fine_review_data.items() if value.get('state') == 'approved'
+                        ]
                     values_list.append({
                         "payslip_id": payslip.id,
                         "date": day,

@@ -77,7 +77,7 @@ class AttendanceAutomationTemplate(models.Model):
         CALCULATION_TYPES,
         string="Public Holiday Calculation Type",
         required=True,
-        default="salary_2",
+        default="salary_1_5",
     )
     public_holiday_rate_policy = fields.Selection([
         ("fixed", "Fixed Template Rate"),
