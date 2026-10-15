@@ -109,7 +109,7 @@ def main():
                 assert final.find("s:sheetData/s:row[@r='10']", namespace) is None
                 text = archive.read('xl/sharedStrings.xml')
                 for label in (b'Total CTC / Contract Salary', b'Hourly Rate (per Hour)', b'Daily Wage (per Day)',
-                              b'Contract Salary / Rate Total', b'Week-off Leave Days', b'Absent Days',
+                              b'Contract Salary / Rate Total', b'Paid Weekly-off Days', b'Absent Days',
                               b'Public Holiday Days', b'Public Holiday Worked Days', b'Public Holiday Pay',
                               b'System Overtime', b'System Fine', b'Total Earnings'):
                     assert label in text, label

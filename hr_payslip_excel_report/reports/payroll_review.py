@@ -54,7 +54,7 @@ SUMMARY = [('staff_type', 'Staff Type', 'text'), ('employees', 'Employees', 'num
 LEGACY = [('number', 'S.No', 'number'), ('name', 'Staff Name', 'text'),
           ('ctc', 'Total CTC / Contract Salary', 'money'), ('earnings', 'Gross Salary', 'money'),
           ('payable_days', 'Payable Days', 'number'), ('present', 'Present Days', 'number'),
-          ('weekly_off_leave', 'Week-off Leave Days', 'number'), ('absent', 'Absent Days', 'number'),
+          ('weekly_off_leave', 'Paid Weekly-off Days', 'number'), ('absent', 'Absent Days', 'number'),
           ('holidays', 'Public Holiday Days', 'number'), ('holiday_worked', 'Public Holiday Worked Days', 'number'),
           ('weekly_off_worked', 'Week-off Worked Days', 'number'),
           ('worked_hours', 'Total Work Hours', 'number'), ('ot_hours', 'Overtime Hours', 'number'),
@@ -117,7 +117,7 @@ class PayrollReviewReport(models.AbstractModel):
         ambiguous = paid_codes & unpaid_codes
         if any(line.code in ambiguous for line in slip.worked_days_line_ids):
             return None
-        paid_codes |= {'WORK100', 'DAYSWORKED', 'WEEKEND', 'HOLIDAYS'}
+        paid_codes |= {'WORK100', 'DAYSWORKED', 'WEEKEND', 'HOLIDAYS', 'PAID_WEEKLY_OFF'}
         # A leave code shared by paid and unpaid types is ambiguous.
         paid_codes -= unpaid_codes
         if any(line.code not in paid_codes | unpaid_codes for line in slip.worked_days_line_ids):
@@ -359,6 +359,11 @@ class PayrollReviewReport(models.AbstractModel):
             if day_leave:
                 fraction = min(fraction, 1 - paid - unpaid)
             status = 'Present' if fraction >= 1 else 'Half Day' if fraction == .5 else 'Absent' if info['is_absent'] else 'No Attendance'
+            paid_weekly_off = (info['is_weekend'] and not attendance and slip.contract_id.wage_type == 'monthly'
+                and (not slip.contract_id.date_start or day >= slip.contract_id.date_start)
+                and (not slip.contract_id.date_end or day <= slip.contract_id.date_end))
+            if paid_weekly_off:
+                status = 'Paid Weekly Off'
             if day_leave:
                 status = 'Half-Day Leave' if day_leave.request_unit_half else 'Unpaid Leave' if unpaid else 'Paid Leave'
             classification = 'Public Holiday' if info['is_holiday'] else 'Weekly Off' if info['is_weekend'] else 'Working Day'
@@ -367,7 +372,7 @@ class PayrollReviewReport(models.AbstractModel):
             counts['paid_leave'] += paid
             counts['unpaid_leave'] += unpaid
             counts['absent'] += max(0., 1 - fraction - paid - unpaid) if work_periods and not info['is_weekend'] and not info['is_holiday'] else 0
-            counts['weekly_off_leave'] += max(0., 1 - fraction) if info['is_weekend'] else 0
+            counts['weekly_off_leave'] += 1 if paid_weekly_off else 0
             counts['weekly_off'] += info['is_weekend']
             counts['weekly_off_worked'] += fraction if info['is_weekend'] else 0
             counts['holidays'] += info['is_holiday']

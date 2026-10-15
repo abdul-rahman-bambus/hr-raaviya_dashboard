@@ -1359,7 +1359,10 @@ class BambusHrAttendanceSheetLine(models.Model):
             rec.leave_id = False
             rec.is_half_day_leave = False
 
-            # NEW: reset OT/Fine snapshot
+            saved_review = {name: rec[name] for name in (
+                "overtime_hours", "overtime_amount", "fine_hours", "fine_amount"
+            )}
+            # Refresh detection without erasing final HR decisions.
             rec.overtime_hours = 0.0
             rec.overtime_amount = 0.0
             rec.fine_hours = 0.0
@@ -1415,6 +1418,13 @@ class BambusHrAttendanceSheetLine(models.Model):
                 if has_fine_fields and last_att:
                     rec.fine_hours = last_att.bambus_fine_hours or 0.0
                     rec.fine_amount = last_att.bambus_fine_amount or 0.0
+
+            for kind in ("overtime", "fine"):
+                rec[kind + "_detected_hours"] = rec[kind + "_hours"]
+                if rec[kind + "_state"] in ("approved", "rejected"):
+                    for suffix in ("hours", "amount"):
+                        name = kind + "_" + suffix
+                        rec[name] = saved_review[name] if rec[kind + "_state"] == "approved" else 0.0
 
             # Leave: find any leave covering this date
             leave = Leave.search([

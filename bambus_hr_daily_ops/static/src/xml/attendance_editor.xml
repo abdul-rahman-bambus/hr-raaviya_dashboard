@@ -57,8 +57,23 @@
         </div>
         <div class="o_baa_modal_backdrop" t-if="state.adjustment" t-on-click.self="closeAdjustment">
           <section class="o_baa_modal" role="dialog" aria-modal="true" aria-labelledby="o_baa_title">
-            <header class="o_baa_header"><div><span class="o_baa_icon"><i t-att-class="'fa ' + (state.adjustment.adjustment === 'overtime' ? 'fa-clock-o' : 'fa-money')"/></span><div><h3 id="o_baa_title" t-esc="state.adjustment.adjustment === 'overtime' ? 'Update Overtime' : (state.adjustment.adjustment === 'hourly_pay' ? 'Update Hourly Pay' : 'Update Late / Fine')"/><p><strong t-esc="state.adjustment.employee"/> · <t t-esc="state.adjustment.date"/></p></div></div><button type="button" t-on-click="closeAdjustment" aria-label="Close"><i class="fa fa-times"/></button></header>
-            <div class="o_baa_body">
+            <header class="o_baa_header"><div><span class="o_baa_icon"><i t-att-class="'fa ' + (state.adjustment.adjustment === 'overtime' ? 'fa-clock-o' : 'fa-money')"/></span><div><h3 id="o_baa_title" t-esc="state.adjustment.adjustment === 'review' ? 'Review Attendance Adjustments' : state.adjustment.adjustment === 'overtime' ? 'Update Overtime' : (state.adjustment.adjustment === 'hourly_pay' ? 'Update Hourly Pay' : 'Update Late / Fine')"/><p><strong t-esc="state.adjustment.employee"/> · <t t-esc="state.adjustment.date"/></p></div></div><button type="button" t-on-click="closeAdjustment" aria-label="Close"><i class="fa fa-times"/></button></header>
+            <div class="o_baa_body" t-if="state.adjustment.adjustment === 'review'">
+              <p>Approve the applicable items together. Deleted items will be ignored after approval and will not reappear on recalculation.</p>
+              <p t-if="!state.adjustment.items.length">No remaining items. Approve to save any exclusions.</p>
+              <div t-foreach="state.adjustment.items" t-as="item" t-key="item.id" class="border rounded p-3 mb-3">
+                <div class="d-flex justify-content-between"><strong t-esc="item.label"/><button type="button" class="btn btn-sm btn-outline-danger" t-on-click="() => this.ignoreReviewItem(item)" t-att-disabled="state.adjustment.saving">Delete / Ignore</button></div>
+                <p>System calculated: <t t-esc="adjustmentHours(item.detected_hours)"/></p>
+                <div class="o_baa_grid">
+                  <label>Final hours<input type="text" pattern="[0-9]+:[0-5][0-9]" t-att-value="adjustmentHours(item.hours)" t-on-change="(ev) => this.updateReviewField(item, 'hours', ev)"/></label>
+                  <label>Calculation type<select t-att-value="item.calculation_type" t-on-change="(ev) => this.updateReviewField(item, 'calculation_type', ev)"><option t-foreach="item.calculation_options" t-as="option" t-key="option[0]" t-att-value="option[0]" t-esc="option[1]"/></select></label>
+                  <label t-if="['fixed','fixed_hour'].includes(item.calculation_type)">Rate / Amount<input type="number" min="0" step="0.01" t-att-value="item.rate" t-on-input="(ev) => this.updateReviewField(item, 'rate', ev)"/></label>
+                </div>
+                <label class="o_baa_note">Note<input type="text" t-att-value="item.note" t-on-input="(ev) => this.updateReviewField(item, 'note', ev)"/></label>
+                <div class="o_baa_total"><span>Amount</span><strong t-esc="formatAdjustmentAmount(adjustmentItemAmount(item))"/></div>
+              </div>
+            </div>
+            <div class="o_baa_body" t-else="">
               <div class="o_baa_detected"><span>System calculated</span><strong t-esc="adjustmentHours(state.adjustment.detected_hours)"/><small>Review the detected time, make any HR correction, then save.</small></div>
               <div class="o_baa_grid">
                 <label><span t-esc="state.adjustment.adjustment === 'overtime' ? 'Final overtime hours' : (state.adjustment.adjustment === 'hourly_pay' ? 'Final payable hours' : 'Final fine hours')"/><div class="o_baa_hours"><input type="text" inputmode="numeric" pattern="[0-9]+:[0-5][0-9]" t-att-value="adjustmentHours(state.adjustment.hours)" t-on-change="updateAdjustmentHours"/><em>hrs</em></div></label>
@@ -68,7 +83,7 @@
               <label class="o_baa_note"><span t-esc="state.adjustment.adjustment === 'fine' ? 'Reason' : 'Note'"/><textarea rows="2" placeholder="Optional HR note" t-att-value="state.adjustment.note" t-on-input="(ev) => this.updateAdjustmentField('note', ev)"/></label>
               <div class="o_baa_total"><span t-esc="state.adjustment.adjustment === 'overtime' ? 'Total overtime amount' : (state.adjustment.adjustment === 'hourly_pay' ? 'Total hourly pay' : 'Total deduction')"/><strong t-esc="formatAdjustmentAmount(adjustmentAmount)"/></div>
             </div>
-            <footer class="o_baa_footer"><button type="button" class="btn btn-light" t-on-click="closeAdjustment" t-att-disabled="state.adjustment.saving">Cancel</button><button type="button" class="btn btn-primary" t-on-click="saveAdjustment" t-att-disabled="state.adjustment.saving"><i t-att-class="'fa ' + (state.adjustment.saving ? 'fa-spinner fa-spin' : 'fa-check')"/><t t-esc="state.adjustment.saving ? ' Saving…' : (state.adjustment.adjustment === 'overtime' ? ' Apply Overtime' : (state.adjustment.adjustment === 'hourly_pay' ? ' Apply Hourly Pay' : ' Apply Fine'))"/></button></footer>
+            <footer class="o_baa_footer"><button type="button" class="btn btn-light" t-on-click="closeAdjustment" t-att-disabled="state.adjustment.saving">Cancel</button><button type="button" class="btn btn-primary" t-on-click="saveAdjustment" t-att-disabled="state.adjustment.saving || (state.adjustment.items || []).some(item => item.invalidHours)"><i t-att-class="'fa ' + (state.adjustment.saving ? 'fa-spinner fa-spin' : 'fa-check')"/><t t-esc="state.adjustment.saving ? ' Saving…' : (state.adjustment.adjustment === 'review' ? ' Approve Remaining Items' : state.adjustment.adjustment === 'overtime' ? ' Apply Overtime' : (state.adjustment.adjustment === 'hourly_pay' ? ' Apply Hourly Pay' : ' Apply Fine'))"/></button></footer>
           </section>
         </div>
       </t>

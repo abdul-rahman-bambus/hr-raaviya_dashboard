@@ -5,3 +5,5 @@ from . import hr_employee
 from . import hr_attendance_review
 from . import hr_payslip
 from . import salary_revision
+
+from . import attendance_review

@@ -619,7 +619,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         template = self._create_template("Default Public Holiday Policy")
 
         self.assertEqual(template.public_holiday_overtime_policy, "all")
-        self.assertEqual(template.public_holiday_calculation_type, "salary_2")
+        self.assertEqual(template.public_holiday_calculation_type, "salary_1_5")
         self.assertEqual(template.public_holiday_rate_policy, "salary_multiplier")
 
     def test_public_holiday_disabled_policy_does_not_propose_overtime(self):
@@ -1138,6 +1138,10 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         self.assertEqual(payslip.weekend_days, 1)
         self.assertEqual(payslip.weekend_worked, 1)
         self.assertEqual(payslip.weekend_hours, 8)
+        self.assertEqual(payslip.total_validated_overtime, 0)  # Waiting for HR.
+        review = self._review_line(employee, contract, 8)
+        self._default_overtime_wizard(review).action_save()
+        payslip._compute_all_stats()
         self.assertEqual(payslip.total_validated_overtime, 8)
         self.assertFalse(payslip.days_excl_weekend_holidays)
         self.assertFalse(payslip.total_working_days)
@@ -1348,6 +1352,10 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
         slip._compute_all_stats()
         self.assertEqual(slip.weekend_days, 1)
         self.assertEqual(slip.weekend_hours, 6)
+        self.assertEqual(slip.total_validated_overtime, 0)  # Waiting for HR.
+        review = self._review_line(employee, contract, 6, day=sunday)
+        self._default_overtime_wizard(review).action_save()
+        slip._compute_all_stats()
         self.assertEqual(slip.total_validated_overtime, 6)
 
     def test_attendance_create_applies_local_weekly_off_not_payable(self):

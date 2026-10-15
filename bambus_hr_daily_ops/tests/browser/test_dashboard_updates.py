@@ -87,6 +87,7 @@ class DashboardUpdates(unittest.TestCase):
         self.page.wait_for_function('requests.length === 1')
         self.page.evaluate(f'requests[0].resolve({result})')
         self.page.wait_for_function('window.component && !component.state.loading')
+        self.tick()
 
     def tick(self):
         self.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
@@ -193,6 +194,41 @@ class DashboardUpdates(unittest.TestCase):
         self.assertTrue(self.page.evaluate('groups.isConnected'))
         self.assertEqual(self.page.evaluate('component.state.selectedIds'), [1])
         self.assertEqual(self.page.evaluate('component.state.query'), 'Employee')
+
+    def test_combined_review_deletes_one_item_and_saves_without_refresh(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate('''() => {
+            window.row = document.querySelector('.o_bae_employee');
+            component.openAdjustment(component.state.data.daily_attendance[0], 'overtime');
+        }''')
+        self.assertEqual(self.page.evaluate('requests[1].args[1]'), 'get_dashboard_review')
+        self.page.evaluate('''requests[1].resolve({wizard_id: 7, adjustment: 'review',
+            employee: 'Employee 1', date: '2026-10-07', daily_rate: 100, hourly_rate: 12.5,
+            salary_per_minute: 100/480, currency: {symbol: '₹', position: 'before', decimal_places: 2},
+            items: [
+                {id: 'overtime', label: 'Overtime', hours: 8, detected_hours: 8,
+                 calculation_type: 'salary_1_5', rate: 0, note: '', calculation_options: [['salary_1_5','1.5x Salary']]},
+                {id: 1, label: 'Late Fine', hours: 1, detected_hours: 1,
+                 calculation_type: 'salary_minute', rate: 0, note: '', calculation_options: [['salary_minute','Per Minute']]},
+                {id: 2, label: 'Break / Gap Fine', hours: 1, detected_hours: 1,
+                 calculation_type: 'salary_minute', rate: 0, note: '', calculation_options: [['salary_minute','Per Minute']]}
+            ]})''')
+        self.tick()
+        dialog = self.page.get_by_role('dialog')
+        self.assertIn('₹ 150.00', dialog.inner_text())
+        self.assertEqual(dialog.get_by_role('button', name='Delete / Ignore').count(), 3)
+        dialog.get_by_role('button', name='Delete / Ignore').nth(2).click()
+        self.assertEqual(dialog.get_by_role('button', name='Delete / Ignore').count(), 2)
+        dialog.get_by_role('button', name='Approve Remaining Items').click()
+        self.tick()
+        self.assertEqual(self.page.evaluate('requests[2].args[1]'), 'save_dashboard_review')
+        self.assertEqual(self.page.evaluate('requests[2].args[2][1].map(item => item.id)'), ['overtime', 1])
+        self.page.evaluate('requests[2].resolve({})')
+        self.tick()
+        self.page.evaluate("requests[3].resolve(dailyData('2026-10-07'))")
+        self.tick()
+        self.assertTrue(self.page.evaluate('row.isConnected'))
+        self.assertEqual(self.page.get_by_role('dialog').count(), 0)
 
 
 if __name__ == '__main__':

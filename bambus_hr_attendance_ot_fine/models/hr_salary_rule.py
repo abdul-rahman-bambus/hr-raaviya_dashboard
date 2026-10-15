@@ -24,6 +24,16 @@ class HrSalaryRule(models.Model):
             if deductions_are_positive
             else "result = -(payslip.total_fine_amount or 0.0)"
         )
+        basic = self.env.ref('hr_payroll_community.hr_rule_basic', raise_if_not_found=False)
+        if basic:
+            basic.write({
+                'amount_select': 'code',
+                'amount_python_compute': (
+                    "result = (payslip.total_worker_hours * contract.hourly_rate "
+                    "if contract.wage_type == 'hourly' else payslip.total_regular_pay_amount "
+                    "if payslip.uses_template_regular_pay else contract.wage)"
+                ),
+            })
         expressions = {
             ("OT",): "result = payslip.total_overtime_amount or 0.0",
             # LATE is the module default, while existing databases can use LF.
