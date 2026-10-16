@@ -1,5 +1,80 @@
 # Bambus HR Daily Ops
 
+## Current delivered flow and release readiness
+
+The target go-live is **Monday 19 October 2026**. Read the
+[go-live readiness review](docs/GO_LIVE_READINESS.md) before rollout; automated
+checks do not resolve the documented dashboard manual-entry gap.
+
+The changes delivered through PRs #113–#116 include:
+
+- Viewport-bounded combined review scrolling and visible mobile approval controls.
+- Contract Daily Wage / Hourly Rate / Monthly Wage display on attendance rows and reviews.
+- Separate normal paid special-day credits and approved additional work earnings.
+- Paid Weekly Offs (enabled by default) and Paid Public Holidays (disabled by default).
+  Both apply only to Monthly contracts even though the labels omit “(Monthly)”.
+- Whole normal-day credit on paid special days, with or without attendance;
+  approved worked hours add earnings under the applicable OT/holiday policy.
+- Actual-hour day classification, refreshed draft worked-day rows on Compute Sheet,
+  and paid-credit rows that top up rather than duplicate worked-day fractions.
+- Matching Weekly Off / Public Holiday Payroll Treatment sections, persistent
+  Ignore/Delete decisions, and reconciled paid-day columns in reporting.
+
+### Why keep Weekly Off Policy?
+
+| Control | Purpose |
+| --- | --- |
+| Paid Weekly Offs | Normal paid-day credit for eligible Monthly employees |
+| Weekly Off Policy | Additional earnings proposed for actual weekly-off work |
+| Paid Public Holidays | Normal paid-holiday credit for eligible Monthly employees |
+| Public Holiday Policy | Additional earnings proposed for actual holiday work |
+
+The booleans and work policies are independent. Not Payable suppresses additional
+weekly-off OT, not normal paid-day credit. All Worked Hours uses the Overtime
+tab's calculation/rate and requires the Overtime Rule and HR approval. Public
+holidays have independent calculation/rate settings. Public-holiday precedence
+prevents duplicate normal credit on an overlapping weekly off.
+
+For a Monthly wage of 12,000, daily pay is 400 (wage / 30). With 8 scheduled
+hours/day, 8 approved special-day hours at 1x add 400 to normal credit (800 total);
+at 2x they add 800 (1,200 total). Confirm whether a client means double **extra**
+pay or double **total** pay before selecting a multiplier. No leave allocation,
+leave request or leave balance is created by these paid-day booleans.
+
+### Manual dashboard time entry: current limitation
+
+`update_dashboard_attendance` currently writes the HR daily sheet snapshot and
+time-audit log, not `hr.attendance`. Therefore Present status, displayed times
+and HR Update logs can exist while Punched In / Punched Out and automatic fines
+remain zero. Editing those displayed times is not yet a complete punch correction
+workflow. Correct actual attendance records through the standard Attendances /
+existing punch-management flow, review detected adjustments, and recompute draft
+payroll. Do not duplicate a punch that already exists. The intended dashboard
+repair still needs implementation and acceptance testing.
+
+### Verification commands
+
+Use a disposable test database, never live employee records. From an Odoo checkout
+with this repository on `addons_path`:
+
+```sh
+python odoo-bin -c <test.conf> -d <test_database> --test-enable --stop-after-init \
+  -u custom_hr_payroll,bambus_hr_attendance_ot_fine,bambus_hr_daily_ops,attendance_custom_report,hr_payslip_excel_report \
+  --test-tags /custom_hr_payroll,/bambus_hr_daily_ops,/attendance_custom_report,/hr_payslip_excel_report
+```
+
+From this repository, with Playwright and Chromium installed:
+
+```sh
+ODOO_SOURCE=/path/to/odoo python -m unittest discover -s bambus_hr_daily_ops/tests/browser -v
+python bambus_hr_daily_ops/tests/browser/verify_combined_review.py --url http://localhost:8071 --db <test_database>
+python bambus_hr_daily_ops/tests/browser/verify_paid_special_days.py --url http://localhost:8071 --db <test_database>
+```
+
+Browser fixtures verify actual records and the full installed asset bundle; they
+remove their own fixtures. `ODOO_TEST_LOGIN` / `ODOO_TEST_PASSWORD` select test
+credentials (default admin/admin); do not put real credentials into documentation.
+
 ## Attendance automation templates
 
 HR Managers maintain reusable rule masters under **HRMS > Configuration >
@@ -200,7 +275,7 @@ punch sessions, the approved daily result is displayed only on the final
 attendance row for that employee and date. This prevents list totals and exports
 from multiplying one daily approval across multiple punches.
 
-The daily attendance sheet line remains the authoritative HR snapshot. Payroll
-continues to prefer an approved sheet line and falls back to detected attendance
-values only when there is no approved value. Reports should follow the same
-precedence and use the review-line link shown on the final attendance row.
+The daily attendance sheet line remains the authoritative HR snapshot. With an effective template, payroll uses approved OT/fine amounts and excludes
+pending or ignored amounts. Legacy paths retain their compatibility behavior.
+Reports follow the same precedence and use the review-line link shown on the
+final attendance row.

@@ -130,8 +130,10 @@
                                     <field name="weekly_off_source"/>
                                     <field name="weekly_off_overtime_policy"/>
                                     <div class="text-muted">
-                                        All Worked Hours proposes overtime for HR review when
-                                        the Overtime Rule is enabled. Not Payable proposes no overtime.
+                                        This policy controls additional pay for hours worked on a weekly off.
+                                        All Worked Hours proposes overtime for HR review when the
+                                        Overtime Rule is enabled. Not Payable means no additional overtime;
+                                        it does not disable normal paid-day credit from Paid Weekly Offs.
                                         Calculation methods and rates come from the Overtime tab.
                                     </div>
                                 </group>

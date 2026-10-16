@@ -3,6 +3,21 @@
 This checklist records the automated coverage for attendance automation and the
 remaining acceptance checks that require a running Odoo database and browser.
 
+## Current release evidence and remaining gaps
+
+The 16 October 2026 label/documentation candidate passed **157 Odoo tests**
+(zero failures/errors), **8 OWL Chromium tests**, and installed label/paid-day
+verification. The isolated month-basis check reproduced 12,400 regular pay for a
+12,000 Monthly contract across 31 eligible dates; client acceptance remains open.
+
+See [Go-live readiness](docs/GO_LIVE_READINESS.md) for the current October run,
+installed-browser checks, expected paid-day behavior, and unresolved client
+acceptance items. The September result below is retained as historical evidence.
+
+The known manual dashboard-entry gap is not covered as a working punch-creation
+flow by the existing suites. A passing suite must not be read as proof that a
+manually entered dashboard time triggers automatic fines or reaches payroll.
+
 ## Automated scenarios
 
 Run the module with Odoo's test runner and the `bambus_hr_daily_ops` test tag:
@@ -16,7 +31,7 @@ The end-to-end test fixture creates its own UTC work calendar, employees,
 contracts, automation templates, attendance punches, attendance-sheet lines,
 and attendance update wizards. It does not depend on production employee data.
 
-### Latest verified run
+### Historical verified run (28 September 2026)
 
 The suite was executed on 28 September 2026 against an Odoo 18 test database
 with both integration modules upgraded:

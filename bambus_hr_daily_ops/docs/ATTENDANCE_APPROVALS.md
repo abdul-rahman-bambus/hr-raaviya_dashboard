@@ -30,9 +30,9 @@ company can approve them.
   Existing configured template rates are preserved and HR can review them.
 - Hourly contracts receive regular hourly pay, using the existing daily caps and
   approved payable-hour corrections, without an additional OT/holiday earning.
-- For Monthly employees, **Paid Weekly Offs (Monthly)** credits one normal day
+- For Monthly employees, **Paid Weekly Offs** credits one normal day
   on each configured weekly off, with or without attendance. It remains enabled
-  by default. **Paid Public Holidays (Monthly)** provides the same normal credit
+  by default. **Paid Public Holidays** provides the same normal credit
   for public holidays; it defaults to disabled to preserve existing payroll.
   Enable it on this client's effective template. No leave request is created
   and no leave balance is consumed. Daily/Hourly employees receive no automatic
