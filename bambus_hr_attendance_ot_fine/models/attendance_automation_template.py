@@ -64,7 +64,7 @@ class AttendanceAutomationTemplate(models.Model):
     weekly_off_saturday = fields.Boolean(string="Saturday")
     weekly_off_sunday = fields.Boolean(string="Sunday")
     monthly_paid_weekly_off = fields.Boolean(
-        string="Paid Weekly Offs (Monthly)", default=True,
+        string="Paid Weekly Offs", default=True,
         help="Credit one normal paid day on each Monthly employee's weekly off, with "
              "or without attendance. Approved work is paid separately under the "
              "Weekly Off Policy. No leave request or leave balance is created.",
@@ -72,9 +72,11 @@ class AttendanceAutomationTemplate(models.Model):
     weekly_off_overtime_policy = fields.Selection([
         ("disabled", "Not Payable"),
         ("all", "All Worked Hours"),
-    ], string="Weekly Off Policy", required=True, default="disabled")
+    ], string="Weekly Off Policy", required=True, default="disabled",
+       help="Controls additional overtime for worked weekly offs. This is separate "
+            "from Paid Weekly Offs, which controls normal paid-day credit for Monthly employees.")
     monthly_paid_public_holiday = fields.Boolean(
-        string="Paid Public Holidays (Monthly)", default=False,
+        string="Paid Public Holidays", default=False,
         help="Credit one normal paid day for Monthly employees on public holidays, "
              "with or without attendance. Approved holiday work is paid separately. "
              "No leave request or leave balance is created.",
