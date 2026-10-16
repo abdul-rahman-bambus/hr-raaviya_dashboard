@@ -64,15 +64,21 @@ class AttendanceAutomationTemplate(models.Model):
     weekly_off_saturday = fields.Boolean(string="Saturday")
     weekly_off_sunday = fields.Boolean(string="Sunday")
     monthly_paid_weekly_off = fields.Boolean(
-        string="Paid Unworked Weekly Offs (Monthly)", default=True,
-        help="Credit one normal paid day for a Monthly employee's weekly off without "
-             "attendance. Does not affect Daily/Hourly employees, worked weekly offs, "
-             "public holidays, or approved overtime.",
+        string="Paid Weekly Offs (Monthly)", default=True,
+        help="Credit one normal paid day on each Monthly employee's weekly off, with "
+             "or without attendance. Approved work is paid separately under the "
+             "Weekly Off Policy. No leave request or leave balance is created.",
     )
     weekly_off_overtime_policy = fields.Selection([
         ("disabled", "Not Payable"),
         ("all", "All Worked Hours"),
     ], string="Weekly Off Policy", required=True, default="disabled")
+    monthly_paid_public_holiday = fields.Boolean(
+        string="Paid Public Holidays (Monthly)", default=False,
+        help="Credit one normal paid day for Monthly employees on public holidays, "
+             "with or without attendance. Approved holiday work is paid separately. "
+             "No leave request or leave balance is created.",
+    )
     public_holiday_overtime_policy = fields.Selection([
         ("all", "All Worked Hours as Overtime"),
         ("disabled", "No Additional Overtime"),
@@ -334,6 +340,16 @@ class HrEmployee(models.Model):
             return False
         template = self._get_attendance_automation_template(day)
         return not template or template.monthly_paid_weekly_off
+
+    def _is_paid_attendance_public_holiday(self, day, contract):
+        self.ensure_one()
+        day = fields.Date.to_date(day)
+        if not (contract and contract.wage_type == 'monthly'
+                and (not contract.date_start or day >= contract.date_start)
+                and (not contract.date_end or day <= contract.date_end)):
+            return False
+        template = self._get_attendance_automation_template(day)
+        return bool(template and template.monthly_paid_public_holiday)
 
     def _get_attendance_hourly_limit(self, day, contract):
         template = self._get_attendance_automation_template(day)

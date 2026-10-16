@@ -331,6 +331,34 @@ class TestPayrollReview(TransactionCase):
         self.assertEqual(row['public_holiday_pay'], 200)
         self.assertEqual(row['net'], 8700)
 
+    def test_paid_holiday_policy_reconciles_register_daily_and_summary(self):
+        self.env['resource.calendar.leaves'].create({'name': 'Paid Sunday Holiday',
+            'calendar_id': self.calendar.id, 'date_from': datetime(2026, 9, 5, 18, 30),
+            'date_to': datetime(2026, 9, 6, 18, 29, 59)})
+        slip = self.slip(date_from='2026-09-06', date_to='2026-09-06')
+        for enabled in (True, False):
+            self.template.monthly_paid_public_holiday = enabled
+            slip.action_compute_sheet()
+            data = self.report._data(self.wizard(report_type='review'))
+            row = data['register'][0]
+            self.assertEqual(row['paid_holiday_days'], int(enabled))
+            self.assertEqual(row['weekly_off_leave'], 0)
+            self.assertEqual(slip.paid_public_holiday_days, int(enabled))
+            self.assertEqual(slip.total_regular_pay_amount, 300 * int(enabled))
+            self.assertEqual(data['daily'][0]['status'], 'Paid Public Holiday' if enabled else 'No Attendance')
+            self.assertEqual(data['daily'][0]['paid_public_holiday'], int(enabled))
+            self.assertEqual(self.report._employee_summary_rows(data['register'])[0]['paid_holiday_days'], int(enabled))
+
+    def test_worked_paid_weekly_off_report_keeps_credit_distinct_from_work(self):
+        slip = self.slip(date_from='2026-09-06', date_to='2026-09-06')
+        self.env['hr.attendance'].create({'employee_id': self.employee.id,
+            'check_in': datetime(2026, 9, 6, 3, 30), 'check_out': datetime(2026, 9, 6, 7, 30)})
+        slip.action_compute_sheet()
+        data = self.report._data(self.wizard(report_type='review'))
+        row = data['register'][0]
+        self.assertEqual((row['weekly_off_leave'], row['weekly_off_worked'], row['payable_days']), (1, .5, 1))
+        self.assertEqual(data['daily'][0]['status'], 'Worked Paid Weekly Off')
+
     def test_weekly_off_switch_matches_payroll_attendance_and_summary(self):
         slip = self.slip(date_from='2026-09-06', date_to='2026-09-06')
         report = self.env['report.attendance_custom_report.attendance_xlsx']

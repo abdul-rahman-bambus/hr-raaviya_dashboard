@@ -31,6 +31,7 @@ REGISTER = IDENTITY + [
     ('advance', 'Advance / Loan Deduction', 'money'), ('other_deductions', 'Other Deductions', 'money'),
     ('deductions', 'Total Deductions', 'money'), ('net', 'Net Pay', 'money'),
     ('pending', 'Pending Review Items', 'number'), ('issues', 'Review Flags', 'text'),
+    ('weekly_off_leave', 'Paid Weekly-off Days', 'number'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number'),
 ]
 DAILY = IDENTITY + [
     ('payslip', 'Payslip', 'text'), ('date', 'Date', 'text'), ('classification', 'Day Classification', 'text'),
@@ -44,6 +45,8 @@ DAILY = IDENTITY + [
     ('hourly_approved', 'HR Updated Hourly Hours', 'duration'), ('hourly_state', 'Hourly Pay Review', 'text'),
     ('saved_ot', 'Payslip Snapshot OT Amount', 'money'), ('saved_fine', 'Payslip Snapshot Fine Amount', 'money'),
     ('reviewed_by', 'Reviewed By', 'text'), ('reviewed_on', 'Reviewed On', 'text'),
+    ('paid_weekly_off', 'Normal Weekly-off Day Credit', 'number'),
+    ('paid_public_holiday', 'Normal Public Holiday Day Credit', 'number'),
 ]
 EXCEPTIONS = IDENTITY + [('payslip', 'Payslip', 'text'), ('date', 'Date', 'text'),
                          ('issue', 'Review Item', 'text'), ('message', 'Details', 'text')]
@@ -62,7 +65,7 @@ LEGACY = [('number', 'S.No', 'number'), ('name', 'Staff Name', 'text'),
           ('overtime', 'System Overtime', 'money'), ('public_holiday_pay', 'Public Holiday Pay', 'money'),
           ('earnings', 'Total Earnings', 'money'), ('all_allowances', 'Allowance', 'money'),
           ('fine', 'System Fine', 'money'), ('deductions', 'Total Deductions', 'money'),
-          ('net', 'Net Pay Amount', 'money')]
+          ('net', 'Net Pay Amount', 'money'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number')]
 
 
 
@@ -117,7 +120,7 @@ class PayrollReviewReport(models.AbstractModel):
         ambiguous = paid_codes & unpaid_codes
         if any(line.code in ambiguous for line in slip.worked_days_line_ids):
             return None
-        paid_codes |= {'WORK100', 'DAYSWORKED', 'WEEKEND', 'HOLIDAYS', 'PAID_WEEKLY_OFF'}
+        paid_codes |= {'WORK100', 'DAYSWORKED', 'WEEKEND', 'HOLIDAYS', 'PAID_WEEKLY_OFF', 'PAID_PUBLIC_HOLIDAY'}
         # A leave code shared by paid and unpaid types is ambiguous.
         paid_codes -= unpaid_codes
         if any(line.code not in paid_codes | unpaid_codes for line in slip.worked_days_line_ids):
@@ -152,7 +155,7 @@ class PayrollReviewReport(models.AbstractModel):
             grouped[row['employee_id']].append(row)
         output = []
         salary_keys = ('basic', 'all_allowances', 'earnings', 'deductions', 'net', 'overtime', 'fine', 'public_holiday_pay')
-        attendance_keys = ('payable_days', 'present', 'weekly_off_leave', 'absent', 'holidays', 'weekly_off_worked', 'holiday_worked',
+        attendance_keys = ('payable_days', 'present', 'weekly_off_leave', 'paid_holiday_days', 'absent', 'holidays', 'weekly_off_worked', 'holiday_worked',
                            'worked_hours', 'ot_hours', 'fine_hours')
         for employee_rows in grouped.values():
             merged = dict(employee_rows[0])
@@ -205,7 +208,7 @@ class PayrollReviewReport(models.AbstractModel):
                                       include_ctc=True, include_rates=True, empty_totals=True, decimal_hours=True)
             sheet.write_comment(5, 2, 'Monthly salary uses contract.wage; hourly uses hourly_rate; daily uses daily_wage. '
                                     'Totals sum configured salaries/rates, not earned pay. Varying rates remain blank; see Payroll Review.')
-            sheet.write_comment(5, 6, 'Unworked weekly-off equivalents, not a new paid-leave entitlement. Public holidays are separate.')
+            sheet.write_comment(5, 6, 'Normal weekly-off credits, including worked dates. Approved work is paid separately; no leave balance is created.')
             sheet.write_string(4, 0, f"Salary type: {name}. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")
             final = {'salary_type': name, 'employees': len(rows)}
             for column, (key, label, kind) in enumerate(columns[2:], 2):
@@ -333,7 +336,7 @@ class PayrollReviewReport(models.AbstractModel):
         leaves = self.env['hr.leave'].search([('employee_id', '=', employee.id), ('state', '=', 'validate'),
                                             ('date_from', '<=', utc_end), ('date_to', '>=', utc_start)])
         counts = dict.fromkeys(('present', 'half_days', 'paid_leave', 'unpaid_leave', 'absent',
-                               'weekly_off', 'weekly_off_leave', 'weekly_off_worked', 'holidays', 'holiday_worked', 'worked_hours', 'pending'), 0)
+                               'weekly_off', 'weekly_off_leave', 'paid_holiday_days', 'weekly_off_worked', 'holidays', 'holiday_worked', 'worked_hours', 'pending'), 0)
         rows = []
         for day, info in sorted(daily.items()):
             template = employee._get_attendance_automation_template(day)
@@ -359,10 +362,14 @@ class PayrollReviewReport(models.AbstractModel):
             if day_leave:
                 fraction = min(fraction, 1 - paid - unpaid)
             status = 'Present' if fraction >= 1 else 'Half Day' if fraction == .5 else 'Absent' if info['is_absent'] else 'No Attendance'
-            paid_weekly_off = (info['is_weekend'] and not attendance
+            paid_weekly_off = (info['is_weekend']
                 and employee._is_paid_attendance_weekly_off(day, slip.contract_id))
+            paid_holiday = (info['is_holiday']
+                and employee._is_paid_attendance_public_holiday(day, slip.contract_id))
             if paid_weekly_off:
-                status = 'Paid Weekly Off'
+                status = 'Worked Paid Weekly Off' if attendance else 'Paid Weekly Off'
+            elif paid_holiday:
+                status = 'Worked Paid Public Holiday' if attendance else 'Paid Public Holiday'
             if day_leave:
                 status = 'Half-Day Leave' if day_leave.request_unit_half else 'Unpaid Leave' if unpaid else 'Paid Leave'
             classification = 'Public Holiday' if info['is_holiday'] else 'Weekly Off' if info['is_weekend'] else 'Working Day'
@@ -372,6 +379,7 @@ class PayrollReviewReport(models.AbstractModel):
             counts['unpaid_leave'] += unpaid
             counts['absent'] += max(0., 1 - fraction - paid - unpaid) if work_periods and not info['is_weekend'] and not info['is_holiday'] else 0
             counts['weekly_off_leave'] += 1 if paid_weekly_off else 0
+            counts['paid_holiday_days'] += 1 if paid_holiday else 0
             counts['weekly_off'] += info['is_weekend']
             counts['weekly_off_worked'] += fraction if info['is_weekend'] else 0
             counts['holidays'] += info['is_holiday']
@@ -380,6 +388,7 @@ class PayrollReviewReport(models.AbstractModel):
             last = self.env['report.attendance_custom_report.attendance_xlsx']._last_attendance(attendance)
             snapshot = slip.attendance_detail_ids.filtered(lambda detail: detail.date == day)
             row = {**base, 'date': str(day), 'classification': classification, 'status': status,
+                   'paid_weekly_off': int(paid_weekly_off), 'paid_public_holiday': int(paid_holiday),
                    'template': template.name if template else 'Assigned schedule / legacy fallback',
                    'source': dict(template._fields['weekly_off_source']._description_selection(self.env)).get(template.weekly_off_source, '') if template else 'Assigned Working Schedule',
                    'policy': dict(template._fields['weekly_off_overtime_policy']._description_selection(self.env)).get(template.weekly_off_overtime_policy, '') if template else '',

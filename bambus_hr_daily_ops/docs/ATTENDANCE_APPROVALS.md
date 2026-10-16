@@ -30,15 +30,30 @@ company can approve them.
   Existing configured template rates are preserved and HR can review them.
 - Hourly contracts receive regular hourly pay, using the existing daily caps and
   approved payable-hour corrections, without an additional OT/holiday earning.
-- A Monthly configured weekly off with no attendance receives one paid day.
-  No leave request is created and no leave balance is consumed. Daily and Hourly
-  contracts receive no unworked weekly-off credit. Holiday classification wins
-  when a date is both a holiday and weekly off. Credits respect contract dates.
-- Daily day pay uses daily_wage; Monthly day pay uses wage / 30, consistent with
-  the existing adjustment calculations. Special-day normal pay uses actual
-  worked hours / the calendar's hours per day. Normal days keep attendance day
-  fractions and paid leave. Regular pay, paid-weekly-off amount (included in
-  regular pay), and paid-weekly-off days are visible in Payslip → Payables.
+- For Monthly employees, **Paid Weekly Offs (Monthly)** credits one normal day
+  on each configured weekly off, with or without attendance. It remains enabled
+  by default. **Paid Public Holidays (Monthly)** provides the same normal credit
+  for public holidays; it defaults to disabled to preserve existing payroll.
+  Enable it on this client's effective template. No leave request is created
+  and no leave balance is consumed. Daily/Hourly employees receive no automatic
+  paid-off credit. Public-holiday classification wins on overlapping dates, so
+  a date receives at most one normal day credit, within contract dates.
+- Monthly day pay uses wage / 30; Daily pay uses daily_wage. A paid Monthly
+  special day retains its whole normal credit even when only part of the day
+  is worked. Approved OT/holiday work is additional pay under its own policy.
+  Without the paid-off policy, special-day normal pay retains the existing
+  actual worked hours / calendar hours-per-day calculation.
+- Worked-day fractions follow actual attendance hours and the template's
+  half/full-day thresholds. Scheduled hours no longer cap the comparison and
+  prevent reaching a higher fixed full-day target. Editing punches refreshes
+  the attendance counters. **Compute Sheet** also rebuilds generated Worked Days
+  & Inputs rows before salary evaluation, preserving unrelated custom codes.
+  Paid credit rows top up worked fractions to a full paid day; they do not
+  duplicate a day already included in WEEKEND/HOLIDAYS. Completed salary lines
+  are not refreshed automatically.
+- Payslip → Payables shows paid weekly-off and public-holiday days/amounts.
+  Both amounts are included in Regular Pay Amount. Public Holiday Amount is
+  the separate additional approved earning.
 
 The standard BASIC salary rule uses the new regular-pay total for template-driven
 Daily/Monthly payroll and existing billable hours for Hourly payroll. Legacy
@@ -47,9 +62,11 @@ remain separate salary-rule inputs, each paid once. Verify that the employee's
 salary structure includes the corresponding OT / PH rules; independent custom
 BASIC rules must use total_regular_pay_amount to apply these same rules.
 
-Reports recognize the PAID_WEEKLY_OFF worked-day bucket. The summary's
-Paid Weekly-off Days column represents Monthly weekly offs without attendance;
-public holiday and weekly-off work remain separate classifications.
+Reports recognize PAID_WEEKLY_OFF and PAID_PUBLIC_HOLIDAY credit rows.
+Paid Weekly-off Days and Paid Public Holiday Days count normal paid credits,
+including worked dates. Worked-day counts and additional approved earnings
+remain separate. Payroll review daily rows explicitly identify worked paid-off
+dates, and attendance Monthly Summary exposes both paid-day columns.
 
 ## Deployment and verification
 
@@ -74,22 +91,14 @@ python bambus_hr_daily_ops/tests/browser/verify_combined_review.py \
 This check requires an isolated database with `test` in its name and removes its
 employee, contract, attendance and review fixtures when finished.
 
-### Monthly paid weekly-off switch and contract wages
+### Monthly paid-off switches and contract wages
 
-On the automation template, **Paid Unworked Weekly Offs (Monthly)** is enabled
-by default, including when upgrading existing templates. Disable it to remove
-the normal paid-day credit for Monthly employees on weekly offs without punches.
-The effective employee template wins, followed by the company template. Inactive
-or out-of-date templates fall back as usual; without an effective template the
-existing paid weekly-off behavior remains. Contract start/end dates and public
-holiday precedence still apply. Daily/Hourly employees and pay for worked weekly
-offs, approved overtime, and leave retain their existing rules.
-
-Payroll amounts, the Paid Weekly Off worked-day bucket, payroll review/detail
-and summary exports, and the attendance Monthly Summary **Paid Weekly-off Days**
-column use this policy. Weekly-off classification remains visible when payment
-is disabled. Recompute draft payslips after changing the switch; completed salary
-lines and approved attendance amounts are not rewritten.
+The effective employee template wins, followed by the company template.
+Inactive or out-of-date templates fall back as usual. Without an effective
+template the existing weekly-off credit remains and the new public-holiday
+credit is disabled. Contract start/end dates and public-holiday precedence
+still apply. Recompute draft payslips after changing a policy; completed salary
+lines and approved attendance snapshots are not rewritten automatically.
 
 The daily attendance employee row and combined review show the contract's
 **Daily Wage**, **Hourly Rate**, or **Monthly Wage** for that date. These are the
@@ -102,3 +111,23 @@ Upgrade `custom_hr_payroll`, `bambus_hr_attendance_ot_fine`,
 its content scrolls within bounded rows while the header and approval buttons
 stay visible. Installed-browser verification covers desktop, narrow mobile, and
 short landscape viewports using actual wheel input and the full asset bundle.
+
+### Client verification example
+
+Use a Monthly wage of 9,000 (300/day), a calendar of 8 hours/day, and a full-day
+template threshold of 9 hours for the threshold regression check. Enable both
+paid-off switches. For one weekly off and one public holiday, test separately:
+
+| Attendance | Worked days | Normal day credit | Extra earning |
+| --- | --- | --- | --- |
+| No punches | 0 | 1 day / 300 | 0 before an HR approval |
+| 4 hours | 0.5 | 1 day / 300 | Approved amount under the day policy |
+| 9 hours | 1 | 1 day / 300 | Approved amount under the day policy |
+
+Change the punches from 8 hours (0.5 day) to 9 hours (1 day) and back.
+The displayed worked-day fraction must follow the change. Compute Sheet must
+refresh Worked Days & Inputs and salary totals. With 1.5x Salary and a 300/8
+hourly salary, 4 approved hours add 225 to the normal 300, totaling 525 before
+other earnings/deductions. Check the payroll review and attendance Monthly
+Summary exports against the payslip. Disable each paid-off switch to verify
+no-punch credits disappear while approved extra earnings stay separate.

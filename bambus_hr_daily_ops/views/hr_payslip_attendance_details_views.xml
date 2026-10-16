@@ -15,6 +15,7 @@
           <group string="Payroll Amounts">
             <field name="total_regular_pay_amount" string="Regular Pay Amount" readonly="1" widget="monetary"/>
             <field name="paid_weekly_off_amount" string="Paid Weekly-off Amount (Included in Regular Pay)" readonly="1" widget="monetary"/>
+            <field name="paid_public_holiday_amount" string="Paid Public Holiday Amount (Included in Regular Pay)" readonly="1" widget="monetary"/>
             <field name="total_overtime_amount" string="Overtime Amount" readonly="1" widget="monetary"/>
             <field name="total_public_holiday_amount" string="Public Holiday Amount" readonly="1" widget="monetary"/>
             <field name="total_fine_amount" string="Fine Amount (Deduction)" readonly="1" widget="monetary"/>
@@ -27,6 +28,7 @@
             <field name="total_working_days" string="Regular Worked Days" readonly="1"/>
             <field name="total_worker_days" string="Hourly Pay Worked Days" readonly="1"/>
             <field name="paid_weekly_off_days" readonly="1"/>
+            <field name="paid_public_holiday_days" readonly="1"/>
             <field name="weekend_days" string="Weekly-off Days" readonly="1"/>
             <field name="weekend_worked" string="Weekly-off Worked Days" readonly="1"/>
             <field name="holiday_days" string="Public Holiday Days" readonly="1"/>

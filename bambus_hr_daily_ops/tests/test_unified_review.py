@@ -290,3 +290,102 @@ class TestUnifiedAttendanceReview(TransactionCase):
         employee, contract, line = self.worker('hourly')
         payload = self.env['bambus.hr.attendance.sheet'].get_dashboard_adjustment(employee.id, self.day, 'hourly_pay')
         self.assertEqual((payload['contract_wage_label'], payload['contract_wage_amount']), ('Hourly Rate', 12.5))
+
+    def test_special_day_worked_fraction_refreshes_above_schedule_without_manual_recompute(self):
+        # An 8h assigned schedule must not cap a fixed 9h target forever at .5.
+        self.template.write({'full_day_basis': 'fixed', 'full_day_hours': 9})
+        from types import SimpleNamespace
+        report = (self.env['report.attendance_custom_report.attendance_xlsx']
+                  if 'report.attendance_custom_report.attendance_xlsx' in self.env else None)
+        for holiday in (False, True):
+            with self.subTest(holiday=holiday):
+                employee, contract, line = self.worker('monthly')
+                if holiday:
+                    leave = self.env['resource.calendar.leaves'].create({
+                        'name': 'Refresh Test Holiday', 'calendar_id': self.calendar.id,
+                        'date_from': '2026-09-27 00:00:00', 'date_to': '2026-09-27 23:59:59'})
+                att = line._review_attendances()
+                slip = self.slip(employee, contract)
+                key = 'holiday_worked' if holiday else 'weekend_worked'
+                self.assertEqual(slip[key], .5)
+                for checkout, expected, hours in [('18:00:00', 1, 9), ('14:00:00', .5, 5)]:
+                    att.check_out = '2026-09-27 ' + checkout
+                    self.assertEqual(slip[key], expected)
+                    self.assertAlmostEqual(slip.holiday_hours if holiday else slip.weekend_hours, hours)
+                    if report is not None:
+                        daily = report._compute_employee_daily(employee,
+                            SimpleNamespace(date_start=self.day, date_end=self.day), contract=contract)
+                        self.assertEqual(daily[self.day]['day_fraction'], expected)
+                    slip.action_compute_sheet()
+                    code = 'HOLIDAYS' if holiday else 'WEEKEND'
+                    self.assertEqual(slip.worked_days_line_ids.filtered(lambda row: row.code == code).number_of_days, expected)
+                if holiday:
+                    leave.unlink()
+
+    def test_monthly_paid_special_days_keep_base_and_pay_approved_work_separately(self):
+        self.template.monthly_paid_public_holiday = True
+        for holiday in (False, True):
+            with self.subTest(holiday=holiday):
+                employee, contract, line = self.worker('monthly', attendance=False)
+                if holiday:
+                    leave = self.env['resource.calendar.leaves'].create({
+                        'name': 'Paid Test Holiday', 'calendar_id': self.calendar.id,
+                        'date_from': '2026-09-27 00:00:00', 'date_to': '2026-09-27 23:59:59'})
+                slip = self.slip(employee, contract)
+                field = 'paid_public_holiday_days' if holiday else 'paid_weekly_off_days'
+                self.assertEqual((slip[field], slip.total_regular_pay_amount), (1, 100))
+                self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 1)
+                att = self.env['hr.attendance'].create({'employee_id': employee.id,
+                    'check_in': '2026-09-27 09:00:00', 'check_out': '2026-09-27 13:00:00'})
+                line.action_refresh()
+                review = self.wizard(line)
+                review.action_save()
+                slip.action_compute_sheet()
+                self.assertEqual((slip[field], slip.total_regular_pay_amount), (1, 100))
+                self.assertEqual(slip.holiday_worked if holiday else slip.weekend_worked, .5)
+                self.assertEqual(slip.total_public_holiday_amount if holiday else slip.total_overtime_amount, 75)
+                self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 1)
+                # Removing punches restores a paid day without inventing leave records.
+                att.unlink()
+                slip.action_compute_sheet()
+                self.assertEqual((slip[field], slip.total_regular_pay_amount), (1, 100))
+                self.assertFalse(self.env['hr.leave'].search([('employee_id', '=', employee.id)]))
+                if holiday:
+                    self.assertEqual(slip.paid_weekly_off_days, 0)
+                    leave.unlink()
+
+    def test_paid_public_holiday_policy_default_scope_and_effective_fallback(self):
+        self.assertFalse(self.template.monthly_paid_public_holiday)
+        leave = self.env['resource.calendar.leaves'].create({'name': 'Scoped Paid Holiday',
+            'calendar_id': self.calendar.id, 'date_from': '2026-09-27 00:00:00',
+            'date_to': '2026-09-27 23:59:59'})
+        company = self.template.copy({'name': 'Company Paid Holiday', 'monthly_paid_public_holiday': True})
+        self.env.company.attendance_automation_template_id = company
+        employee, contract, line = self.worker('monthly', attendance=False)
+        slip = self.slip(employee, contract)
+        self.assertEqual(slip.paid_public_holiday_days, 0)
+        self.template.date_to = '2026-09-26'
+        self.assertEqual(slip.paid_public_holiday_days, 1)
+        company.active = False
+        self.assertEqual(slip.paid_public_holiday_days, 0)
+        self.template.write({'date_to': False, 'monthly_paid_public_holiday': True})
+        self.assertEqual(slip.paid_public_holiday_days, 1)
+        contract.date_start = '2026-09-28'
+        self.assertEqual(slip.paid_public_holiday_days, 0)
+        for basis in ('daily', 'hourly'):
+            employee, contract, line = self.worker(basis, attendance=False)
+            self.assertEqual(self.slip(employee, contract).paid_public_holiday_days, 0)
+
+    def test_compute_sheet_refreshes_generated_days_and_preserves_custom_rows(self):
+        employee, contract, line = self.worker('monthly', attendance=False)
+        slip = self.slip(employee, contract)
+        custom = self.env['hr.payslip.worked.days'].create({'name': 'Custom Day Input',
+            'code': 'CUSTOM_DAY_INPUT', 'payslip_id': slip.id, 'contract_id': contract.id,
+            'number_of_days': .25, 'number_of_hours': 0})
+        self.template.monthly_paid_weekly_off = False
+        slip.action_compute_sheet()
+        self.assertTrue(custom.exists())
+        self.assertNotIn('PAID_WEEKLY_OFF', slip.worked_days_line_ids.mapped('code'))
+        self.template.monthly_paid_weekly_off = True
+        slip.action_compute_sheet()
+        self.assertEqual(slip.worked_days_line_ids.filtered(lambda row: row.code == 'PAID_WEEKLY_OFF').number_of_days, 1)
