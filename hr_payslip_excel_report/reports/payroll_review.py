@@ -359,9 +359,8 @@ class PayrollReviewReport(models.AbstractModel):
             if day_leave:
                 fraction = min(fraction, 1 - paid - unpaid)
             status = 'Present' if fraction >= 1 else 'Half Day' if fraction == .5 else 'Absent' if info['is_absent'] else 'No Attendance'
-            paid_weekly_off = (info['is_weekend'] and not attendance and slip.contract_id.wage_type == 'monthly'
-                and (not slip.contract_id.date_start or day >= slip.contract_id.date_start)
-                and (not slip.contract_id.date_end or day <= slip.contract_id.date_end))
+            paid_weekly_off = (info['is_weekend'] and not attendance
+                and employee._is_paid_attendance_weekly_off(day, slip.contract_id))
             if paid_weekly_off:
                 status = 'Paid Weekly Off'
             if day_leave:

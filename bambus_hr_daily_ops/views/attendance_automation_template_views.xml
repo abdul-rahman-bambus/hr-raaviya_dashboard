@@ -131,6 +131,7 @@
                                     <field name="weekly_off_saturday"/>
                                     <field name="weekly_off_sunday"/>
                                 </group>
+                                <field name="monthly_paid_weekly_off"/>
                                 <field name="weekly_off_overtime_policy"/>
                                 <div class="text-muted">
                                     All Worked Hours proposes overtime for HR review when

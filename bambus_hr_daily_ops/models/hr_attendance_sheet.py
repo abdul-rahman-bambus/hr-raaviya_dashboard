@@ -455,6 +455,7 @@ class BambusHrAttendanceSheet(models.Model):
                     or automation.break_enabled
                 )
             )
+            wage_label, wage_amount = self.env['bambus.hr.attendance.review.wizard']._contract_wage(contract)
             daily_attendance.append({
                 "id": employee.id,
                 "name": employee.display_name,
@@ -463,6 +464,9 @@ class BambusHrAttendanceSheet(models.Model):
                 "shift": calendar.display_name if calendar else _("No Work Schedule"),
                 "contract_type_id": contract_type.id if contract_type else 0,
                 "contract_type": contract_type.display_name if contract_type else _("No Contract Type"),
+                "contract_wage_label": wage_label,
+                "contract_wage_amount": wage_amount,
+                "currency_symbol": employee.company_id.currency_id.symbol or "",
                 "wage_type": wage_type,
                 "is_hourly": wage_type == "hourly",
                 "fine_enabled": fine_enabled,
@@ -682,10 +686,13 @@ class BambusHrAttendanceSheet(models.Model):
         currency = wizard.currency_id
         rate_helper = self.env["bambus.hr.overtime.wizard"]
         daily_rate, hourly_rate = rate_helper._contract_rates(wizard.line_id)
+        wage_label, wage_amount = self.env['bambus.hr.attendance.review.wizard']._contract_wage(wizard.line_id.contract_id)
         return {
             "wizard_id": wizard.id,
             "adjustment": adjustment,
             "employee": wizard.employee_id.name,
+            "contract_wage_label": wage_label,
+            "contract_wage_amount": wage_amount,
             "date": fields.Date.to_string(wizard.date),
             "detected_hours": wizard[detected_field],
             "hours": wizard[hours_field],

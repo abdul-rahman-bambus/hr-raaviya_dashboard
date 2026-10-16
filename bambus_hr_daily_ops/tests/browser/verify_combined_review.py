@@ -50,6 +50,43 @@ def main():
             action = create('ir.actions.act_window',{'name':'Unified Review Browser Test','res_model':'bambus.hr.attendance.review.wizard','res_id':wizard,'view_mode':'form','view_id':view,'target':'new'})
             page = context.new_page(); errors=[]
             page.on('pageerror',lambda error:errors.append(str(error)))
+            # Exercise the actual client action with all installed Odoo/HRMS assets.
+            page.goto(url + '/odoo?debug=assets')
+            page.wait_for_selector('.o_web_client', timeout=60000)
+            page.evaluate("""async () => {
+                await odoo.__WOWL_DEBUG__.root.env.services.action.doAction({
+                    type: 'ir.actions.client', tag: 'bambus_attendance_editor',
+                    params: {selected_date: '2026-09-28'},
+                });
+            }""")
+            page.get_by_placeholder('Search Staff by Name, Department or Schedule').fill('Unified Browser Employee')
+            employee_row = page.locator('.o_bae_employee').filter(has_text='Unified Browser Employee')
+            assert 'Monthly Wage' in employee_row.inner_text()
+            employee_row.get_by_title('Review late / fine', exact=True).click()
+            modal = page.locator('.o_baa_modal')
+            modal.wait_for()
+            assert 'Monthly Wage' in modal.locator('.o_baa_contract_wage').inner_text()
+            assert page.evaluate("document.querySelector('.o_baa_modal_backdrop').parentElement === document.body")
+            for width, height in ((1366, 600), (1024, 768), (390, 640), (800, 320), (320, 480)):
+                page.set_viewport_size({'width': width, 'height': height})
+                body = modal.locator('.o_baa_body')
+                body.evaluate('(el) => el.scrollTop = 0')
+                body.hover()
+                page.mouse.wheel(0, 3000)
+                page.wait_for_function("""() => {
+                    const el = document.querySelector('.o_baa_body');
+                    return el.scrollTop > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+                }""")
+                bounds = modal.bounding_box()
+                assert bounds['y'] >= 0 and bounds['y'] + bounds['height'] <= height + 1, bounds
+                footer = modal.locator('.o_baa_footer')
+                footer_bounds = footer.bounding_box()
+                assert footer_bounds['x'] >= 0 and footer_bounds['x'] + footer_bounds['width'] <= width + 1
+                footer.locator('.btn-primary').click(trial=True)
+                # The final component is reachable with real wheel input.
+                assert modal.get_by_text('Early Exit Fine', exact=True).is_visible()
+            modal.get_by_role('button', name='Cancel', exact=True).click()
+            page.set_viewport_size({'width': 1366, 'height': 768})
             page.goto(f'{url}/odoo/action-{action}')
             page.get_by_role('button',name='Approve Remaining Items',exact=True).wait_for(timeout=20000)
             assert page.get_by_text('Late Fine',exact=True).count() > 0
@@ -64,7 +101,7 @@ def main():
             assert record['overtime_state']=='approved', record
             assert record['fine_review_data']['break']['state']=='ignored',record
             assert not errors, errors
-            print('PASS: actual Odoo combined form renders OT and separate fines, native trash ignores break, one approval saves all remaining items.')
+            print('PASS: installed dashboard scrolls at five viewport sizes with visible approval controls and contract wage; actual Odoo combined form renders OT and separate fines, native trash ignores break, one approval saves all remaining items.')
         finally:
             # The disposable DB is dedicated to tests; remove the day line before its employee.
             lines=rpc('bambus.hr.attendance.sheet.line','search',[[['employee_id','=',employee]]]) if 'employee' in locals() else []

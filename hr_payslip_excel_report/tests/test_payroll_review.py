@@ -331,6 +331,25 @@ class TestPayrollReview(TransactionCase):
         self.assertEqual(row['public_holiday_pay'], 200)
         self.assertEqual(row['net'], 8700)
 
+    def test_weekly_off_switch_matches_payroll_attendance_and_summary(self):
+        slip = self.slip(date_from='2026-09-06', date_to='2026-09-06')
+        report = self.env['report.attendance_custom_report.attendance_xlsx']
+        from types import SimpleNamespace
+        period = SimpleNamespace(date_start=slip.date_from, date_end=slip.date_to)
+        for enabled in (True, False, True):
+            self.template.monthly_paid_weekly_off = enabled
+            daily = report._compute_employee_daily(self.employee, period, contract=self.contract)
+            self.assertEqual(daily[slip.date_from]['paid_weekly_off'], enabled)
+            data = self.report._data(self.wizard(report_type='review'))
+            row = data['register'][0]
+            self.assertEqual(row['weekly_off_leave'], int(enabled))
+            self.assertEqual(row['weekly_off'], 1)
+            self.assertEqual(slip.paid_weekly_off_days, int(enabled))
+            self.assertEqual(slip.total_regular_pay_amount, 300 * int(enabled))
+            self.assertEqual(data['daily'][0]['status'], 'Paid Weekly Off' if enabled else 'No Attendance')
+            summary = self.report._employee_summary_rows(data['register'])[0]
+            self.assertEqual(summary['weekly_off_leave'], int(enabled))
+
     def test_summary_unused_weekly_off_and_absence_are_separate(self):
         self.finance(self.slip(date_from='2026-09-06', date_to='2026-09-07'))
         data = self.report._data(self.wizard(report_type='summary'))
