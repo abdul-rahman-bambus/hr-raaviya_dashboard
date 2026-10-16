@@ -120,23 +120,38 @@
                             </group>
                         </page>
                         <page string="Weekly Off">
+                            <div class="alert alert-info" role="alert">
+                                Enable Paid Weekly Offs to give Monthly employees normal
+                                day credit even without attendance. Work on that day is an
+                                additional earning under the weekly-off policy, subject to HR review.
+                            </div>
                             <group>
-                                <field name="weekly_off_source"/>
-                                <group string="Weekly Off Days" invisible="weekly_off_source != 'weekdays'">
-                                    <field name="weekly_off_monday"/>
-                                    <field name="weekly_off_tuesday"/>
-                                    <field name="weekly_off_wednesday"/>
-                                    <field name="weekly_off_thursday"/>
-                                    <field name="weekly_off_friday"/>
-                                    <field name="weekly_off_saturday"/>
-                                    <field name="weekly_off_sunday"/>
+                                <group string="Weekly Off Work">
+                                    <field name="weekly_off_source"/>
+                                    <field name="weekly_off_overtime_policy"/>
+                                    <div class="text-muted">
+                                        All Worked Hours proposes overtime for HR review when
+                                        the Overtime Rule is enabled. Not Payable proposes no overtime.
+                                        Calculation methods and rates come from the Overtime tab.
+                                    </div>
                                 </group>
-                                <field name="monthly_paid_weekly_off"/>
-                                <field name="weekly_off_overtime_policy"/>
-                                <div class="text-muted">
-                                    All Worked Hours proposes overtime for HR review when
-                                    the Overtime Rule is enabled. Not Payable proposes no overtime.
-                                </div>
+                                <group string="Payroll Treatment">
+                                    <field name="monthly_paid_weekly_off"/>
+                                    <div class="text-muted">
+                                        Regular worked hours are classified in the Weekly-off
+                                        payroll bucket. Approved overtime hours and amounts are
+                                        stored separately for payroll and reporting.
+                                    </div>
+                                </group>
+                            </group>
+                            <group string="Weekly Off Days" invisible="weekly_off_source != 'weekdays'">
+                                <field name="weekly_off_monday"/>
+                                <field name="weekly_off_tuesday"/>
+                                <field name="weekly_off_wednesday"/>
+                                <field name="weekly_off_thursday"/>
+                                <field name="weekly_off_friday"/>
+                                <field name="weekly_off_saturday"/>
+                                <field name="weekly_off_sunday"/>
                             </group>
                         </page>
                         <page string="Overtime">
