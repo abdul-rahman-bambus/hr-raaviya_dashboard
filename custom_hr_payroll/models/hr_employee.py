@@ -43,13 +43,18 @@ class HrEmployee(models.Model):
         return not self._get_attendance_work_periods(day)
 
     def _is_paid_attendance_weekly_off(self, day, contract):
-        """Eligibility only; callers exclude attendance and public holidays."""
+        """Normal day credit; callers exclude overlapping public holidays."""
         self.ensure_one()
         day = fields.Date.to_date(day)
         return bool(contract and contract.wage_type == 'monthly'
                     and (not contract.date_start or day >= contract.date_start)
                     and (not contract.date_end or day <= contract.date_end)
                     and self._is_attendance_weekly_off(day))
+
+    def _is_paid_attendance_public_holiday(self, day, contract):
+        """Legacy behavior has no automatic unworked public-holiday credit."""
+        self.ensure_one()
+        return False
 
     def _get_attendance_hourly_limit(self, day, contract):
         self.ensure_one()

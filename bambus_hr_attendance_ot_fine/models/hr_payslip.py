@@ -38,6 +38,18 @@ class HrPayslip(models.Model):
                     slip.employee_id.ids, slip.date_from, slip.date_to
                 )
         self._compute_all_stats()
+        for slip in self.filtered(lambda record: record.state in ('draft', 'verify')):
+            if not (slip.employee_id and slip.contract_id and slip.date_from and slip.date_to):
+                continue
+            # Core payroll only refreshes worked-day lines on form onchanges.
+            # Compute Sheet must refresh them too after attendance corrections.
+            days = slip.get_worked_day_lines(slip.contract_id, slip.date_from, slip.date_to)
+            managed_codes = {'WORK100', 'DAYSWORKED', 'WEEKEND', 'HOLIDAYS',
+                             'PAID_WEEKLY_OFF', 'PAID_PUBLIC_HOLIDAY'}
+            managed_codes.update(self.env['hr.leave.type'].search([]).mapped('code'))
+            managed_codes.update(row['code'] for row in days)
+            slip.worked_days_line_ids.filtered(lambda row: row.code in managed_codes).unlink()
+            slip.write({'worked_days_line_ids': [(0, 0, row) for row in days]})
         return super().action_compute_sheet()
 
     days_excl_weekend_holidays = fields.Float("Regular Days", compute="_compute_all_stats", store=True)
@@ -76,6 +88,12 @@ class HrPayslip(models.Model):
     uses_template_regular_pay = fields.Boolean(compute="_compute_all_stats", store=True)
     paid_weekly_off_days = fields.Float(string="Paid Weekly-off Days", compute="_compute_all_stats", store=True)
     paid_weekly_off_amount = fields.Float(string="Paid Weekly-off Amount", compute="_compute_all_stats", store=True)
+    paid_public_holiday_days = fields.Float(string="Paid Public Holiday Days", compute="_compute_all_stats", store=True)
+    paid_public_holiday_amount = fields.Float(string="Paid Public Holiday Amount", compute="_compute_all_stats", store=True)
+    # Worked-day rows already account for these fractions. Only the remaining
+    # paid-day credit belongs in the separate PAID_* worked-day rows.
+    paid_weekly_off_worked_days = fields.Float(compute="_compute_all_stats", store=True)
+    paid_public_holiday_worked_days = fields.Float(compute="_compute_all_stats", store=True)
     total_regular_pay_amount = fields.Float(string="Regular Pay Amount", compute="_compute_all_stats", store=True)
 
     # ---------------------------
@@ -184,6 +202,7 @@ class HrPayslip(models.Model):
         "employee_id.attendance_automation_template_id.date_to",
         "employee_id.attendance_automation_template_id.weekly_off_source",
         "employee_id.attendance_automation_template_id.monthly_paid_weekly_off",
+        "employee_id.attendance_automation_template_id.monthly_paid_public_holiday",
         "employee_id.attendance_automation_template_id.weekly_off_monday",
         "employee_id.attendance_automation_template_id.weekly_off_tuesday",
         "employee_id.attendance_automation_template_id.weekly_off_wednesday",
@@ -196,6 +215,7 @@ class HrPayslip(models.Model):
         "employee_id.company_id.attendance_automation_template_id.date_to",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_source",
         "employee_id.company_id.attendance_automation_template_id.monthly_paid_weekly_off",
+        "employee_id.company_id.attendance_automation_template_id.monthly_paid_public_holiday",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_monday",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_tuesday",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_wednesday",
@@ -232,6 +252,10 @@ class HrPayslip(models.Model):
             slip.uses_template_regular_pay = False
             slip.paid_weekly_off_days = 0.0
             slip.paid_weekly_off_amount = 0.0
+            slip.paid_public_holiday_days = 0.0
+            slip.paid_public_holiday_amount = 0.0
+            slip.paid_weekly_off_worked_days = 0.0
+            slip.paid_public_holiday_worked_days = 0.0
             slip.total_regular_pay_amount = 0.0
             slip.total_overtime_amount = 0.0
             slip.total_public_holiday_amount = 0.0
@@ -386,13 +410,16 @@ class HrPayslip(models.Model):
                     automation.half_day_hours if automation else half_day_hrs
                 )
                 full_day_target = (
-                    scheduled_today
+                    (sum(end - start for start, end in emp._get_attendance_work_periods(d))
+                     or automation.full_day_hours)
                     if automation and automation.full_day_basis == "schedule"
                     else automation.full_day_hours if automation else full_day_hrs
                 )
 
-                # ✅ for DAY COUNT: use effective worked capped by schedule (OT should not reduce day count)
-                effective_worked_for_daycount = min(float(worked or 0.0), float(scheduled_today or 0.0))
+                # Match attendance reporting: compare actual hours with the
+                # effective template threshold. Capping at the schedule can make
+                # a higher fixed full-day target impossible to reach.
+                effective_worked_for_daycount = float(worked or 0.0)
 
                 if effective_worked_for_daycount >= float(full_day_target):
                     day_fraction = 1.0
@@ -450,15 +477,21 @@ class HrPayslip(models.Model):
                     fine_h = fine_amt = 0.0
 
                 # Normal pay and additional approved OT are independent buckets.
-                # A Monthly weekly off without attendance is paid without consuming leave.
+                # Paid Monthly special days retain normal credit even when worked.
                 if (contract and contract.wage_type in ('daily', 'monthly')
                         and (not contract.date_start or d >= contract.date_start)
                         and (not contract.date_end or d <= contract.date_end)):
                     day_rate = contract.daily_wage if contract.wage_type == 'daily' else contract.wage / 30.0
                     hours_per_day = contract.resource_calendar_id.hours_per_day or 8.0
-                    if is_weekend and not day_att and emp._is_paid_attendance_weekly_off(d, contract):
+                    if is_weekend and emp._is_paid_attendance_weekly_off(d, contract):
                         slip.paid_weekly_off_days += 1
+                        slip.paid_weekly_off_worked_days += day_fraction
                         slip.paid_weekly_off_amount += day_rate
+                        slip.total_regular_pay_amount += day_rate
+                    elif is_holiday and emp._is_paid_attendance_public_holiday(d, contract):
+                        slip.paid_public_holiday_days += 1
+                        slip.paid_public_holiday_worked_days += day_fraction
+                        slip.paid_public_holiday_amount += day_rate
                         slip.total_regular_pay_amount += day_rate
                     elif is_weekend or is_holiday:
                         slip.total_regular_pay_amount += worked * day_rate / hours_per_day
@@ -564,7 +597,8 @@ class HrPayslip(models.Model):
             # Use the standard payroll buckets when no template handles
             # weekly-off/public-holiday work, or for hourly contracts.
             if (not template_handles_weekly_off
-                    and not template_handles_holidays and not slip.paid_weekly_off_days) \
+                    and not template_handles_holidays and not slip.paid_weekly_off_days
+                    and not slip.paid_public_holiday_days) \
                 or contract.wage_type == 'hourly':
 
                 return default_res
@@ -582,12 +616,22 @@ class HrPayslip(models.Model):
                 'contract_id': contract.id,
             })
 
-            if slip.paid_weekly_off_days:
-                res.append({
-                    'name': 'Paid Weekly Off', 'sequence': 4, 'code': 'PAID_WEEKLY_OFF',
-                    'number_of_days': slip.paid_weekly_off_days, 'number_of_hours': 0.0,
-                    'contract_id': contract.id,
-                })
+            # Preserve actual worked fractions in WEEKEND/HOLIDAYS. The credit
+            # rows top those up to one paid day, without counting a date twice.
+            weekly_credit = slip.paid_weekly_off_days - (
+                slip.paid_weekly_off_worked_days if template_handles_weekly_off else 0.0)
+            holiday_credit = slip.paid_public_holiday_days - (
+                slip.paid_public_holiday_worked_days if template_handles_holidays else 0.0)
+            for code, name, days in (
+                ('PAID_WEEKLY_OFF', 'Paid Weekly Off Credit', weekly_credit),
+                ('PAID_PUBLIC_HOLIDAY', 'Paid Public Holiday Credit', holiday_credit),
+            ):
+                if days > 0:
+                    res.append({
+                        'name': name, 'sequence': 4, 'code': code,
+                        'number_of_days': days, 'number_of_hours': 0.0,
+                        'contract_id': contract.id,
+                    })
 
             # WEEKEND worked ONLY IF enabled
             if slip.weekend_worked > 0 and template_handles_weekly_off:

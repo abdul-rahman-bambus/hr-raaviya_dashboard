@@ -204,3 +204,25 @@ class TestWeeklyOffReport(TransactionCase):
         self.contract.wage_type = 'daily'
         template.monthly_paid_weekly_off = True
         self.assertEqual(self.report._totals_for_emp(self.employee, self.wizard)['paid_weekly_off_days'], 0)
+
+    def test_paid_public_holiday_column_matches_credit_without_changing_worked_days(self):
+        template = self._selected_template(monthly_paid_public_holiday=True)
+        self.wizard.date_end = self.day
+        self.env['resource.calendar.leaves'].create({'name': 'Paid Monday Holiday',
+            'calendar_id': self.calendar.id, 'date_from': '2026-09-21 00:00:00',
+            'date_to': '2026-09-21 23:59:59'})
+        for enabled in (True, False):
+            template.monthly_paid_public_holiday = enabled
+            totals = self.report._totals_for_emp(self.employee, self.wizard)
+            self.assertEqual(totals['paid_public_holiday_days'], int(enabled))
+            self.assertEqual(totals['paid_weekly_off_days'], 0)
+            self.assertEqual(totals['holiday_worked_days'], 0)
+            output = BytesIO()
+            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+            self.report._report_monthly_summary(workbook, {}, self.wizard, self.employee)
+            workbook.close()
+            sheet = openpyxl.load_workbook(BytesIO(output.getvalue())).active
+            headers = next(row for row in sheet.iter_rows(values_only=True) if 'Paid Public Holiday Days' in row)
+            column = headers.index('Paid Public Holiday Days') + 1
+            staff = next(row for row in sheet.iter_rows() if any(cell.value == self.employee.name for cell in row))
+            self.assertEqual(sheet.cell(staff[0].row, column).value, int(enabled))

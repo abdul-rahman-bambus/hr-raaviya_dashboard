@@ -194,9 +194,9 @@
                         </page>
                         <page string="Public Holiday Policy">
                             <div class="alert alert-info" role="alert">
-                                A date configured in HRMS Public Holidays is a paid holiday.
-                                When an employee works on that date, all worked hours are
-                                proposed as overtime by default and remain subject to HR review.
+                                Enable Paid Public Holidays to give Monthly employees normal
+                                day credit even without attendance. Work on that day is an
+                                additional earning under the holiday policy, subject to HR review.
                             </div>
                             <group>
                                 <group string="Holiday Work">
@@ -212,6 +212,7 @@
                                            invisible="not overtime_enabled or public_holiday_rate_policy != 'fixed'"/>
                                 </group>
                                 <group string="Payroll Treatment">
+                                    <field name="monthly_paid_public_holiday"/>
                                     <div class="text-muted">
                                         Regular worked hours are classified in the Public Holidays
                                         payroll bucket. Approved overtime hours and amounts are
