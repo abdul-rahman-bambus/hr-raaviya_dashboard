@@ -66,7 +66,7 @@
                 <p>System calculated: <t t-esc="adjustmentHours(item.detected_hours)"/></p>
                 <div class="o_baa_grid">
                   <label>Final hours<input type="text" pattern="[0-9]+:[0-5][0-9]" t-att-value="adjustmentHours(item.hours)" t-on-change="(ev) => this.updateReviewField(item, 'hours', ev)"/></label>
-                  <label>Calculation type<select t-att-value="item.calculation_type" t-on-change="(ev) => this.updateReviewField(item, 'calculation_type', ev)"><option t-foreach="item.calculation_options" t-as="option" t-key="option[0]" t-att-value="option[0]" t-esc="option[1]"/></select></label>
+                  <label>Calculation type<select t-model="item.calculation_type" t-on-change="(ev) => this.updateReviewField(item, 'calculation_type', ev)"><option t-foreach="item.calculation_options" t-as="option" t-key="option[0]" t-att-value="option[0]" t-esc="option[1]"/></select></label>
                   <label t-if="['fixed','fixed_hour'].includes(item.calculation_type)">Rate / Amount<input type="number" min="0" step="0.01" t-att-value="item.rate" t-on-input="(ev) => this.updateReviewField(item, 'rate', ev)"/></label>
                 </div>
                 <label class="o_baa_note">Note<input type="text" t-att-value="item.note" t-on-input="(ev) => this.updateReviewField(item, 'note', ev)"/></label>
@@ -77,7 +77,7 @@
               <div class="o_baa_detected"><span>System calculated</span><strong t-esc="adjustmentHours(state.adjustment.detected_hours)"/><small>Review the detected time, make any HR correction, then save.</small></div>
               <div class="o_baa_grid">
                 <label><span t-esc="state.adjustment.adjustment === 'overtime' ? 'Final overtime hours' : (state.adjustment.adjustment === 'hourly_pay' ? 'Final payable hours' : 'Final fine hours')"/><div class="o_baa_hours"><input type="text" inputmode="numeric" pattern="[0-9]+:[0-5][0-9]" t-att-value="adjustmentHours(state.adjustment.hours)" t-on-change="updateAdjustmentHours"/><em>hrs</em></div></label>
-                <label><span>Calculation type</span><select t-att-value="state.adjustment.calculation_type" t-on-change="(ev) => this.updateAdjustmentField('calculation_type', ev)"><option t-foreach="state.adjustment.calculation_options" t-as="option" t-key="option[0]" t-att-value="option[0]" t-esc="option[1]"/></select></label>
+                <label><span>Calculation type</span><select t-model="state.adjustment.calculation_type" t-on-change="(ev) => this.updateAdjustmentField('calculation_type', ev)"><option t-foreach="state.adjustment.calculation_options" t-as="option" t-key="option[0]" t-att-value="option[0]" t-esc="option[1]"/></select></label>
                 <label t-if="['fixed', 'fixed_hour'].includes(state.adjustment.calculation_type)"><span t-esc="state.adjustment.calculation_type === 'fixed' ? 'Amount' : 'Rate per hour'"/><div class="o_baa_money"><span t-esc="state.adjustment.currency.symbol"/><input type="number" min="0" step="0.01" t-att-value="state.adjustment.rate" t-on-input="(ev) => this.updateAdjustmentField('rate', ev)"/></div></label>
               </div>
               <label class="o_baa_note"><span t-esc="state.adjustment.adjustment === 'fine' ? 'Reason' : 'Note'"/><textarea rows="2" placeholder="Optional HR note" t-att-value="state.adjustment.note" t-on-input="(ev) => this.updateAdjustmentField('note', ev)"/></label>
