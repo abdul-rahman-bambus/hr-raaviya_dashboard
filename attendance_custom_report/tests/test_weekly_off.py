@@ -184,3 +184,23 @@ class TestWeeklyOffReport(TransactionCase):
         slip._compute_all_stats()
         self.assertEqual(slip.total_working_days, totals["regular_worked_days"])
         self.assertAlmostEqual(slip.total_late_after_grace * 60, totals["total_late_after_grace_minutes"])
+
+    def test_monthly_paid_weekly_off_column_tracks_effective_switch(self):
+        template = self._selected_template()
+        for enabled in (True, False):
+            template.monthly_paid_weekly_off = enabled
+            totals = self.report._totals_for_emp(self.employee, self.wizard)
+            self.assertEqual(totals['paid_weekly_off_days'], int(enabled))
+            self.assertEqual(totals['weekend_days'], 1)
+            output = BytesIO()
+            workbook = xlsxwriter.Workbook(output, {'in_memory': True})
+            self.report._report_monthly_summary(workbook, {}, self.wizard, self.employee)
+            workbook.close()
+            sheet = openpyxl.load_workbook(BytesIO(output.getvalue())).active
+            headers = next(row for row in sheet.iter_rows(values_only=True) if 'Paid Weekly-off Days' in row)
+            column = headers.index('Paid Weekly-off Days') + 1
+            staff = next(row for row in sheet.iter_rows() if any(cell.value == self.employee.name for cell in row))
+            self.assertEqual(sheet.cell(staff[0].row, column).value, int(enabled))
+        self.contract.wage_type = 'daily'
+        template.monthly_paid_weekly_off = True
+        self.assertEqual(self.report._totals_for_emp(self.employee, self.wizard)['paid_weekly_off_days'], 0)

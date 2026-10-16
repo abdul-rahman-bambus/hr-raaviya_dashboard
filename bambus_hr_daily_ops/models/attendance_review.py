@@ -13,6 +13,26 @@ class AttendanceReviewWizard(models.TransientModel):
     _inherit = 'bambus.hr.overtime.wizard'
     _description = 'Review Attendance Adjustments'
 
+    contract_wage_label = fields.Char(compute="_compute_contract_wage")
+    contract_wage_amount = fields.Monetary(compute="_compute_contract_wage", currency_field="currency_id")
+
+    @api.depends('line_id.contract_id.wage_type', 'line_id.contract_id.wage',
+                 'line_id.contract_id.daily_wage', 'line_id.contract_id.hourly_rate')
+    def _compute_contract_wage(self):
+        for wizard in self:
+            wizard.contract_wage_label, wizard.contract_wage_amount = wizard._contract_wage(wizard.line_id.contract_id)
+
+    @api.model
+    def _contract_wage(self, contract):
+        if not contract:
+            return _("No Contract"), 0.0
+        label, field = {
+            'daily': (_('Daily Wage'), 'daily_wage'),
+            'hourly': (_('Hourly Rate'), 'hourly_rate'),
+            'monthly': (_('Monthly Wage'), 'wage'),
+        }.get(contract.wage_type, (_('Monthly Wage'), 'wage'))
+        return label, contract[field] or 0.0
+
     show_overtime = fields.Boolean(readonly=True)
     ignore_overtime = fields.Boolean(string='Ignore Overtime')
     fine_line_ids = fields.One2many('bambus.hr.attendance.review.fine', 'wizard_id')
@@ -227,9 +247,11 @@ class AttendanceReviewDashboard(models.Model):
             })
         fine = self.env['bambus.hr.fine.wizard'].new({'line_id': line.id})
         currency = wizard.currency_id
+        wage_label, wage_amount = wizard._contract_wage(line.contract_id)
         return {
             'wizard_id': wizard.id, 'adjustment': 'review', 'employee': line.employee_id.name,
             'date': fields.Date.to_string(line.date), 'items': items,
+            'contract_wage_label': wage_label, 'contract_wage_amount': wage_amount,
             'daily_rate': daily_rate, 'hourly_rate': hourly_rate, 'salary_per_minute': fine.salary_per_minute,
             'currency': {'symbol': currency.symbol or '', 'position': currency.position or 'before',
                          'decimal_places': currency.decimal_places},

@@ -263,6 +263,8 @@ class AttendanceXlsxReport(models.AbstractModel):
 
                 "day_fraction": day_fraction,
                 "base_hours": base_hours,
+                "paid_weekly_off": bool(is_weekend and not day_att
+                    and emp._is_paid_attendance_weekly_off(d, contract or emp._get_attendance_contract(d))),
                 "is_weekend": is_weekend,
                 "is_holiday": is_holiday,
                 "is_absent": is_absent,
@@ -317,6 +319,7 @@ class AttendanceXlsxReport(models.AbstractModel):
             "daily": daily,
             "regular_days": float(regular_days),
             "weekend_days": float(weekend_days),
+            "paid_weekly_off_days": float(sum(info["paid_weekly_off"] for info in daily.values())),
             "holiday_days": float(holiday_days),
             "regular_worked_days": float(regular_worked),
             "weekend_worked_days": float(weekend_worked),
@@ -652,7 +655,7 @@ class AttendanceXlsxReport(models.AbstractModel):
             "Fine Hours",
             "Late", "Early Leave", "Gap",
             "Fine After Grace",
-            "Fine Amount"
+            "Fine Amount", "Paid Weekly-off Days"
         ]
         for c, h in enumerate(headers):
             sheet.write(header_row, c, h, header_format)
@@ -692,6 +695,7 @@ class AttendanceXlsxReport(models.AbstractModel):
 
             sheet.write(row, 18, self.minutes_to_time(tot["total_fine_after_grace_minutes"]) if emp.employee_type != "worker" else "00:00", row_fmt)
 
+            sheet.write(row, 20, tot["paid_weekly_off_days"], row_fmt)
             sheet.write(row, 19, tot["total_fine_amount"] if emp.employee_type != "worker" else 0.0, row_fmt)
 
             row += 1
@@ -706,6 +710,7 @@ class AttendanceXlsxReport(models.AbstractModel):
         sheet.set_column(14, 14, 14)
         sheet.set_column(15, 18, 14)
         sheet.set_column(19, 19, 16)
+        sheet.set_column(20, 20, 24)
 
         # Per-employee day-wise sheets (same as your original)
         for emp in employees:

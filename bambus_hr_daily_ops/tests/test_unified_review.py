@@ -237,3 +237,56 @@ class TestUnifiedAttendanceReview(TransactionCase):
         self.assertAlmostEqual(sum(wizard.fine_line_ids.mapped('amount')), 100)
         wizard.action_save()
         self.assertAlmostEqual(line.fine_amount, 100)
+
+    def test_monthly_paid_weekly_off_switch_refreshes_pay_and_worked_days(self):
+        employee, contract, line = self.worker('monthly', attendance=False)
+        slip = self.slip(employee, contract)
+        self.assertTrue(self.template.monthly_paid_weekly_off)
+        self.assertEqual((slip.paid_weekly_off_days, slip.total_regular_pay_amount), (1, 100))
+        self.template.monthly_paid_weekly_off = False
+        self.assertEqual((slip.paid_weekly_off_days, slip.paid_weekly_off_amount,
+                          slip.total_regular_pay_amount), (0, 0, 0))
+        slip.action_compute_sheet()
+        self.assertNotIn('PAID_WEEKLY_OFF', slip.worked_days_line_ids.mapped('code'))
+        self.template.monthly_paid_weekly_off = True
+        self.assertEqual((slip.paid_weekly_off_days, slip.total_regular_pay_amount), (1, 100))
+
+    def test_paid_weekly_off_uses_effective_employee_then_company_template(self):
+        employee, contract, line = self.worker('monthly', attendance=False)
+        company_template = self.template.copy({'name': 'Company Paid Off', 'monthly_paid_weekly_off': True})
+        employee.company_id.attendance_automation_template_id = company_template
+        self.template.monthly_paid_weekly_off = False
+        slip = self.slip(employee, contract)
+        self.assertEqual(slip.paid_weekly_off_days, 0)
+        self.template.date_from = '2026-09-28'
+        self.assertEqual(slip.paid_weekly_off_days, 1)
+        company_template.monthly_paid_weekly_off = False
+        self.assertEqual(slip.paid_weekly_off_days, 0)
+        company_template.active = False
+        self.assertEqual(slip.paid_weekly_off_days, 1)  # Legacy fallback.
+
+    def test_review_displays_actual_contract_wage_for_each_basis(self):
+        for basis, label, field, value in [('monthly', 'Monthly Wage', 'wage', 9000),
+                                          ('daily', 'Daily Wage', 'daily_wage', 750),
+                                          ('hourly', 'Hourly Rate', 'hourly_rate', 125)]:
+            with self.subTest(basis=basis):
+                employee, contract, line = self.worker(basis)
+                contract[field] = value
+                wizard = self.wizard(line)
+                self.assertEqual((wizard.contract_wage_label, wizard.contract_wage_amount), (label, value))
+                payload = self.env['bambus.hr.attendance.sheet'].get_dashboard_review(employee.id, self.day)
+                self.assertEqual((payload['contract_wage_label'], payload['contract_wage_amount']), (label, value))
+
+    def test_disabling_unworked_credit_preserves_worked_base_and_approved_ot(self):
+        self.template.monthly_paid_weekly_off = False
+        employee, contract, line = self.worker('monthly')
+        self.wizard(line).action_save()
+        slip = self.slip(employee, contract)
+        self.assertEqual(slip.paid_weekly_off_days, 0)
+        self.assertEqual((slip.total_regular_pay_amount, slip.total_overtime_amount), (100, 150))
+
+    def test_hourly_pay_review_displays_contract_hourly_rate(self):
+        self.template.hourly_pay_enabled = True
+        employee, contract, line = self.worker('hourly')
+        payload = self.env['bambus.hr.attendance.sheet'].get_dashboard_adjustment(employee.id, self.day, 'hourly_pay')
+        self.assertEqual((payload['contract_wage_label'], payload['contract_wage_amount']), ('Hourly Rate', 12.5))

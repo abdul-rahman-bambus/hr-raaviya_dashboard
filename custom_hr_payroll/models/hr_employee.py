@@ -7,16 +7,22 @@ class HrEmployee(models.Model):
     employee_number = fields.Char(string="Employee ID", copy=False, index=True)
     blood_group = fields.Char(string="Blood Group")
 
-    def _get_attendance_work_periods(self, day):
-        """Assigned work periods on a date, before holidays or personal leave."""
+    def _get_attendance_contract(self, day):
+        """Contract valid on the attendance date, including historical contracts."""
         self.ensure_one()
         day = fields.Date.to_date(day)
-        contract = self.env["hr.contract"].sudo().search([
+        return self.env["hr.contract"].sudo().search([
             ("employee_id", "=", self.id),
             ("state", "!=", "cancel"),
             "|", ("date_start", "=", False), ("date_start", "<=", day),
             "|", ("date_end", "=", False), ("date_end", ">=", day),
         ], order="date_start desc, id desc", limit=1)
+
+    def _get_attendance_work_periods(self, day):
+        """Assigned work periods on a date, before holidays or personal leave."""
+        self.ensure_one()
+        day = fields.Date.to_date(day)
+        contract = self._get_attendance_contract(day)
         calendar = contract.resource_calendar_id or self.resource_calendar_id
         if not calendar:
             return []
@@ -35,6 +41,15 @@ class HrEmployee(models.Model):
         """Schedule-based fallback when no automation template is effective."""
         self.ensure_one()
         return not self._get_attendance_work_periods(day)
+
+    def _is_paid_attendance_weekly_off(self, day, contract):
+        """Eligibility only; callers exclude attendance and public holidays."""
+        self.ensure_one()
+        day = fields.Date.to_date(day)
+        return bool(contract and contract.wage_type == 'monthly'
+                    and (not contract.date_start or day >= contract.date_start)
+                    and (not contract.date_end or day <= contract.date_end)
+                    and self._is_attendance_weekly_off(day))
 
     def _get_attendance_hourly_limit(self, day, contract):
         self.ensure_one()

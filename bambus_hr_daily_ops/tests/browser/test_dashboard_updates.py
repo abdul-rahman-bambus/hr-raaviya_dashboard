@@ -238,11 +238,14 @@ class DashboardUpdates(unittest.TestCase):
             component.state.adjustment = {wizard_id: 7, adjustment: 'review',
                 employee: 'Employee 1', date: '2026-10-07', daily_rate: 100, hourly_rate: 12.5,
                 currency: {symbol: '₹', position: 'before', decimal_places: 2},
+                contract_wage_label: 'Monthly Wage', contract_wage_amount: 3000,
                 items: ['Overtime', 'Late Fine', 'Break / Gap Fine', 'Early Exit Fine'].map((label, id) => ({
                     id, label, hours: 1, detected_hours: 1, rate: 100, note: '',
                     calculation_type: 'salary_1_5', calculation_options: [['fixed', 'Fixed Amount'], ['salary_1_5', '1.5x Salary']]
                 }))};
         }""")
+        self.assertIn('Monthly Wage: ₹ 3000.00', self.page.locator('.o_baa_contract_wage').inner_text())
+        self.assertTrue(self.page.evaluate("document.querySelector('.o_baa_modal_backdrop').parentElement === document.body"))
         for width, height in ((1366, 600), (1024, 768), (390, 640), (800, 320)):
             with self.subTest(viewport=(width, height)):
                 self.page.set_viewport_size({'width': width, 'height': height})

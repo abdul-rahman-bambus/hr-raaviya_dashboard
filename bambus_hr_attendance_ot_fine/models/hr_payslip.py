@@ -183,6 +183,7 @@ class HrPayslip(models.Model):
         "employee_id.attendance_automation_template_id.date_from",
         "employee_id.attendance_automation_template_id.date_to",
         "employee_id.attendance_automation_template_id.weekly_off_source",
+        "employee_id.attendance_automation_template_id.monthly_paid_weekly_off",
         "employee_id.attendance_automation_template_id.weekly_off_monday",
         "employee_id.attendance_automation_template_id.weekly_off_tuesday",
         "employee_id.attendance_automation_template_id.weekly_off_wednesday",
@@ -194,6 +195,7 @@ class HrPayslip(models.Model):
         "employee_id.company_id.attendance_automation_template_id.date_from",
         "employee_id.company_id.attendance_automation_template_id.date_to",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_source",
+        "employee_id.company_id.attendance_automation_template_id.monthly_paid_weekly_off",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_monday",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_tuesday",
         "employee_id.company_id.attendance_automation_template_id.weekly_off_wednesday",
@@ -454,7 +456,7 @@ class HrPayslip(models.Model):
                         and (not contract.date_end or d <= contract.date_end)):
                     day_rate = contract.daily_wage if contract.wage_type == 'daily' else contract.wage / 30.0
                     hours_per_day = contract.resource_calendar_id.hours_per_day or 8.0
-                    if is_weekend and not day_att and contract.wage_type == 'monthly':
+                    if is_weekend and not day_att and emp._is_paid_attendance_weekly_off(d, contract):
                         slip.paid_weekly_off_days += 1
                         slip.paid_weekly_off_amount += day_rate
                         slip.total_regular_pay_amount += day_rate

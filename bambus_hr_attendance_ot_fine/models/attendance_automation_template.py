@@ -63,6 +63,12 @@ class AttendanceAutomationTemplate(models.Model):
     weekly_off_friday = fields.Boolean(string="Friday")
     weekly_off_saturday = fields.Boolean(string="Saturday")
     weekly_off_sunday = fields.Boolean(string="Sunday")
+    monthly_paid_weekly_off = fields.Boolean(
+        string="Paid Unworked Weekly Offs (Monthly)", default=True,
+        help="Credit one normal paid day for a Monthly employee's weekly off without "
+             "attendance. Does not affect Daily/Hourly employees, worked weekly offs, "
+             "public holidays, or approved overtime.",
+    )
     weekly_off_overtime_policy = fields.Selection([
         ("disabled", "Not Payable"),
         ("all", "All Worked Hours"),
@@ -322,6 +328,12 @@ class HrEmployee(models.Model):
             )
             return bool(template[field_names[day.weekday()]])
         return super()._is_attendance_weekly_off(day)
+
+    def _is_paid_attendance_weekly_off(self, day, contract):
+        if not super()._is_paid_attendance_weekly_off(day, contract):
+            return False
+        template = self._get_attendance_automation_template(day)
+        return not template or template.monthly_paid_weekly_off
 
     def _get_attendance_hourly_limit(self, day, contract):
         template = self._get_attendance_automation_template(day)

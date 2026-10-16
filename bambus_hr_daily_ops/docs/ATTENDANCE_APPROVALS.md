@@ -73,3 +73,32 @@ python bambus_hr_daily_ops/tests/browser/verify_combined_review.py \
 
 This check requires an isolated database with `test` in its name and removes its
 employee, contract, attendance and review fixtures when finished.
+
+### Monthly paid weekly-off switch and contract wages
+
+On the automation template, **Paid Unworked Weekly Offs (Monthly)** is enabled
+by default, including when upgrading existing templates. Disable it to remove
+the normal paid-day credit for Monthly employees on weekly offs without punches.
+The effective employee template wins, followed by the company template. Inactive
+or out-of-date templates fall back as usual; without an effective template the
+existing paid weekly-off behavior remains. Contract start/end dates and public
+holiday precedence still apply. Daily/Hourly employees and pay for worked weekly
+offs, approved overtime, and leave retain their existing rules.
+
+Payroll amounts, the Paid Weekly Off worked-day bucket, payroll review/detail
+and summary exports, and the attendance Monthly Summary **Paid Weekly-off Days**
+column use this policy. Weekly-off classification remains visible when payment
+is disabled. Recompute draft payslips after changing the switch; completed salary
+lines and approved attendance amounts are not rewritten.
+
+The daily attendance employee row and combined review show the contract's
+**Daily Wage**, **Hourly Rate**, or **Monthly Wage** for that date. These are the
+configured contract values, separate from the derived rates used to calculate
+adjustments. The native review form shows the same wage information.
+
+Upgrade `custom_hr_payroll`, `bambus_hr_attendance_ot_fine`,
+`bambus_hr_daily_ops`, `attendance_custom_report`, and `hr_payslip_excel_report`
+(where installed). The dashboard review overlay mounts on the document body;
+its content scrolls within bounded rows while the header and approval buttons
+stay visible. Installed-browser verification covers desktop, narrow mobile, and
+short landscape viewports using actual wheel input and the full asset bundle.
