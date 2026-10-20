@@ -187,3 +187,15 @@ proposals and saved updates.
 - Report values match saved computed salary; exporting does not mark payroll paid.
 - Existing draft/finalized batches, payslips and salary lines survive upgrade.
 - Recompute existing drafts after attendance/HR changes; do not regenerate duplicates.
+
+## Hourly payroll corrections
+
+- Edit a completed punch by seconds, recompute its existing draft and compare
+  salary/hours with a fresh test payslip; preserve precision before money rounding.
+- Add/delete/move/close punches and check refreshed work rows, hours and days.
+  Multiple punches on one local date count once; open/zero-hour entries count zero.
+- Check per-date caps, local month boundaries, employee/worker contract types,
+  unrelated custom work codes, and unchanged finalized/cancelled salary lines.
+- Check Hourly Present/Payable Days in both exports against attended dates, even
+  for short shifts. Export must not update saved salary. Recompute after edits.
+- Recheck Monthly/Daily normal pay and approved special-day earnings.

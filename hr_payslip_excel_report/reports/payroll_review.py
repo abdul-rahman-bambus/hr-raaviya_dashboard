@@ -113,6 +113,10 @@ class PayrollReviewReport(models.AbstractModel):
                 'net': by_code['NET'] if 'NET' in codes else None}
 
     def _payable_days(self, slip):
+        if slip.contract_id.wage_type == 'hourly':
+            # Last-computed actual attendance dates; legacy WORK100 rows may
+            # still contain scheduled days until the draft is recomputed.
+            return slip.total_worker_days
         if not slip.worked_days_line_ids:
             return None
         unpaid_codes = set(self.env['hr.leave.type'].search([('unpaid', '=', True)]).mapped('code')) - {False}
@@ -361,6 +365,10 @@ class PayrollReviewReport(models.AbstractModel):
                 fraction = {'present': 1., 'halfday': .5, 'absent': 0., 'leave': 0.}.get(review.status, fraction)
             if day_leave:
                 fraction = min(fraction, 1 - paid - unpaid)
+            if slip.contract_id.wage_type == 'hourly':
+                # An hourly employee's short shift still counts as one attended
+                # date. Open/zero-hour entries are not completed paid attendance.
+                fraction = float(any(att.check_out and (att.worked_hours or 0.0) > 0 for att in attendance))
             status = 'Present' if fraction >= 1 else 'Half Day' if fraction == .5 else 'Absent' if info['is_absent'] else 'No Attendance'
             paid_weekly_off = (info['is_weekend']
                 and employee._is_paid_attendance_weekly_off(day, slip.contract_id))

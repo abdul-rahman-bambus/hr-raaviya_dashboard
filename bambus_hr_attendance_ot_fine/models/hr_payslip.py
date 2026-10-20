@@ -31,12 +31,18 @@ class HrPayslip(models.Model):
 
     def action_compute_sheet(self):
         """Refresh attendance buckets before evaluating payroll salary rules."""
+        self = self.filtered(lambda record: record.state in ('draft', 'verify'))
+        if not self:
+            return True
         overtime_model = self.env["hr.attendance.overtime"].sudo()
         for slip in self:
             if slip.employee_id and slip.date_from and slip.date_to:
                 overtime_model.bambus_recompute_range(
                     slip.employee_id.ids, slip.date_from, slip.date_to
                 )
+        # Refresh before statistics AND generated worked-day rows are built;
+        # the base payroll layer also supports standalone custom_hr_payroll.
+        self.filtered(lambda slip: slip.contract_id.wage_type == 'hourly')._compute_worker_hours()
         self._compute_all_stats()
         for slip in self.filtered(lambda record: record.state in ('draft', 'verify')):
             if not (slip.employee_id and slip.contract_id and slip.date_from and slip.date_to):
