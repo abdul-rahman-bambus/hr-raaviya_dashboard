@@ -41,3 +41,5 @@
 .o_baa_note { margin-top:18px; }.o_baa_note textarea { resize:vertical; }.o_baa_total { display:flex; align-items:center; justify-content:space-between; margin-top:20px; padding-top:17px; border-top:1px solid #edf1f5; color:#4c596c; }.o_baa_total strong { color:#172033; font-size:22px; }
 .o_baa_footer { flex-shrink:0; display:flex; flex-wrap:wrap; justify-content:flex-end; padding:16px 24px; border-top:1px solid #edf1f5; background:#f9fafc; gap:10px; }.o_baa_footer .btn { min-width:112px; padding:9px 16px; border-radius:8px; }.o_baa_footer .btn-primary { min-width:165px; background:#2369e0; }
 @media (max-width:600px) { .o_baa_modal_backdrop { align-items:end; padding:0; }.o_baa_modal { max-height:94vh; max-height:94dvh; overflow:hidden; border-radius:16px 16px 0 0; }.o_baa_grid { grid-template-columns:1fr; }.o_baa_header,.o_baa_body { padding-right:18px; padding-left:18px; }.o_baa_footer { padding:14px 18px; }.o_baa_footer .btn { min-width:0; white-space:normal; }.o_baa_footer .btn-primary { flex:1; } }
+
+.o_bad_daily_status.paid_weekly_off, .o_bad_daily_status.paid_public_holiday { color:#16753c; background:#dcf6e6; }

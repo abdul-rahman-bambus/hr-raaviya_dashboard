@@ -51,10 +51,13 @@ input tables may display decimal hours.
 
 ## Validation evidence
 
-- Calendar-month candidate, 20 October: **167 Odoo tests passed**
+- Calendar-month candidate, 20 October: **168 Odoo tests passed**
   with zero failures/errors, covering custom payroll, daily operations,
   attendance reports and payroll reports.
-- Current candidate: **8 production OWL Chromium tests passed**.
+- Current candidate: **9 production OWL Chromium tests passed**.
+- Installed dashboard check confirmed Paid Weekly Off on Sunday 18 October,
+  Paid Public Holiday on Monday 19 October, and Not Marked after disabling holiday
+  payment. Labels use payroll eligibility and do not create attendance or leave.
 - Installed October check confirmed a 9,000 Monthly contract gives 9,000 / 31
   normal credit per eligible special date; payable days stay one as worked-day
   fractions refresh from 0.5 to 1.

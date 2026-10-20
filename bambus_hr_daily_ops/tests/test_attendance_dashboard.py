@@ -765,3 +765,70 @@ class TestAttendanceDashboard(TransactionCase):
         editing._compute_bambus_review_values()
         self.assertTrue(editing.bambus_review_is_daily_summary)
         self.assertEqual(editing.bambus_approved_overtime_hours, 1.5)
+
+    def test_paid_special_day_dashboard_status_follows_payroll_eligibility(self):
+        template = self.env['bambus.attendance.automation.template'].create({
+            'name': 'Dashboard paid days', 'company_id': self.env.company.id,
+            'date_from': '2026-10-01', 'date_to': '2026-10-31',
+            'weekly_off_source': 'weekdays', 'weekly_off_sunday': True,
+            'monthly_paid_weekly_off': True, 'monthly_paid_public_holiday': True,
+        })
+        employee = self.env['hr.employee'].create({
+            'name': 'Dashboard paid days employee',
+            'attendance_automation_template_id': template.id,
+        })
+        calendar = self.env['resource.calendar'].create({'name': 'Paid days calendar', 'tz': 'UTC'})
+        contract = self.env['hr.contract'].create({
+            'name': 'Dashboard monthly', 'employee_id': employee.id,
+            'date_start': '2026-10-01', 'date_end': '2026-10-31',
+            'wage_type': 'monthly', 'wage': 12000, 'resource_calendar_id': calendar.id,
+        })
+        model = self.env['bambus.hr.attendance.sheet']
+
+        def status(day):
+            data = model.get_attendance_dashboard(day)
+            row = next(row for row in data['daily_attendance'] if row['id'] == employee.id)
+            unmarked = sum(row['status'] == 'not_marked' for row in data['daily_attendance'])
+            self.assertEqual(data['metrics']['not_marked'], unmarked)
+            return row
+
+        self.assertEqual(status('2026-10-18')['status_label'], 'Paid Weekly Off')
+        template.monthly_paid_weekly_off = False
+        self.assertEqual(status('2026-10-18')['status'], 'not_marked')
+        template.monthly_paid_weekly_off = True
+        self.env['resource.calendar.leaves'].create({
+            'name': 'Monday holiday', 'calendar_id': calendar.id,
+            'date_from': '2026-10-19 00:00:00', 'date_to': '2026-10-19 23:59:59',
+        })
+        self.assertEqual(status('2026-10-19')['status_label'], 'Paid Public Holiday')
+        template.weekly_off_monday = True
+        template.monthly_paid_public_holiday = False
+        self.assertEqual(status('2026-10-19')['status'], 'not_marked')
+        template.monthly_paid_public_holiday = True
+        self.assertEqual(status('2026-10-19')['status'], 'paid_public_holiday')
+        contract.wage_type = 'daily'
+        self.assertEqual(status('2026-10-19')['status'], 'not_marked')
+        contract.wage_type = 'monthly'
+        contract.date_end = '2026-10-17'
+        self.assertEqual(status('2026-10-18')['status'], 'not_marked')
+        contract.date_end = '2026-10-31'
+        # Date-effective employee rules override company defaults, then fall back.
+        self.env.company.attendance_automation_template_id = template
+        override = template.copy({
+            'name': 'Employee unpaid override', 'monthly_paid_weekly_off': False,
+            'monthly_paid_public_holiday': False,
+        })
+        employee.attendance_automation_template_id = override
+        self.assertEqual(status('2026-10-18')['status'], 'not_marked')
+        override.date_to = '2026-10-17'
+        self.assertEqual(status('2026-10-18')['status'], 'paid_weekly_off')
+        employee.attendance_automation_template_id = template
+        model.update_dashboard_attendance(employee.id, '2026-10-18', {'status': 'absent'})
+        self.assertEqual(status('2026-10-18')['status'], 'absent')
+        model.revoke_dashboard_status(employee.id, '2026-10-18', 'absent')
+        self.assertEqual(status('2026-10-18')['status'], 'paid_weekly_off')
+        self.env['hr.attendance'].create({
+            'employee_id': employee.id, 'check_in': '2026-10-18 09:00:00',
+            'check_out': '2026-10-18 17:00:00',
+        })
+        self.assertEqual(status('2026-10-18')['status'], 'present')

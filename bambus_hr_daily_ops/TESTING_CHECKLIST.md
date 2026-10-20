@@ -151,3 +151,13 @@ The optional minimum is inclusive: `59` overtime minutes are suppressed and
 minimum is configured. Templates can instead use exact-minute OT windows. Saved records keep
 their salary/rate snapshot; a later basic-salary change applies only to new
 proposals and saved updates.
+
+## Paid-day dashboard labels
+
+- Eligible Sunday/no attendance: Paid Weekly Off; disable its paid switch: Not Marked.
+- Configured Monday holiday: Paid Public Holiday only with its paid switch enabled.
+- Overlap: holiday precedence, including when holiday payment is disabled.
+- Contractless/Daily/Hourly or out-of-contract dates: no Monthly paid label.
+- Existing attendance, leave and explicit HR statuses retain their status.
+- Paid labels filter correctly and do not inflate Present/punch/Not Marked counts.
+- Removing manual Absent restores the derived paid label.

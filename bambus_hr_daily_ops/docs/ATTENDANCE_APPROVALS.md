@@ -147,3 +147,16 @@ Approved attendance amounts remain authoritative snapshots. Compute Sheet
 refreshes draft normal pay with the new divisor but keeps approved OT/fine
 amounts; reapproval is an explicit HR action. Finalized salary lines are not
 automatically rewritten by the upgrade. Reports retain the same precedence.
+
+### Paid-day dashboard labels
+
+On dates without punches, leave or an explicit HR status, the attendance dashboard
+shows **Paid Weekly Off** or **Paid Public Holiday** for eligible Monthly contracts.
+It uses payroll's effective employee/company template, paid-day switches, contract
+dates and holiday calendar. A public holiday takes precedence over a weekly off;
+if holiday payment is disabled, an overlapping Sunday does not become a paid
+weekly off. Disabled/ineligible dates retain **Not Marked**. Filters support both
+paid labels, and these dates are excluded from Not Marked counts. Present and
+punch counters stay unchanged. These are derived display statuses: no attendance,
+leave allocation or approval is created. Removing an HR status refreshes the label.
+Upgrade `bambus_hr_daily_ops` to `18.0.1.82.0` and reload the web client.

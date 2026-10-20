@@ -193,6 +193,37 @@ class BambusHrAttendanceSheet(models.Model):
                 overtime_employee_ids.add(line.employee_id.id)
             if has_attendance_basis and line.fine_hours > 0:
                 fine_employee_ids.add(line.employee_id.id)
+        contracts = self.env["hr.contract"].search([
+            ("employee_id", "in", employees.ids),
+            ("state", "!=", "cancel"),
+            ("date_start", "<=", day),
+            "|",
+            ("date_end", "=", False),
+            ("date_end", ">=", day),
+        ], order="date_start desc, id desc")
+        contract_by_employee = {}
+        for contract in contracts:
+            contract_by_employee.setdefault(contract.employee_id.id, contract)
+        # Derived display statuses only: never create a punch or a leave request.
+        paid_status_by_employee = {}
+        holidays_by_calendar = {}
+        for employee in employees.filtered(lambda item: item.id in unmarked_employee_ids):
+            contract = contract_by_employee.get(employee.id)
+            if not contract or contract.wage_type != "monthly":
+                continue
+            tzname = contract.resource_calendar_id.tz or self.env.user.tz or "UTC"
+            calendar_key = (contract.resource_calendar_id.id, tzname)
+            if calendar_key not in holidays_by_calendar:
+                holidays_by_calendar[calendar_key] = self.env["hr.payslip"]._get_public_holiday_dates(
+                    contract, day, day, tzname
+                )
+            holidays = holidays_by_calendar[calendar_key]
+            if day in holidays:
+                if employee._is_paid_attendance_public_holiday(day, contract):
+                    paid_status_by_employee[employee.id] = "paid_public_holiday"
+            elif employee._is_paid_attendance_weekly_off(day, contract):
+                paid_status_by_employee[employee.id] = "paid_weekly_off"
+        unmarked_employee_ids.difference_update(paid_status_by_employee)
         departments = []
         department_groups = {}
         for employee in employees:
@@ -218,17 +249,6 @@ class BambusHrAttendanceSheet(models.Model):
             })
         departments.sort(key=lambda department: department["name"].lower())
 
-        contracts = self.env["hr.contract"].search([
-            ("employee_id", "in", employees.ids),
-            ("state", "!=", "cancel"),
-            ("date_start", "<=", day),
-            "|",
-            ("date_end", "=", False),
-            ("date_end", ">=", day),
-        ], order="date_start desc, id desc")
-        contract_by_employee = {}
-        for contract in contracts:
-            contract_by_employee.setdefault(contract.employee_id.id, contract)
         shift_groups = {}
         for employee in employees:
             contract = contract_by_employee.get(employee.id)
@@ -306,6 +326,10 @@ class BambusHrAttendanceSheet(models.Model):
             else:
                 status = "not_marked"
                 status_label = _("Not Marked")
+            if status == "not_marked" and employee.id in paid_status_by_employee:
+                status = paid_status_by_employee[employee.id]
+                status_label = (_("Paid Public Holiday") if status == "paid_public_holiday"
+                                else _("Paid Weekly Off"))
             if override and override.attendance_status_manual:
                 status = override.status
                 status_label = dict(override._fields["status"].selection).get(status, status)

@@ -23,6 +23,8 @@ credit, with or without attendance. They are separate from the policies governin
 additional work earnings. Weekly-off credit defaults enabled; public-holiday
 credit defaults disabled. These labels no longer include “(Monthly)”; eligibility
 still applies only to Monthly contracts. No leave request/allocation is required.
+The dashboard shows Paid Weekly Off / Paid Public Holiday on eligible unmarked
+dates using the same payroll checks, with public-holiday precedence.
 
 The automation form has matching Weekly Off and Public Holiday Payroll Treatment
 sections. Contract wage displays, bounded review scrolling, persistent exclusions,
