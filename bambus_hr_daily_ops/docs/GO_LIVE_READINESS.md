@@ -104,17 +104,19 @@ input tables may display decimal hours.
 No scheduled automation, live deployment or financial approval is created by
 this document. The target date is a plan, not a deployment confirmation.
 
-## Draft payroll preparation stage
+## Preparation rollback
 
-An explicit **Prepare Draft Payroll** monthly action now generates missing computed
-Draft payslips, reuses compatible drafts and offers a separate recompute action.
-It reuses the existing payroll engine and report, with batch/Draft filtering.
-Closed/finalized/conflicting records are protected and configuration/review issues
-are reported. Nothing confirms payroll or records cash payment. Upgrade
-`hr_payslip_excel_report` to `18.0.4.10.0`. PDF and report-layout revisions follow
-in the next stage; the manual dashboard punch/detection limitation remains open.
+The client chose the existing Payslip Batches > Generate Payslips workflow and
+Payslip Summary with Draft included. The separate preparation wizard and its
+batch/report shortcuts have been withdrawn. Upgrade `hr_payslip_excel_report`
+to `18.0.4.11.0` and reload the client. The migration removes only the withdrawn
+UI/access records, retaining existing payroll data and the earlier attendance,
+paid-day withholding and calendar-month calculation changes. Recompute draft
+salary after attendance/approval changes; Excel exports read saved salary lines.
+The standard generator can create duplicates if rerun, so inspect existing slips
+and use Compute Sheet for corrections. No production deployment is implied.
 
-Automation validation, 20 October: **183 full-suite Odoo tests passed**; the final
-**11 draft-preparation tests passed** after non-payment/default checks. Installed
-Odoo verified generate/reuse/no duplicates, explicit recompute, Draft/batch report
-selection and actual Excel download. Production remains unchanged by these tests.
+Rollback validation: **175 Odoo tests passed**. The isolated upgrade preserved
+existing batch company, draft/finalized statuses and salary lines; installed UI
+checks confirmed withdrawn buttons/menu are absent and both standard report
+exports still work. The stored batch-company field is retained for compatibility.

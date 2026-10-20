@@ -44,6 +44,7 @@ def main():
         employee = rpc('hr.employee', 'create', [{'name': 'Payroll Browser Verification', 'company_id': company}])
         payslips = []
         contract = False
+        batch = False
         try:
             contract = rpc('hr.contract', 'create', [{'name': 'Browser Monthly Contract',
                 'employee_id': employee, 'company_id': company, 'date_start': '2026-09-01',
@@ -61,6 +62,21 @@ def main():
             page = context.new_page()
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
+            batch = rpc('hr.payslip.run', 'create', [{'name': 'Standard Batch Browser Check',
+                'company_id': company, 'date_start': '2026-09-01', 'date_end': '2026-09-30'}])
+            assert not rpc('ir.model.data', 'search', [[['module', '=', 'hr_payslip_excel_report'],
+                ['name', '=', 'menu_draft_payroll_preparation']]])
+            page.goto(args.url + '/odoo?debug=assets')
+            page.wait_for_selector('.o_web_client', timeout=60000)
+            page.evaluate("""async batch => {
+                await odoo.__WOWL_DEBUG__.root.env.services.action.doAction({
+                    type: 'ir.actions.act_window', res_model: 'hr.payslip.run',
+                    res_id: batch, views: [[false, 'form']], target: 'current',
+                });
+            }""", batch)
+            page.get_by_role('button', name='Generate Payslips', exact=True).wait_for()
+            assert page.get_by_role('button', name='Prepare Draft Payroll', exact=True).count() == 0
+            assert page.get_by_role('button', name='Payroll Report', exact=True).count() == 0
             page.goto(f'{args.url}/odoo/action-{action}')
             page.get_by_role('button', name='Download Excel', exact=True).wait_for()
             report = page.locator('.o_field_widget[name="report_type"] select')
@@ -118,10 +134,12 @@ def main():
                 assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace) is None
             assert page.evaluate('originalWebClient.isConnected')
             assert not errors, errors
-            print('Browser wizard, custom dates, employee filter, HRMS shortcut, duplicate resolution, detailed holiday summary, no frozen panes, both exports, and persistent web client: passed')
+            print('Standard batch UI without withdrawn shortcuts, browser wizard, custom dates, employee filter, HRMS shortcut, duplicate resolution, detailed holiday summary, no frozen panes, both exports, and persistent web client: passed')
         finally:
             if payslips:
                 rpc('hr.payslip', 'unlink', [payslips])
+            if batch:
+                rpc('hr.payslip.run', 'unlink', [[batch]])
             if contract:
                 rpc('hr.contract', 'unlink', [[contract]])
             rpc('hr.employee', 'unlink', [[employee]])

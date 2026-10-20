@@ -1,3 +1,2 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_payslip_excel_wizard_user,access.payslip.excel.wizard.user,model_payslip_excel_wizard,hr_payroll_community.group_hr_payroll_community_user,1,1,1,1
-access_draft_payroll_preparation,payroll.draft.preparation,model_payroll_draft_preparation,hr_payroll_community.group_hr_payroll_community_user,1,1,1,1

@@ -179,14 +179,11 @@ proposals and saved updates.
 - Recalculation retains exclusions; finalized salary lines remain unchanged.
 - Run the installed `verify_paid_day_withholding.py` scenario on an isolated test DB.
 
-## Draft payroll preparation
+## Standard payroll workflow after preparation rollback
 
-- Generate a month: correct company/period and computed Draft slips, no confirmation/payment.
-- Repeat: same batch/slips and saved salary lines, no duplicates or automatic recompute.
-- Explicit recompute after attendance/approval/withholding changes refreshes draft salary.
-- Calendar months 28/29/30/31 and clipped/split contracts retain existing salary rules.
-- Missing contracts/structures, overlaps and pending reviews appear in Attention.
-- Finalized/waiting/other-batch records and closed/refund batches are protected.
-- One employee computation failure leaves no partial slips for that employee.
-- Payroll Report carries batch/period/employee/Draft scope; Excel equals saved salary lines.
-- Existing Generate Payslips and ordinary report/confirmation workflows still work.
+- The Prepare Draft Payroll menu and added batch shortcuts are absent after upgrade.
+- The original Generate Payslips action computes Draft salary lines.
+- Payroll Reports > Payslip Summary includes Draft and separates wage types.
+- Report values match saved computed salary; exporting does not mark payroll paid.
+- Existing draft/finalized batches, payslips and salary lines survive upgrade.
+- Recompute existing drafts after attendance/HR changes; do not regenerate duplicates.

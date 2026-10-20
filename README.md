@@ -36,16 +36,18 @@ sections. Contract wage displays, bounded review scrolling, persistent exclusion
 paid special-day counters, and separate earnings/deduction details are supported.
 See the module README for details, calculations and test commands.
 
-## Monthly draft payroll automation
+## Payroll workflow
 
-**HRMS > Payroll > Prepare Draft Payroll** prepares the month's batch and missing
-computed draft payslips. Repeat generation reuses compatible drafts; **Recompute
-Drafts** explicitly refreshes them after changes. Review results flag missing
-configuration, overlaps and pending HR reviews. **Payroll Report** opens the
-existing Excel report scoped to the batch and Draft status. Nothing confirms
-payroll or records cash payment; ordinary payslip workflows remain available.
-See the [payroll module README](hr_payslip_excel_report/README.md) for eligibility,
-protected records, deployment and tests. PDF/layout work is the next stage.
+Use **Payroll > Payslip Batches > Generate Payslips**, then **Payroll Reports >
+Payslip Summary**. Include **Draft** or **All Except Rejected** status and select
+the correct period/employees. Computed draft amounts are reportable without
+confirming payslips. After attendance or HR decisions change, recompute draft
+payslips before exporting. The export reads saved salary lines.
+
+The separate Prepare Draft Payroll flow has been withdrawn. Upgrade
+`hr_payslip_excel_report` to `18.0.4.11.0` to remove its installed menu/buttons;
+existing batches, payslips and salary data are retained. See the
+[payroll reporting guide](hr_payslip_excel_report/README.md).
 
 ## Monthly salary basis
 
