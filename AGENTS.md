@@ -33,9 +33,14 @@ Read the root README and the affected module documentation before changing behav
 - Compute Sheet refreshes generated worked-day rows for draft/verification
   payslips, preserves unrelated custom codes, and avoids double-counted paid days.
   Do not silently rewrite finalized salary lines.
-- Monthly daily salary currently uses wage / 30. The day-based regular-pay sum has
-  no overall monthly-wage cap. Confirm 28/29/30/31-day and partial-month treatment
-  before changing it; document the outcome in the readiness checklist.
+- Monthly daily salary uses `hr.contract._get_monthly_daily_rate(day)`: wage divided
+  by calendar days in the local attendance date's month (28/29/30/31). Payroll,
+  per-minute fine detection and salary-derived HR review rates share this helper.
+  Do not reintroduce a flat 30, use worked days as the denominator, or divide by a
+  partial payslip/employment range. Cross-month periods price each date separately.
+  Daily/Hourly wages and fixed rates keep their existing rules. Preserve saved
+  approvals and finalized salary lines; new proposals and draft normal pay use
+  the calendar-month basis. Client selected this rule on 20 October 2026.
 
 ## Validation and documentation
 

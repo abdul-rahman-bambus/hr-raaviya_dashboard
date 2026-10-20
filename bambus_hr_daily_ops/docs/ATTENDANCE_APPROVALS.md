@@ -38,7 +38,8 @@ company can approve them.
   and no leave balance is consumed. Daily/Hourly employees receive no automatic
   paid-off credit. Public-holiday classification wins on overlapping dates, so
   a date receives at most one normal day credit, within contract dates.
-- Monthly day pay uses wage / 30; Daily pay uses daily_wage. A paid Monthly
+- Monthly day pay uses wage / calendar days in the local attendance date's month
+  (28/29/30/31); Daily pay uses daily_wage. A paid Monthly
   special day retains its whole normal credit even when only part of the day
   is worked. Approved OT/holiday work is additional pay under its own policy.
   Without the paid-off policy, special-day normal pay retains the existing
@@ -114,7 +115,8 @@ short landscape viewports using actual wheel input and the full asset bundle.
 
 ### Client verification example
 
-Use a Monthly wage of 9,000 (300/day), a calendar of 8 hours/day, and a full-day
+Use a September Monthly wage of 9,000 (30 calendar days, 300/day), a calendar
+of 8 hours/day, and a full-day
 template threshold of 9 hours for the threshold regression check. Enable both
 paid-off switches. For one weekly off and one public holiday, test separately:
 
@@ -131,3 +133,17 @@ hourly salary, 4 approved hours add 225 to the normal 300, totaling 525 before
 other earnings/deductions. Check the payroll review and attendance Monthly
 Summary exports against the payslip. Disable each paid-off switch to verify
 no-punch credits disappear while approved extra earnings stay separate.
+
+### Calendar-month rates (20 October 2026)
+
+Normal pay and monthly salary-derived OT/fine review rates use the calendar days
+in each attendance date's month. Daily rate is not rounded before regular-pay
+aggregation; final adjustment amounts retain currency rounding. February leap
+years are included. The payslip period and employment range never replace the
+full calendar-month divisor. For periods crossing months, each date uses its own
+month. Existing Daily/Hourly contract and fixed-amount rules remain unchanged.
+
+Approved attendance amounts remain authoritative snapshots. Compute Sheet
+refreshes draft normal pay with the new divisor but keeps approved OT/fine
+amounts; reapproval is an explicit HR action. Finalized salary lines are not
+automatically rewritten by the upgrade. Reports retain the same precedence.

@@ -481,7 +481,7 @@ class HrPayslip(models.Model):
                 if (contract and contract.wage_type in ('daily', 'monthly')
                         and (not contract.date_start or d >= contract.date_start)
                         and (not contract.date_end or d <= contract.date_end)):
-                    day_rate = contract.daily_wage if contract.wage_type == 'daily' else contract.wage / 30.0
+                    day_rate = contract.daily_wage if contract.wage_type == 'daily' else contract._get_monthly_daily_rate(d)
                     hours_per_day = contract.resource_calendar_id.hours_per_day or 8.0
                     if is_weekend and emp._is_paid_attendance_weekly_off(d, contract):
                         slip.paid_weekly_off_days += 1

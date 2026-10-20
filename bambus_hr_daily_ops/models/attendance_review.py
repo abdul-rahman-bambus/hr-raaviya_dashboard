@@ -174,7 +174,7 @@ class AttendanceReviewFine(models.TransientModel):
     amount = fields.Monetary(compute='_compute_amount', currency_field='currency_id')
     note = fields.Char()
 
-    @api.depends('hours', 'calculation_type', 'rate', 'wizard_id.line_id.contract_id')
+    @api.depends('hours', 'calculation_type', 'rate', 'wizard_id.line_id.contract_id', 'wizard_id.line_id.date')
     def _compute_amount(self):
         for row in self:
             helper = self.env['bambus.hr.fine.wizard'].new({

@@ -637,7 +637,7 @@ class HrAttendanceOvertime(models.Model):
                         if wage_type == "daily":
                             daily_rate = float(getattr(contract, "daily_wage", 0.0) or 0.0)
                         elif wage_type == "monthly":
-                            daily_rate = float(getattr(contract, "wage", 0.0) or 0.0) / 30.0
+                            daily_rate = contract._get_monthly_daily_rate(d)
                         else:
                             daily_rate = 0.0
                         fine_amount = (

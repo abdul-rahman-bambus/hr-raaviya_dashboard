@@ -397,7 +397,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
         if wage_type == "daily":
             daily_rate = contract.daily_wage or 0.0
             return daily_rate, daily_rate / hours_per_day if hours_per_day else 0.0
-        daily_rate = (contract.wage or 0.0) / 30.0
+        daily_rate = contract._get_monthly_daily_rate(line.date)
         return daily_rate, daily_rate / hours_per_day if hours_per_day else 0.0
 
     def _scheduled_hours_on_date(self, line):
@@ -414,7 +414,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
         scheduled = sum(max((rule.hour_to or 0.0) - (rule.hour_from or 0.0), 0.0) for rule in rules)
         return scheduled or calendar.hours_per_day or 8.0
 
-    @api.depends("overtime_hours", "calculation_type", "rate", "line_id.contract_id")
+    @api.depends("overtime_hours", "calculation_type", "rate", "line_id.contract_id", "line_id.date")
     def _compute_overtime_amount(self):
         for wizard in self:
             daily_rate, hourly_rate = wizard._contract_rates(wizard.line_id)
@@ -583,7 +583,7 @@ class BambusHrHourlyPayWizard(models.TransientModel):
     currency_id = fields.Many2one(related="line_id.currency_id", readonly=True)
     note = fields.Char()
 
-    @api.depends("hourly_pay_hours", "calculation_type", "rate", "line_id.contract_id")
+    @api.depends("hourly_pay_hours", "calculation_type", "rate", "line_id.contract_id", "line_id.date")
     def _compute_hourly_pay_amount(self):
         helper = self.env["bambus.hr.overtime.wizard"]
         for wizard in self:
@@ -706,7 +706,7 @@ class BambusHrFineWizard(models.TransientModel):
     reason = fields.Char()
     send_sms = fields.Boolean()
 
-    @api.depends("fine_hours", "calculation_type", "rate", "line_id.contract_id")
+    @api.depends("fine_hours", "calculation_type", "rate", "line_id.contract_id", "line_id.date")
     def _compute_fine_amount(self):
         overtime_wizard = self.env["bambus.hr.overtime.wizard"]
         for wizard in self:
