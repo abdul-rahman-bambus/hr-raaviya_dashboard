@@ -39,7 +39,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         const previousStatus = employee.status;
         const previousValue = employee[field];
         employee[field] = event.target.value;
-        if (employee.status === "not_marked" && employee.check_in_value && employee.check_out_value) {
+        if (["not_marked", "paid_weekly_off", "paid_public_holiday"].includes(employee.status) && employee.check_in_value && employee.check_out_value) {
             employee.status = "present";
             employee.status_label = "Present";
         }
@@ -191,6 +191,7 @@ export class AttendanceEditor extends AttendanceDashboard {
             employee.leave_is_half_day = false;
             employee.line_id = false;
             this.applyStatusTransition(employee, previousStatus, nextStatus);
+            await this.syncEmployee(employee);
             this.notification.add(`${employee.name} ${status === "absent" ? "absence" : "leave"} revoked.`, {
                 type: "success",
             });
@@ -391,7 +392,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                 "bambus.hr.attendance.sheet",
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
-                    status: employee.status,
+                    status: ["paid_weekly_off", "paid_public_holiday"].includes(employee.status) ? "not_marked" : employee.status,
                     status_manual: Boolean(rollback.statusManual),
                     check_in: employee.check_in_value || false,
                     check_out: employee.check_out_value || false,
@@ -400,6 +401,9 @@ export class AttendanceEditor extends AttendanceDashboard {
             employee.line_id = result.line_id;
             employee.worked_hours = result.worked_hours;
             this.applyStatusTransition(employee, rollback.previousStatus, result.status);
+            if (["paid_weekly_off", "paid_public_holiday"].includes(rollback.previousStatus)) {
+                await this.syncEmployee(employee);
+            }
             this.notification.add(`${employee.name} attendance saved automatically.`, { type: "success" });
         } catch (error) {
             if (rollback.previousStatus) {
@@ -407,6 +411,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                 employee.status_label = {
                     present: "Present", absent: "Absent", halfday: "Half Day",
                     leave: "Leave", not_marked: "Not Marked",
+                    paid_weekly_off: "Paid Weekly Off", paid_public_holiday: "Paid Public Holiday",
                 }[rollback.previousStatus];
             }
             if (rollback.field) {

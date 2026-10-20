@@ -288,7 +288,7 @@ export class AttendanceDashboard extends Component {
                 "bambus.hr.attendance.sheet",
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
-                    status: employee.status === "not_marked" ? "absent" : employee.status,
+                    status: ["not_marked", "paid_weekly_off", "paid_public_holiday"].includes(employee.status) ? "absent" : employee.status,
                     check_in: employee.check_in_value || false,
                     check_out: employee.check_out_value || false,
                     overtime_hours: Number(employee.overtime_hours) || 0,

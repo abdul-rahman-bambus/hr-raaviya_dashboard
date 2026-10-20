@@ -271,6 +271,22 @@ class DashboardUpdates(unittest.TestCase):
                 self.assertEqual(bounds['before'], bounds['after'])
                 self.page.get_by_role('button', name='Approve Remaining Items').click(trial=True)
 
+    def test_paid_special_day_labels_render_and_filter_in_editor(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-18')")
+        self.page.evaluate('''() => {
+            const rows = component.state.data.daily_attendance;
+            rows[0].status = 'paid_weekly_off'; rows[0].status_label = 'Paid Weekly Off'; rows[0].has_attendance = false;
+            rows[1].status = 'paid_public_holiday'; rows[1].status_label = 'Paid Public Holiday'; rows[1].has_attendance = false;
+            component.state.statusFilter = 'paid_weekly_off';
+        }''')
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 1)
+        self.assertIn('Paid Weekly Off', self.page.locator('.o_bae_employee_info').inner_text())
+        self.assertNotIn('Not Marked', self.page.locator('.o_bae_employee_info').inner_text())
+        self.page.evaluate("component.state.statusFilter = 'paid_public_holiday'")
+        self.tick()
+        self.assertIn('Paid Public Holiday', self.page.locator('.o_bae_employee_info').inner_text())
+
 
 if __name__ == '__main__':
     unittest.main()
