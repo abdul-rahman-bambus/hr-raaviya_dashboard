@@ -43,3 +43,5 @@
 @media (max-width:600px) { .o_baa_modal_backdrop { align-items:end; padding:0; }.o_baa_modal { max-height:94vh; max-height:94dvh; overflow:hidden; border-radius:16px 16px 0 0; }.o_baa_grid { grid-template-columns:1fr; }.o_baa_header,.o_baa_body { padding-right:18px; padding-left:18px; }.o_baa_footer { padding:14px 18px; }.o_baa_footer .btn { min-width:0; white-space:normal; }.o_baa_footer .btn-primary { flex:1; } }
 
 .o_bad_daily_status.paid_weekly_off, .o_bad_daily_status.paid_public_holiday { color:#16753c; background:#dcf6e6; }
+
+.o_bad_daily_status.unpaid_weekly_off, .o_bad_daily_status.unpaid_public_holiday { color:#875c00; background:#fff1cf; }

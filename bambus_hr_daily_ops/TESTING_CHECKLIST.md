@@ -161,3 +161,20 @@ proposals and saved updates.
 - Existing attendance, leave and explicit HR statuses retain their status.
 - Paid labels filter correctly and do not inflate Present/punch/Not Marked counts.
 - Removing manual Absent restores the derived paid label.
+
+## Paid-day withholding and restoration
+
+- Confirm requires a reason for withhold and restore; Cancel writes nothing.
+- Confirm immediately shows Unpaid Weekly Off / Unpaid Public Holiday without
+  marking Absent or inflating Not Marked/Present/punch counts.
+- Reload preserves the decision; Logs shows HR actor, timestamp and reason.
+- Worked attendance stays Present with hours and Paid-off Credit Withheld.
+- Draft normal pay, paid-credit rows and report counts exclude the rejected date;
+  approved OT, holiday extra pay and fines remain unchanged.
+- Restore follows current settings, including switches disabled after withholding.
+- Holiday/weekly-off overlap cannot be rejected/paid through the wrong bucket.
+- Other dates/employees remain eligible. Daily/Hourly, out-of-contract or regular
+  working dates cannot receive a paid-day rejection.
+- Non-HR and other-company requests fail; HR cannot edit/delete audit records.
+- Recalculation retains exclusions; finalized salary lines remain unchanged.
+- Run the installed `verify_paid_day_withholding.py` scenario on an isolated test DB.

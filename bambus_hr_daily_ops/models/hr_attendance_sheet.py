@@ -67,6 +67,62 @@ class BambusHrAttendanceSheet(models.Model):
 ]
 
     @api.model
+    def _paid_day_info(self, employee, day, contract):
+        info = {"kind": False, "eligible": False, "withheld": False, "reason": ""}
+        if not contract or contract.wage_type != "monthly":
+            return info
+        tzname = contract.resource_calendar_id.tz or self.env.user.tz or "UTC"
+        holidays = self.env["hr.payslip"]._get_public_holiday_dates(contract, day, day, tzname)
+        if day in holidays:
+            kind = "public_holiday"
+            eligible = employee._is_paid_attendance_public_holiday(day, contract, ignore_withholding=True)
+        elif employee._is_attendance_weekly_off(day):
+            kind = "weekly_off"
+            eligible = employee._is_paid_attendance_weekly_off(day, contract, ignore_withholding=True)
+        else:
+            return info
+        decision = employee._get_paid_day_decision(day, kind)
+        return {"kind": kind, "eligible": eligible,
+                "withheld": decision.action == "withhold", "reason": decision.reason or ""}
+
+    @api.model
+    def set_dashboard_paid_day(self, employee_id, selected_date, kind, action, reason):
+        """Append an audited exception; never alter punches or saved extra pay."""
+        if not self.env.user.has_group("hr.group_hr_user"):
+            raise UserError(_("Only HR officers can change paid-day credit."))
+        if kind not in ("weekly_off", "public_holiday") or action not in ("withhold", "restore"):
+            raise ValidationError(_("Invalid paid-day decision."))
+        reason = (reason or "").strip()
+        if not reason:
+            raise ValidationError(_("Enter a reason for the paid-day decision."))
+        day = fields.Date.to_date(selected_date)
+        if not day:
+            raise ValidationError(_("Select an attendance date."))
+        employee = self.env["hr.employee"].browse(employee_id).exists()
+        if not employee:
+            raise UserError(_("The employee is not available."))
+        employee.check_access("read")
+        if employee.company_id not in self.env.companies:
+            raise UserError(_("The employee is outside your allowed companies."))
+        # Serialize decisions for this employee so concurrent clicks cannot
+        # replace one another silently. Audit records are append-only for HR.
+        self.env.cr.execute("SELECT id FROM hr_employee WHERE id = %s FOR UPDATE", [employee.id])
+        info = self._paid_day_info(employee, day, employee._get_attendance_contract(day))
+        latest = employee._get_paid_day_decision(day, kind)
+        if action == "withhold":
+            if info["kind"] != kind or not info["eligible"]:
+                raise UserError(_("This date is not eligible for this paid-day credit."))
+            if latest.action == "withhold":
+                raise UserError(_("This paid-day credit is already withheld. Refresh the dashboard."))
+        elif latest.action != "withhold":
+            raise UserError(_("There is no withheld paid-day credit to restore."))
+        self.env["bambus.attendance.paid.day.decision"].sudo().create({
+            "employee_id": employee.id, "date": day, "kind": kind,
+            "action": action, "reason": reason, "actor_id": self.env.uid,
+        })
+        return self.get_attendance_dashboard(fields.Date.to_string(day))
+
+    @api.model
     def get_attendance_dashboard(self, selected_date=None):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
@@ -206,23 +262,16 @@ class BambusHrAttendanceSheet(models.Model):
             contract_by_employee.setdefault(contract.employee_id.id, contract)
         # Derived display statuses only: never create a punch or a leave request.
         paid_status_by_employee = {}
-        holidays_by_calendar = {}
-        for employee in employees.filtered(lambda item: item.id in unmarked_employee_ids):
-            contract = contract_by_employee.get(employee.id)
-            if not contract or contract.wage_type != "monthly":
+        paid_info_by_employee = {}
+        for employee in employees:
+            info = self._paid_day_info(employee, day, contract_by_employee.get(employee.id))
+            paid_info_by_employee[employee.id] = info
+            if employee.id not in unmarked_employee_ids or not info["kind"]:
                 continue
-            tzname = contract.resource_calendar_id.tz or self.env.user.tz or "UTC"
-            calendar_key = (contract.resource_calendar_id.id, tzname)
-            if calendar_key not in holidays_by_calendar:
-                holidays_by_calendar[calendar_key] = self.env["hr.payslip"]._get_public_holiday_dates(
-                    contract, day, day, tzname
-                )
-            holidays = holidays_by_calendar[calendar_key]
-            if day in holidays:
-                if employee._is_paid_attendance_public_holiday(day, contract):
-                    paid_status_by_employee[employee.id] = "paid_public_holiday"
-            elif employee._is_paid_attendance_weekly_off(day, contract):
-                paid_status_by_employee[employee.id] = "paid_weekly_off"
+            if info["withheld"]:
+                paid_status_by_employee[employee.id] = "unpaid_" + info["kind"]
+            elif info["eligible"]:
+                paid_status_by_employee[employee.id] = "paid_" + info["kind"]
         unmarked_employee_ids.difference_update(paid_status_by_employee)
         departments = []
         department_groups = {}
@@ -328,8 +377,12 @@ class BambusHrAttendanceSheet(models.Model):
                 status_label = _("Not Marked")
             if status == "not_marked" and employee.id in paid_status_by_employee:
                 status = paid_status_by_employee[employee.id]
-                status_label = (_("Paid Public Holiday") if status == "paid_public_holiday"
-                                else _("Paid Weekly Off"))
+                status_label = {
+                    "paid_public_holiday": _("Paid Public Holiday"),
+                    "paid_weekly_off": _("Paid Weekly Off"),
+                    "unpaid_public_holiday": _("Unpaid Public Holiday"),
+                    "unpaid_weekly_off": _("Unpaid Weekly Off"),
+                }[status]
             if override and override.attendance_status_manual:
                 status = override.status
                 status_label = dict(override._fields["status"].selection).get(status, status)
@@ -480,6 +533,19 @@ class BambusHrAttendanceSheet(models.Model):
                 )
             )
             wage_label, wage_amount = self.env['bambus.hr.attendance.review.wizard']._contract_wage(contract)
+            decisions = self.env["bambus.attendance.paid.day.decision"].search([
+                ("employee_id", "=", employee.id), ("date", "=", day),
+            ], order="id")
+            for decision in decisions:
+                attendance_logs.append({
+                    "id": f"paid-day-{decision.id}", "type": "hr_update",
+                    "label": (_("Paid-off Credit Withheld") if decision.action == "withhold"
+                              else _("Paid-off Credit Restored")),
+                    "time": fields.Datetime.context_timestamp(self, decision.create_date).strftime("%I:%M %p").lstrip("0"),
+                    "actor": decision.actor_id.name, "mode": _("HR Decision"),
+                    "details": decision.reason, "address": "", "image_url": False,
+                })
+            paid_info = paid_info_by_employee[employee.id]
             daily_attendance.append({
                 "id": employee.id,
                 "name": employee.display_name,
@@ -513,6 +579,10 @@ class BambusHrAttendanceSheet(models.Model):
                 ),
                 "status": status,
                 "status_label": status_label,
+                "paid_day_kind": paid_info["kind"],
+                "paid_day_eligible": paid_info["eligible"],
+                "paid_day_withheld": paid_info["withheld"],
+                "paid_day_reason": paid_info["reason"],
                 "check_in": format_time(display_check_in),
                 "check_out": format_time(display_check_out),
                 "check_in_value": fields.Datetime.context_timestamp(self, display_check_in).strftime("%H:%M") if display_check_in else "",

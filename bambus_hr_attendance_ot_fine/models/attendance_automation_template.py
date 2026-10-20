@@ -337,13 +337,14 @@ class HrEmployee(models.Model):
             return bool(template[field_names[day.weekday()]])
         return super()._is_attendance_weekly_off(day)
 
-    def _is_paid_attendance_weekly_off(self, day, contract):
+    def _is_paid_attendance_weekly_off(self, day, contract, ignore_withholding=False):
         if not super()._is_paid_attendance_weekly_off(day, contract):
             return False
         template = self._get_attendance_automation_template(day)
-        return not template or template.monthly_paid_weekly_off
+        return ((not template or template.monthly_paid_weekly_off)
+                and (ignore_withholding or not self._is_paid_day_withheld(day, "weekly_off")))
 
-    def _is_paid_attendance_public_holiday(self, day, contract):
+    def _is_paid_attendance_public_holiday(self, day, contract, ignore_withholding=False):
         self.ensure_one()
         day = fields.Date.to_date(day)
         if not (contract and contract.wage_type == 'monthly'
@@ -351,7 +352,8 @@ class HrEmployee(models.Model):
                 and (not contract.date_end or day <= contract.date_end)):
             return False
         template = self._get_attendance_automation_template(day)
-        return bool(template and template.monthly_paid_public_holiday)
+        return bool(template and template.monthly_paid_public_holiday
+                    and (ignore_withholding or not self._is_paid_day_withheld(day, "public_holiday")))
 
     def _get_attendance_hourly_limit(self, day, contract):
         template = self._get_attendance_automation_template(day)
