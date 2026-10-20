@@ -5,14 +5,19 @@ remaining acceptance checks that require a running Odoo database and browser.
 
 ## Current release evidence and remaining gaps
 
-The 16 October 2026 label/documentation candidate passed **157 Odoo tests**
-(zero failures/errors), **8 OWL Chromium tests**, and installed label/paid-day
-verification. The isolated month-basis check reproduced 12,400 regular pay for a
-12,000 Monthly contract across 31 eligible dates; client acceptance remains open.
+The 20 October 2026 calendar-month candidate passed **167 Odoo tests**
+(zero failures/errors), **8 OWL Chromium tests**, and installed paid-day checks
+using an October wage / 31 divisor. The new regression class covers 28/29/30/31
+full months, leap February, partial employment, periods crossing months,
+absence/paid/unpaid leave, paid weekly offs/public holidays, salary-derived
+reviews and fines, local-date boundaries, Daily/Hourly rates, fixed rates and
+preserved approved snapshots/final salary lines.
 
-See [Go-live readiness](docs/GO_LIVE_READINESS.md) for the current October run,
-installed-browser checks, expected paid-day behavior, and unresolved client
-acceptance items. The September result below is retained as historical evidence.
+The prior isolated flat-30 check (12,400 pay for a 12,000 contract over 31 dates)
+is historical. The client selected actual calendar days on 20 October, and all
+four full-month regressions now produce 12,000. Deployment reconciliation is
+still needed. See [release readiness](docs/GO_LIVE_READINESS.md) for remaining
+gaps; the September run below is retained as historical evidence.
 
 The known manual dashboard-entry gap is not covered as a working punch-creation
 flow by the existing suites. A passing suite must not be read as proof that a

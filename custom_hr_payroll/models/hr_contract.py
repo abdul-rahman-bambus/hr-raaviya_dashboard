@@ -1,6 +1,7 @@
 
 from odoo import _, models, fields, api
 from datetime import timedelta
+from calendar import monthrange
 from odoo.exceptions import ValidationError
 
 
@@ -57,6 +58,17 @@ class HrContract(models.Model):
             self.env['ir.config_parameter'].sudo().get_param('hr_payroll.hourly_wage_hour_limit', 0.0)
         ),
     )
+
+    def _get_monthly_daily_rate(self, day):
+        """Monthly salary per calendar day in the attendance date's month.
+
+        Keep the month length independent of the payslip range, work schedule,
+        contract start/end dates and today's date. Callers pass the local work
+        date so month-end punches and historical reviews use the right divisor.
+        """
+        self.ensure_one()
+        day = fields.Date.to_date(day or fields.Date.context_today(self))
+        return (self.wage or 0.0) / monthrange(day.year, day.month)[1]
 
     @api.constrains('sunday_wage_rate', 'saturday_wage_rate')
     def _check_wage_rate(self):

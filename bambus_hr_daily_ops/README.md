@@ -2,8 +2,9 @@
 
 ## Current delivered flow and release readiness
 
-The target go-live is **Monday 19 October 2026**. Read the
-[go-live readiness review](docs/GO_LIVE_READINESS.md) before rollout; automated
+The original planned go-live was **Monday 19 October 2026**. The calendar-month
+salary rule was selected on **20 October 2026**. Read the
+[release readiness review](docs/GO_LIVE_READINESS.md) before rollout; automated
 checks do not resolve the documented dashboard manual-entry gap.
 
 The changes delivered through PRs #113–#116 include:
@@ -35,11 +36,41 @@ tab's calculation/rate and requires the Overtime Rule and HR approval. Public
 holidays have independent calculation/rate settings. Public-holiday precedence
 prevents duplicate normal credit on an overlapping weekly off.
 
-For a Monthly wage of 12,000, daily pay is 400 (wage / 30). With 8 scheduled
+In a 30-day month, a Monthly wage of 12,000 gives daily pay of 400. With 8 scheduled
 hours/day, 8 approved special-day hours at 1x add 400 to normal credit (800 total);
 at 2x they add 800 (1,200 total). Confirm whether a client means double **extra**
 pay or double **total** pay before selecting a multiplier. No leave allocation,
 leave request or leave balance is created by these paid-day booleans.
+
+### Calendar-month salary basis
+
+Use Monthly wage / calendar days in the local attendance date's month:
+
+| Month length | Daily rate on a 12,000 Monthly contract | Full eligible month normal pay |
+| --- | --- | --- |
+| 28 | 428.571429 | 12,000 |
+| 29 | 413.793103 | 12,000 |
+| 30 | 400 | 12,000 |
+| 31 | 387.096774 | 12,000 |
+
+Keep the rate unrounded during regular-pay aggregation; monetary adjustment
+amounts use the existing currency precision. The divisor is not the number of
+working days, employment days or days selected in a payslip. A 15-day eligible
+period in leap-year February is 12,000 × 15 / 29. A payslip covering 30 January
+through 2 February 2024 is 2 × 12,000 / 31 + 2 × 12,000 / 29.
+
+Each normal paid-day credit, detected per-minute fine and salary-derived HR
+review uses the shared contract helper. Monthly base eligibility, unpaid/paid
+leave, weekly-off/holiday policy and work fractions still apply; a full salary
+requires all dates to be eligible for normal pay. The change does not create pay
+for missing regular attendance or extend contract dates. Daily/Hourly contracts,
+fixed rates and salary-slab thresholds are unchanged.
+
+Restart Odoo and upgrade `custom_hr_payroll` to `18.0.4.11.0`,
+`bambus_hr_attendance_ot_fine` to `18.0.3.26.0`, and `bambus_hr_daily_ops` to
+`18.0.1.81.0`. Recompute draft payslips and review new proposals. Previously
+approved extra pay/fines remain saved snapshots; they are not silently repriced.
+Finalized salary lines are not rewritten automatically.
 
 ### Manual dashboard time entry: current limitation
 
@@ -215,14 +246,14 @@ correct and save daily attendance values.
 
 For hourly contracts, the configured hourly rate is used. For daily contracts,
 the daily wage is divided by scheduled hours. For monthly contracts, daily pay
-is monthly wage divided by 30 and hourly pay is that result divided by scheduled
-hours. Existing contract overtime and late-fine rates provide the defaults for
+is monthly wage divided by the calendar days in that attendance date's month
+(28/29/30/31), and hourly pay is that result divided by scheduled hours. Existing contract overtime and late-fine rates provide the defaults for
 fixed-per-hour updates.
 
 The default **Per Minute from Daily Salary** fine method divides the applicable
 daily salary by the employee's scheduled working minutes for that date, then
 multiplies that rate by the final fine minutes after grace. Monthly salary uses
-the existing 30-day daily-rate basis; daily contracts use their daily wage.
+the actual calendar-month daily-rate basis; daily contracts use their daily wage.
 Hourly contracts produce no late fine under this method.
 
 ### State meanings

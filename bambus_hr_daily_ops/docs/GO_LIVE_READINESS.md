@@ -1,12 +1,12 @@
 # Attendance and payroll go-live readiness
 
-Target: **Monday 19 October 2026**, client timezone Asia/Kolkata.
-Review date: **16 October 2026**. Production deployment and client sign-off are
+Original target: **Monday 19 October 2026**, client timezone Asia/Kolkata.
+Latest review: **20 October 2026**. Production deployment and client sign-off are
 not established by the local test results recorded here.
 
 ## Status
 
-The label/documentation change preserves existing policies and eligibility.
+The calendar-month salary change preserves existing paid-off policies and eligibility.
 Paid Weekly Offs defaults enabled; Paid Public Holidays defaults disabled.
 Both remain Monthly-contract features. Weekly Off Policy is still required to
 control additional work earnings independently of normal paid-day credit.
@@ -15,12 +15,12 @@ control additional work earnings independently of normal paid-day credit.
 The manual-time-entry gap below remains open. No production settings or payroll
 records were changed as part of this readiness review.
 
-## Open items before live use
+## Remaining items and resolved salary decision
 
 | Priority | Item | Evidence / required acceptance |
 | --- | --- | --- |
 | Blocker for dashboard-only entry | Manual check-in/check-out does not feed actual punch detection | `update_dashboard_attendance` writes the daily sheet/audit, not `hr.attendance`, and does not call recomputation. This matches the reported Present=1, Punched In/Out=0 and zero fine after editing times. Implement and test punch synchronization, or explicitly use and validate the existing actual-punch management workflow instead. |
-| Payroll decision | Fixed 30-day denominator versus whole-month contract wage | Monthly day rate is wage / 30 and daily regular pay is summed without a monthly-wage cap. An isolated 31-day July fixture with a 12,000 Monthly contract, all 27 regular days worked and four paid weekly offs produced 12,400 regular pay. The fixture was rolled back. Confirm expected 28/29/30/31-day, joiner/leaver and unpaid-absence outcomes; the current sum is not capped at contract wage. |
+| Implemented; deployment acceptance pending | Calendar-month salary basis | Client selected actual calendar days on 20 October. Monthly rates now divide wage by the attendance month's 28/29/30/31 days through a shared contract helper. Full eligible months produce the contract wage; partial and cross-month periods use each date's full calendar-month divisor. The former July 12,400 result on a 12,000 contract is historical evidence of the replaced flat-30 basis, not current behavior. Validate the deployed release and recompute draft payslips. |
 | Client verification | NET rounding | The supplied screenshot shows Gross 3,862.29 and Fine 8.08, whose difference is 3,854.21, but displayed NET is 3,854.00. Inspect the deployed NET rule and currency rounding; repository default NET is BASIC + ALW + DED and does not explain an explicit whole-unit rounding rule. |
 | Client configuration | Meaning of special-day multipliers | Normal paid-day credit plus additional 2x pay produces 3x total for a full day. If the client means double total pay, use additional 1x with normal credit. Confirm weekly-off and public-holiday settings separately. |
 | Client acceptance | Actual employee setup | Confirm in-scope employee contracts, wage types, calendar timezone/work periods, effective employee/company templates, selected weekly offs, public-holiday dates and salary structure BASIC/OT/PH/fine rules. Screenshots included employees without schedules/contracts; identify whether these are test or in-scope records. |
@@ -51,28 +51,34 @@ input tables may display decimal hours.
 
 ## Validation evidence
 
-- Current label/documentation candidate, 16 October: **157 Odoo tests passed**
+- Calendar-month candidate, 20 October: **167 Odoo tests passed**
   with zero failures/errors, covering custom payroll, daily operations,
   attendance reports and payroll reports.
 - Current candidate: **8 production OWL Chromium tests passed**.
+- Installed October check confirmed a 9,000 Monthly contract gives 9,000 / 31
+  normal credit per eligible special date; payable days stay one as worked-day
+  fractions refresh from 0.5 to 1.
 - Installed-browser checks verified combined-review scrolling/deletion/approval,
   paid-off policy settings, normal day credit and worked-day refresh.
 - Installed label verification confirmed both field labels omit “(Monthly)”,
   the weekly-off checkbox remains enabled by default, the public-holiday
   checkbox remains disabled by default, and both preserve the paid-day behavior.
-- Isolated, rolled-back month-basis check confirmed 12,400 regular pay from a
-  12,000 contract across 31 eligible paid dates; this remains an open client decision.
+- Historical isolated, rolled-back flat-30 check produced 12,400 regular pay from a
+  12,000 contract over 31 eligible dates. The client has now selected calendar-month
+  days; new regression coverage verifies full months, partial contracts,
+  cross-month periods, absence/leave, paid special days, local-date boundaries,
+  salary-derived reviews and preservation of approved snapshots/final salary lines.
 - None of these tests verifies the client production database, its NET rule,
-  monthly salary-basis acceptance or the missing manual-dashboard punch path.
+  deployed salary reconciliation or the missing manual-dashboard punch path.
 
 ## Deployment and client acceptance sequence
 
 1. Back up the live database/filestore and validate restore/rollback steps in the
    client's deployment environment before the planned rollout.
-2. Install the approved release, restart Odoo to load the Python field labels,
-   and upgrade affected modules. For this label change, upgrade
-   `bambus_hr_attendance_ot_fine` to `18.0.3.25.0` and `bambus_hr_daily_ops`
-   to `18.0.1.80.0`.
+2. Install the approved release, restart Odoo to load the salary-rate changes,
+   and upgrade affected modules. For the calendar-month salary rule, upgrade
+   `custom_hr_payroll` to `18.0.4.11.0`, `bambus_hr_attendance_ot_fine` to
+   `18.0.3.26.0` and `bambus_hr_daily_ops` to `18.0.1.81.0`.
    For the earlier attendance/payroll changes also upgrade `custom_hr_payroll`,
    `attendance_custom_report`, and `hr_payslip_excel_report` where installed.
 3. Reload the browser and confirm the two shortened labels and their tooltips.

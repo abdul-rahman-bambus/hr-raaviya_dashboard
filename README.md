@@ -29,19 +29,30 @@ sections. Contract wage displays, bounded review scrolling, persistent exclusion
 paid special-day counters, and separate earnings/deduction details are supported.
 See the module README for details, calculations and test commands.
 
+## Monthly salary basis
+
+Monthly daily pay is **Monthly wage / calendar days in the attendance month**.
+February uses 28 or 29; other months use 30 or 31. The same basis supplies normal
+paid-day credits, per-minute fine detection and salary-derived adjustment rates.
+A full eligible month on a 12,000 contract produces 12,000 normal pay; missing
+or unpaid workdays still reduce pay under the attendance rules. Partial contracts
+and payslips use the full month's divisor, and periods crossing months price
+each date using its own month. Daily/Hourly wages and fixed rates are unchanged.
+Saved HR approvals are retained rather than automatically repriced.
+
 ## Documentation and release status
 
 - [Contributor guidance](AGENTS.md)
 - [Attendance module README](bambus_hr_daily_ops/README.md)
 - [Approval and payroll rules](bambus_hr_daily_ops/docs/ATTENDANCE_APPROVALS.md)
-- [Go-live readiness for Monday 19 October 2026](bambus_hr_daily_ops/docs/GO_LIVE_READINESS.md)
+- [Release readiness and remaining gaps](bambus_hr_daily_ops/docs/GO_LIVE_READINESS.md)
 - [Test checklist](bambus_hr_daily_ops/TESTING_CHECKLIST.md)
 
 **Known go-live blocker:** manual times entered through the dashboard currently
 save the HR daily snapshot/audit without creating/updating actual attendance
 punches or invoking automatic fine/OT detection. Do not assume dashboard-entered
 times have completed the punch-to-payroll flow. The readiness document also tracks
-monthly salary-basis and rounding decisions requiring client verification.
+calendar-month salary rollout and rounding checks requiring client verification.
 
 Upgrade the affected modules in the target Odoo deployment, reload the client,
 confirm effective company/employee templates and salary rules, and recompute draft
