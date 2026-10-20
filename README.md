@@ -78,3 +78,20 @@ Upgrade the affected modules in the target Odoo deployment, reload the client,
 confirm effective company/employee templates and salary rules, and recompute draft
 payslips. This repository and its tests do not establish that production has been
 deployed or approved for go-live.
+
+## Hourly attendance refresh
+
+For Hourly contracts, **Compute Sheet** refreshes stored billable hours and
+attendance days before computing draft/verification salary and generated work
+rows. After adding, editing, deleting or closing actual punches, recompute the
+existing draft; do not generate duplicate payslips. Completed punches with
+positive worked time count once per local check-in date, including short shifts.
+Open and zero-hour entries do not count. Daily caps apply after summing that
+date’s punches; raw attendance and time precision are preserved.
+
+Hourly **Payable Days** uses the last-computed attendance-date count. Report
+**Present Days** reads current completed attendance dates, without half-day
+fractions. If attendance changed, recompute the draft before exporting to align
+the saved salary/payable totals and current attendance. Exports do not recompute
+salary. Finalized/cancelled salary lines remain untouched. Monthly and Daily
+classification and paid-off rules retain their existing behavior.

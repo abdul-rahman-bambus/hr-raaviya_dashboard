@@ -37,6 +37,15 @@ class HrPayslip(models.Model):
     employee_type = fields.Selection(related='employee_id.employee_type')
 
 
+    def action_compute_sheet(self):
+        # Stored hourly totals intentionally refresh on Compute Sheet. Exporting
+        # a report must not change the salary of an existing payslip.
+        editable = self.filtered(lambda slip: slip.state in ('draft', 'verify'))
+        if not editable:
+            return True
+        editable.filtered(lambda slip: slip.contract_id.wage_type == 'hourly')._compute_worker_hours()
+        return super(HrPayslip, editable).action_compute_sheet()
+
     def _bambus_hourly_billable_hours(self, employee, contract, date_from, date_to):
         """
         Billable worked hours for an hourly-wage employee over [date_from, date_to],
@@ -79,6 +88,7 @@ class HrPayslip(models.Model):
         # 3. Query using the properly formatted UTC boundaries
         attendances = self.env['hr.attendance'].sudo().search([
             ('employee_id', '=', employee.id),
+            ('check_out', '!=', False),
             ('check_in', '>=', utc_dfrom_str),
             ('check_in', '<=', utc_dto_str),
         ])
@@ -86,7 +96,7 @@ class HrPayslip(models.Model):
         # sum authentic worked hours per LOCAL day, then cap each day
         per_day = defaultdict(float)
         for att in attendances:
-            if not att.check_in:
+            if not att.check_in or (att.worked_hours or 0.0) <= 0:
                 continue
             d = fields.Datetime.context_timestamp(self.with_context(tz=tzname), att.check_in).date()
             per_day[d] += (att.worked_hours or 0.0)
@@ -395,5 +405,16 @@ class HrPayslip(models.Model):
 
 
     def get_worked_day_lines(self, contracts, date_from, date_to):
-        """Leave attendance policy classification to the automation add-on."""
-        return super().get_worked_day_lines(contracts, date_from, date_to)
+        """Hourly work rows use completed attendance, not scheduled workdays."""
+        rows = super().get_worked_day_lines(contracts, date_from, date_to)
+        hourly_contracts = contracts.filtered(lambda contract: contract.wage_type == 'hourly')
+        hourly_ids = set(hourly_contracts.ids)
+        rows = [row for row in rows if not (
+            row.get('contract_id') in hourly_ids and row.get('code') in ('WORK100', 'DAYSWORKED'))]
+        for contract in hourly_contracts:
+            hours, days = self._bambus_hourly_billable_hours(
+                contract.employee_id, contract, date_from, date_to)
+            rows.append({'name': 'Hourly Attendance', 'sequence': 1, 'code': 'WORK100',
+                         'contract_id': contract.id, 'number_of_days': days,
+                         'number_of_hours': hours})
+        return rows

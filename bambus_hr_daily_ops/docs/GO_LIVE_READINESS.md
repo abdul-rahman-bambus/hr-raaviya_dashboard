@@ -120,3 +120,28 @@ Rollback validation: **175 Odoo tests passed**. The isolated upgrade preserved
 existing batch company, draft/finalized statuses and salary lines; installed UI
 checks confirmed withdrawn buttons/menu are absent and both standard report
 exports still work. The stored batch-company field is retained for compatibility.
+
+## Hourly refresh correction (20 October 2026)
+
+Existing draft/verification payslips now refresh stored hourly hours/days before
+statistics, work rows and salary. Hourly Present/Payable Days count completed,
+positive attendance dates instead of scheduled days or threshold fractions.
+Multiple punches count once per local check-in date; daily caps and raw punches
+are preserved. Export continues to read saved salary; recompute drafts after edits.
+Finalized/cancelled slips are skipped. Monthly/Daily behavior remains covered.
+
+Upgrade `custom_hr_payroll` to `18.0.4.12.0`,
+`bambus_hr_attendance_ot_fine` to `18.0.3.28.0`, and
+`hr_payslip_excel_report` to `18.0.4.12.0`, then recompute affected drafts.
+Do not regenerate duplicate slips. **183 Odoo tests passed**, zero failures/errors,
+including eight new hourly regression cases.
+
+A rolled-back 17-employee September reference reconstruction verified existing
+draft recomputation agrees with fresh standard generation. Hourly day counts
+match 23/24/18/23. With displayed decimal hours the net is 222,278.82; an inferred
+nearest-minute interpretation matches all 17 source nets and the 222,279.36 total.
+This is not validation of original daily attendance: Monthly/Daily day patterns
+were reconstructed and OT/fine amounts imported as saved approvals. Source
+punches, rate/grace rules and customer configuration still need reconciliation.
+No production deployment or client acceptance is implied. The manual-dashboard
+punch/detection gap described above remains open.

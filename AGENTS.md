@@ -42,6 +42,12 @@ Read the root README and the affected module documentation before changing behav
 - Compare actual daily worked hours to the effective day thresholds. Do not cap
   classification hours at a shorter schedule and make a fixed full-day target
   unreachable. Reports and payroll must agree on day classification.
+- Hourly payroll counts distinct local check-in dates with completed, positive
+  actual punches, without half-day fractions. Sum punches per date before daily
+  caps; retain raw attendance and precision. Compute Sheet explicitly refreshes
+  stored hourly hours/days before statistics, generated work rows and salary.
+  Report Payable Days is the saved count; Present Days reads current punches.
+  Recompute existing drafts after punch changes; exports never recompute salary.
 - Compute Sheet refreshes generated worked-day rows for draft/verification
   payslips, preserves unrelated custom codes, and avoids double-counted paid days.
   Do not silently rewrite finalized salary lines.
