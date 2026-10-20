@@ -14,6 +14,7 @@
                     <field name="department_id" domain="['|', ('company_id', '=', company_id), ('company_id', '=', False)]" options="{'no_create': True}"/>
                     <field name="employee_ids" widget="many2many_tags" domain="[('company_id', '=', company_id)]" options="{'no_create': True}"/>
                     <field name="payslip_status"/>
+                    <field name="batch_id" domain="[('company_id', '=', company_id)]" options="{'no_create': True}"/>
                 </group>
                 <div class="alert alert-info" role="status">
                     Payslips must fall entirely within the selected period. Salary amounts come from payslip lines;

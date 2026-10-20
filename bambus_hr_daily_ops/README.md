@@ -127,6 +127,17 @@ Restart Odoo, upgrade `bambus_hr_attendance_ot_fine` to `18.0.3.27.0` and
 have no withheld dates on upgrade. This feature does not fix the separate manual
 dashboard punch/detection gap documented below.
 
+### Monthly draft payroll preparation
+
+The Payroll menu now provides **Prepare Draft Payroll** through
+`hr_payslip_excel_report`. Generate Missing Drafts computes new slips using the
+existing payroll rules, and Recompute Drafts explicitly refreshes saved drafts.
+The Payroll Report shortcut opens the same batch's draft amounts in the existing
+Excel report. Review missing configuration, conflicts and pending adjustments;
+this does not approve payroll or record payment. See the
+[payroll module README](../hr_payslip_excel_report/README.md). Upgrade that module
+to `18.0.4.10.0`; PDF and report-layout revisions remain the next stage.
+
 ### Manual dashboard time entry: current limitation
 
 `update_dashboard_attendance` currently writes the HR daily sheet snapshot and

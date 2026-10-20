@@ -54,6 +54,22 @@ Read the root README and the affected module documentation before changing behav
   approvals and finalized salary lines; new proposals and draft normal pay use
   the calendar-month basis. Client selected this rule on 20 October 2026.
 
+## Draft payroll automation
+
+- `payroll.draft.preparation` is an explicit monthly payroll-officer action.
+  Reuse the existing payslip engine; never add a parallel salary calculation.
+- Generate only missing drafts, reuse exact contract/period drafts without
+  rewriting saved amounts, and attach only unassigned drafts. Recompute is
+  explicit and limited to eligible drafts in the batch and employee scope.
+- Respect open/close contract dates and salary structures. Split non-overlapping
+  contract periods; flag overlaps and conflicting/waiting/finalized/other-batch
+  payslips instead of duplicating or moving them. Closed/refund batches are protected.
+- Keep company/record-rule access and transaction serialization. Roll back a failed
+  employee's creation without silently losing other employees; report all issues.
+- Never confirm, post, close batches, send payslips or mark payment automatically.
+  Report handoff must use the same batch, period and draft scope. Preserve the
+  legacy generator and normal confirmation flow for other customers.
+
 ## Validation and documentation
 
 Use an isolated database whose name contains `test` for browser fixture scripts.
