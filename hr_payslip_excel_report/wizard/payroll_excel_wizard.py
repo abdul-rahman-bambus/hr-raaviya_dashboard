@@ -12,6 +12,7 @@ class PayslipReportWizard(models.TransientModel):
         ('summary', 'Payslip Summary'), ('review', 'Payroll Review'),
     ], required=True, default='summary')
     company_id = fields.Many2one('res.company', required=True, default=lambda self: self.env.company)
+    batch_id = fields.Many2one('hr.payslip.run', string='Payslip Batch')
     duration_type = fields.Selection([
         ('current', 'Current Month'), ('custom', 'Custom Date Range'),
     ], string='Report Period', required=True, default='current')
@@ -43,6 +44,7 @@ class PayslipReportWizard(models.TransientModel):
 
     @api.onchange('company_id')
     def _onchange_company(self):
+        self.batch_id = False
         self.department_id = False
         self.employee_ids = False
 
@@ -57,6 +59,10 @@ class PayslipReportWizard(models.TransientModel):
         if self.department_id.company_id and self.department_id.company_id != self.company_id:
             raise ValidationError(_('The department must belong to the report company.'))
         self._period_dates()
+        if self.batch_id:
+            self.batch_id._check_draft_payroll_access()
+            if self.batch_id.company_id != self.company_id:
+                raise ValidationError(_('The batch must belong to the report company.'))
 
     def _selected_payslips(self):
         self._validate_scope()
@@ -64,6 +70,8 @@ class PayslipReportWizard(models.TransientModel):
         domain = [('company_id', '=', self.company_id.id),
                   ('date_from', '>=', start), ('date_to', '<=', end)]
         domain += [('state', '!=', 'cancel')] if self.payslip_status == 'all' else [('state', '=', self.payslip_status)]
+        if self.batch_id:
+            domain.append(('payslip_run_id', '=', self.batch_id.id))
         if self.department_id:
             domain.append(('employee_id.department_id', '=', self.department_id.id))
         if self.employee_ids:

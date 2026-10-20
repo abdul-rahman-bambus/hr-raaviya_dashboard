@@ -1,0 +1,46 @@
+<odoo>
+    <record id="draft_payroll_preparation_form" model="ir.ui.view">
+        <field name="name">payroll.draft.preparation.form</field>
+        <field name="model">payroll.draft.preparation</field>
+        <field name="arch" type="xml">
+            <form string="Prepare Draft Payroll">
+                <group>
+                    <field name="company_id" options="{'no_create': True}" readonly="batch_id"/>
+                    <field name="month" readonly="batch_id"/>
+                    <field name="department_id" domain="['|', ('company_id', '=', company_id), ('company_id', '=', False)]" options="{'no_create': True}"/>
+                    <field name="employee_ids" widget="many2many_tags" domain="[('company_id', '=', company_id)]" options="{'no_create': True}"/>
+                    <field name="batch_id" invisible="not batch_id"/>
+                </group>
+                <div class="alert alert-info" role="status">Leave Employees empty to prepare all active employees in the selected company/department. Generate Missing Drafts computes new payslips and reuses compatible drafts. Use Recompute Drafts after attendance or HR changes. Nothing is confirmed or marked paid.</div>
+                <field name="result" nolabel="1" invisible="not result"/>
+                <footer>
+                    <button name="action_generate" string="Generate Missing Drafts" type="object" class="btn-primary"/>
+                    <button name="action_recompute" string="Recompute Drafts" type="object" invisible="not batch_id"/>
+                    <button name="action_report" string="Payroll Report" type="object" invisible="not batch_id"/>
+                    <button name="action_open_batch" string="Open Batch" type="object" invisible="not batch_id"/>
+                    <button string="Close" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="action_draft_payroll_preparation" model="ir.actions.act_window">
+        <field name="name">Prepare Draft Payroll</field>
+        <field name="res_model">payroll.draft.preparation</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+    <menuitem id="menu_draft_payroll_preparation" name="Prepare Draft Payroll"
+              parent="bambus_hr_daily_ops.menu_bambus_hrms_payroll" action="action_draft_payroll_preparation"
+              sequence="25" groups="hr_payroll_community.group_hr_payroll_community_user"/>
+    <record id="payslip_run_draft_payroll_form" model="ir.ui.view">
+        <field name="name">hr.payslip.run.draft.payroll.form</field>
+        <field name="model">hr.payslip.run</field>
+        <field name="inherit_id" ref="hr_payroll_community.hr_payslip_run_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_prepare_draft_payroll" string="Prepare Draft Payroll" type="object" invisible="state != 'draft' or credit_note" groups="hr_payroll_community.group_hr_payroll_community_user"/>
+                <button name="action_open_payroll_report" string="Payroll Report" type="object" groups="hr_payroll_community.group_hr_payroll_community_user"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

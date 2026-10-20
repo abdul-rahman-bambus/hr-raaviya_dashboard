@@ -103,3 +103,18 @@ input tables may display decimal hours.
 
 No scheduled automation, live deployment or financial approval is created by
 this document. The target date is a plan, not a deployment confirmation.
+
+## Draft payroll preparation stage
+
+An explicit **Prepare Draft Payroll** monthly action now generates missing computed
+Draft payslips, reuses compatible drafts and offers a separate recompute action.
+It reuses the existing payroll engine and report, with batch/Draft filtering.
+Closed/finalized/conflicting records are protected and configuration/review issues
+are reported. Nothing confirms payroll or records cash payment. Upgrade
+`hr_payslip_excel_report` to `18.0.4.10.0`. PDF and report-layout revisions follow
+in the next stage; the manual dashboard punch/detection limitation remains open.
+
+Automation validation, 20 October: **183 full-suite Odoo tests passed**; the final
+**11 draft-preparation tests passed** after non-payment/default checks. Installed
+Odoo verified generate/reuse/no duplicates, explicit recompute, Draft/batch report
+selection and actual Excel download. Production remains unchanged by these tests.

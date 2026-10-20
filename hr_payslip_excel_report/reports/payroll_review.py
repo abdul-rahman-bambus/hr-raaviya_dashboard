@@ -450,7 +450,7 @@ class PayrollReviewReport(models.AbstractModel):
         start, end = wizard._period_dates()
         sheet.write_string(0, 0, name, title)
         status_label = dict(wizard._fields['payslip_status']._description_selection(self.env))[wizard.payslip_status]
-        sheet.write_string(1, 0, f'{wizard.company_id.name} | {start} to {end} | {wizard.company_id.currency_id.name} | Status: {status_label}')
+        sheet.write_string(1, 0, f'{wizard.company_id.name} | {start} to {end} | {wizard.company_id.currency_id.name} | Status: {status_label}' + (f' | Batch: {wizard.batch_id.name}' if wizard.batch_id else ''))
         units = 'Hours: decimal hours.' if decimal_hours else 'Durations: HH:MM.'
         sheet.write_string(2, 0, 'Salary: saved payslip lines. Attendance/reviews: current records. ' + units + ' Blank values: unavailable.')
         sheet.write_string(3, 0, 'Summary: one row per employee. Exact duplicate payslips are resolved; Payroll Review lists exclusions. Overlapping periods need review.')
