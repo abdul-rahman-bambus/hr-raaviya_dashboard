@@ -25,6 +25,11 @@ credit defaults disabled. These labels no longer include “(Monthly)”; eligib
 still applies only to Monthly contracts. No leave request/allocation is required.
 The dashboard shows Paid Weekly Off / Paid Public Holiday on eligible unmarked
 dates using the same payroll checks, with public-holiday precedence.
+HR can withhold or restore one employee's normal paid-off credit for one date,
+with a required reason and audit history. Withheld unworked dates show Unpaid
+Weekly Off / Unpaid Public Holiday; worked dates keep attendance and a withheld
+indicator. Payroll and reports respect the exception; approved OT/fines remain
+separate. Recompute draft payslips after the decision.
 
 The automation form has matching Weekly Off and Public Holiday Payroll Treatment
 sections. Contract wage displays, bounded review scrolling, persistent exclusions,

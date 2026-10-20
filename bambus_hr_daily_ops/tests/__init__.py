@@ -5,3 +5,5 @@ from . import test_attendance_dashboard
 from . import test_unified_review
 
 from . import test_calendar_month_rates
+
+from . import test_paid_day_withholding

@@ -188,6 +188,8 @@ class HrPayslip(models.Model):
         "contract_id.wage", "contract_id.wage_type", "contract_id.daily_wage", "contract_id.hourly_rate",
         "contract_id.date_start", "contract_id.date_end", "contract_id.resource_calendar_id.hours_per_day",
         "total_worker_hours",
+        "employee_id.paid_day_decision_ids",
+        "employee_id.paid_day_decision_ids.action",
         "employee_id.attendance_ids", "employee_id.attendance_ids.check_in", "employee_id.attendance_ids.check_out",
         "employee_id.attendance_ids.worked_hours", "employee_id.attendance_ids.overtime_hours", "employee_id.attendance_ids.bambus_scheduled_hours",
         "employee_id.attendance_ids.bambus_shortfall_hours",
@@ -483,7 +485,13 @@ class HrPayslip(models.Model):
                         and (not contract.date_end or d <= contract.date_end)):
                     day_rate = contract.daily_wage if contract.wage_type == 'daily' else contract._get_monthly_daily_rate(d)
                     hours_per_day = contract.resource_calendar_id.hours_per_day or 8.0
-                    if is_weekend and emp._is_paid_attendance_weekly_off(d, contract):
+                    withheld = ((is_weekend and emp._is_paid_day_withheld(d, 'weekly_off'))
+                                or (is_holiday and emp._is_paid_day_withheld(d, 'public_holiday')))
+                    if contract.wage_type == 'monthly' and withheld:
+                        # A saved HR rejection removes normal special-day pay,
+                        # including the worked-hours fallback; OT stays separate.
+                        pass
+                    elif is_weekend and emp._is_paid_attendance_weekly_off(d, contract):
                         slip.paid_weekly_off_days += 1
                         slip.paid_weekly_off_worked_days += day_fraction
                         slip.paid_weekly_off_amount += day_rate

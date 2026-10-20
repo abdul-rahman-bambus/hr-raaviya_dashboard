@@ -22,6 +22,14 @@ Read the root README and the affected module documentation before changing behav
   replace unmarked dates. Preserve actual punches, leave and explicit HR statuses.
   Exclude paid dates from Not Marked counts without marking them Present or creating
   punches/leaves. Keep derived status keys out of persisted sheet status values.
+- Per-employee/date/type paid-day decisions live in append-only
+  `bambus.attendance.paid.day.decision` history. Use the validated HR action with
+  reason/company checks; never mutate history or infer withholding from Absent.
+  Shared eligibility helpers exclude withheld credits in payroll and reports.
+  Withheld Monthly special dates also bypass normal worked-hours fallback; retain
+  actual work statistics and approved OT/fines. Restore reapplies current eligibility.
+  Use unpaid derived statuses only on otherwise unmarked dates, and show a separate
+  withheld indicator on worked/manual/leave rows. Never persist derived status keys.
 - Weekly Off Policy and Public Holiday Policy independently control additional
   work earnings. The paid-day booleans do not replace those policies. Weekly-off
   rates come from the Overtime tab; holidays have their own calculation/rate policy.

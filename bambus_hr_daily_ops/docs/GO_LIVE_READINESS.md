@@ -8,7 +8,10 @@ not established by the local test results recorded here.
 
 The calendar-month salary change preserves existing paid-off policies and eligibility.
 Paid Weekly Offs defaults enabled; Paid Public Holidays defaults disabled.
-Both remain Monthly-contract features. Weekly Off Policy is still required to
+Both remain Monthly-contract features.
+HR can now withhold/restore an individual paid date with a reason and audit history;
+unworked dates show an unpaid status, while worked dates retain attendance and a
+withheld indicator. Recompute draft payroll; finalized salary lines remain saved. Weekly Off Policy is still required to
 control additional work earnings independently of normal paid-day credit.
 
 **Do not consider the complete dashboard-to-payroll flow ready for live use yet.**
@@ -51,13 +54,16 @@ input tables may display decimal hours.
 
 ## Validation evidence
 
-- Calendar-month candidate, 20 October: **168 Odoo tests passed**
+- Calendar-month candidate, 20 October: **173 Odoo tests passed**
   with zero failures/errors, covering custom payroll, daily operations,
   attendance reports and payroll reports.
-- Current candidate: **9 production OWL Chromium tests passed**.
+- Current candidate: **10 production OWL Chromium tests passed**.
 - Installed dashboard check confirmed Paid Weekly Off on Sunday 18 October,
   Paid Public Holiday on Monday 19 October, and Not Marked after disabling holiday
   payment. Labels use payroll eligibility and do not create attendance or leave.
+- Installed withholding check verified Cancel, required reasons, immediate unpaid
+  status, persistence across reload, audit Logs, draft payroll totals, restoration
+  under changed policy, and preservation of worked attendance.
 - Installed October check confirmed a 9,000 Monthly contract gives 9,000 / 31
   normal credit per eligible special date; payable days stay one as worked-day
   fractions refresh from 0.5 to 1.

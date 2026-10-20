@@ -287,6 +287,44 @@ class DashboardUpdates(unittest.TestCase):
         self.tick()
         self.assertIn('Paid Public Holiday', self.page.locator('.o_bae_employee_info').inner_text())
 
+    def test_withhold_paid_day_requires_reason_updates_immediately_and_can_cancel(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate("""() => {
+            const employee = component.state.data.daily_attendance[0];
+            Object.assign(employee, {status: 'paid_weekly_off', status_label: 'Paid Weekly Off',
+                has_attendance: false, paid_day_kind: 'weekly_off', paid_day_eligible: true,
+                paid_day_withheld: false});
+        }""")
+        self.tick()
+        self.page.get_by_role('button', name='Withhold Paid Day', exact=True).click()
+        modal = self.page.get_by_role('dialog')
+        self.assertTrue(modal.get_by_role('button', name='Confirm').is_disabled())
+        self.assertTrue(self.page.locator('input[type=date]').is_disabled())
+        modal.get_by_role('button', name='Cancel').click()
+        self.tick()
+        self.assertEqual(self.page.evaluate('requests.length'), 1)
+        self.page.get_by_role('button', name='Withhold Paid Day', exact=True).click()
+        modal.locator('textarea').fill('HR exception')
+        modal.get_by_role('button', name='Confirm').click()
+        self.tick()
+        self.assertEqual(self.page.evaluate('requests[1].args[1]'), 'set_dashboard_paid_day')
+        self.assertEqual(self.page.evaluate('requests[1].args[2]'),
+                         [1, '2026-10-07', 'weekly_off', 'withhold', 'HR exception'])
+        self.page.evaluate("""() => {
+            const data = dailyData('2026-10-07');
+            Object.assign(data.daily_attendance[0], {status: 'unpaid_weekly_off',
+                status_label: 'Unpaid Weekly Off', has_attendance: false,
+                paid_day_kind: 'weekly_off', paid_day_eligible: true, paid_day_withheld: true});
+            requests[1].resolve(data);
+        }""")
+        self.tick()
+        self.assertEqual(self.page.get_by_role('dialog').count(), 0)
+        self.assertIn('Unpaid Weekly Off', self.page.locator('.o_bae_employee_info').first.inner_text())
+        self.page.get_by_role('button', name='Restore Paid Day', exact=True).click()
+        self.tick()
+        self.assertEqual(self.page.evaluate('component.state.paidDayDecision.action'), 'restore')
+        self.page.get_by_role('dialog').get_by_role('button', name='Cancel').click()
+
 
 if __name__ == '__main__':
     unittest.main()

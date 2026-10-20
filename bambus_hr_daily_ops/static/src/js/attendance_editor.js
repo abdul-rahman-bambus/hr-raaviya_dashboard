@@ -14,6 +14,43 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.logEmployee = null;
         this.state.adjustment = null;
         this.state.timingAdjustment = null;
+        this.state.paidDayDecision = null;
+    }
+
+    openPaidDayDecision(employee) {
+        if (!this.canEditAttendance || this.isSaving(employee.id)) return;
+        this.state.paidDayDecision = {
+            employee, date: this.state.data.date, reason: "", saving: false,
+            action: employee.paid_day_withheld ? "restore" : "withhold",
+        };
+    }
+
+    closePaidDayDecision() {
+        if (!this.state.paidDayDecision?.saving) this.state.paidDayDecision = null;
+    }
+
+    async savePaidDayDecision() {
+        const form = this.state.paidDayDecision;
+        if (!form || form.saving || !form.reason.trim()) return;
+        form.saving = true;
+        this.state.savingIds[form.employee.id] = true;
+        try {
+            const data = await this.orm.call("bambus.hr.attendance.sheet", "set_dashboard_paid_day", [
+                form.employee.id, form.date, form.employee.paid_day_kind, form.action, form.reason.trim(),
+            ]);
+            const updated = data.daily_attendance.find(item => item.id === form.employee.id);
+            if (updated) Object.assign(form.employee, updated);
+            this.state.data.metrics = data.metrics;
+            this.state.data.departments = data.departments;
+            this.state.data.shifts = data.shifts;
+            this.state.paidDayDecision = null;
+            this.notification.add(form.action === "withhold" ? "Paid-off credit withheld." : "Paid-off credit restored according to the current template.", {type: "success"});
+        } catch (error) {
+            this.notification.add(error.cause?.message || error.message || "Unable to update paid-off credit.", {type: "danger"});
+        } finally {
+            form.saving = false;
+            this.state.savingIds[form.employee.id] = false;
+        }
     }
 
     get refreshPageCount() {
@@ -39,7 +76,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         const previousStatus = employee.status;
         const previousValue = employee[field];
         employee[field] = event.target.value;
-        if (["not_marked", "paid_weekly_off", "paid_public_holiday"].includes(employee.status) && employee.check_in_value && employee.check_out_value) {
+        if (["not_marked", "paid_weekly_off", "paid_public_holiday", "unpaid_weekly_off", "unpaid_public_holiday"].includes(employee.status) && employee.check_in_value && employee.check_out_value) {
             employee.status = "present";
             employee.status_label = "Present";
         }
@@ -392,7 +429,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                 "bambus.hr.attendance.sheet",
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
-                    status: ["paid_weekly_off", "paid_public_holiday"].includes(employee.status) ? "not_marked" : employee.status,
+                    status: ["paid_weekly_off", "paid_public_holiday", "unpaid_weekly_off", "unpaid_public_holiday"].includes(employee.status) ? "not_marked" : employee.status,
                     status_manual: Boolean(rollback.statusManual),
                     check_in: employee.check_in_value || false,
                     check_out: employee.check_out_value || false,
@@ -401,7 +438,7 @@ export class AttendanceEditor extends AttendanceDashboard {
             employee.line_id = result.line_id;
             employee.worked_hours = result.worked_hours;
             this.applyStatusTransition(employee, rollback.previousStatus, result.status);
-            if (["paid_weekly_off", "paid_public_holiday"].includes(rollback.previousStatus)) {
+            if (["paid_weekly_off", "paid_public_holiday", "unpaid_weekly_off", "unpaid_public_holiday"].includes(rollback.previousStatus)) {
                 await this.syncEmployee(employee);
             }
             this.notification.add(`${employee.name} attendance saved automatically.`, { type: "success" });
@@ -412,6 +449,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                     present: "Present", absent: "Absent", halfday: "Half Day",
                     leave: "Leave", not_marked: "Not Marked",
                     paid_weekly_off: "Paid Weekly Off", paid_public_holiday: "Paid Public Holiday",
+                    unpaid_weekly_off: "Unpaid Weekly Off", unpaid_public_holiday: "Unpaid Public Holiday",
                 }[rollback.previousStatus];
             }
             if (rollback.field) {

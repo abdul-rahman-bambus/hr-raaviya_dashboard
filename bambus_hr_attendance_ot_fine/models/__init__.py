@@ -6,3 +6,5 @@ from . import hr_attendance_overtime
 from . import hr_leaves
 from . import hr_payslip
 from . import hr_salary_rule
+
+from . import paid_day_decision

@@ -86,6 +86,47 @@ punch counters stay unchanged. These are derived display statuses: no attendance
 leave allocation or approval is created. Removing an HR status refreshes the label.
 Upgrade `bambus_hr_daily_ops` to `18.0.1.82.0` and reload the web client.
 
+
+### Withhold or restore one employee's paid day
+
+On **Attendance**, find the employee and date, then select **Withhold Paid Day**.
+Enter a required reason and select **Confirm**. Cancel saves nothing. The action
+is available for eligible Monthly weekly offs/public holidays; it does not disable
+the template for other employees or dates.
+
+- No punches: the status immediately becomes **Unpaid Weekly Off** or
+  **Unpaid Public Holiday**, rather than Not Marked.
+- Worked date: attendance and worked hours remain visible with
+  **Paid-off Credit Withheld**. Actual worked-day statistics are retained.
+- **Restore Paid Day** requires a reason and reapplies the current template,
+  contract and calendar rules. If payment is now disabled, restoration removes
+  the exception but the date remains Not Marked instead of becoming paid.
+- **Logs** retains each withhold/restore action, the HR user, timestamp and reason.
+  HR cannot edit/delete individual decision records or create them outside the
+  validated action. Company access and the dashboard's existing HR/contract
+  permissions still apply.
+
+Withholding removes the date's normal special-day credit, including the normal
+worked-hours fallback on that date. It does **not** reject approved OT or fines,
+change punches, mark Absent, create leave, or consume a leave balance. Use the
+existing review to reject additional earnings/deductions separately. A holiday
+on a weekly off uses the holiday decision only; it never falls back to weekly-off
+payment. Decisions are scoped to employee, date and special-day type and survive
+attendance recalculation. Restoring never overrides a disabled template switch.
+
+Paid-day counters and normal-pay statistics reflect the decision; attendance
+reports use the same eligibility helpers and payroll exports use payslip totals.
+Run **Compute Sheet** on draft payslips to refresh generated credit rows and
+salary lines. Already finalized salary lines are not automatically rewritten.
+For example, on a 12,000 Monthly contract in October, withholding one otherwise
+paid date removes 12,000 / 31 (about 387.10) from normal pay; separately approved
+extra pay and fines retain their saved amounts.
+
+Restart Odoo, upgrade `bambus_hr_attendance_ot_fine` to `18.0.3.27.0` and
+`bambus_hr_daily_ops` to `18.0.1.83.0`, then reload the client. Existing employees
+have no withheld dates on upgrade. This feature does not fix the separate manual
+dashboard punch/detection gap documented below.
+
 ### Manual dashboard time entry: current limitation
 
 `update_dashboard_attendance` currently writes the HR daily sheet snapshot and
@@ -115,6 +156,7 @@ ODOO_SOURCE=/path/to/odoo python -m unittest discover -s bambus_hr_daily_ops/tes
 python bambus_hr_daily_ops/tests/browser/verify_combined_review.py --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_paid_special_days.py --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_paid_day_labels.py --url http://localhost:8071 --db <test_database>
+python bambus_hr_daily_ops/tests/browser/verify_paid_day_withholding.py --url http://localhost:8071 --db <test_database>
 ```
 
 Browser fixtures verify actual records and the full installed asset bundle; they
