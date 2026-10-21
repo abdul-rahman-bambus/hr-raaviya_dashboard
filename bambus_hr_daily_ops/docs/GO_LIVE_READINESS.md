@@ -145,3 +145,41 @@ were reconstructed and OT/fine amounts imported as saved approvals. Source
 punches, rate/grace rules and customer configuration still need reconciliation.
 No production deployment or client acceptance is implied. The manual-dashboard
 punch/detection gap described above remains open.
+
+## Restored staging correction: 21 October 2026
+
+The supplied backup was restored with its filestore to an isolated test database
+and neutralized before application use. Scheduled jobs, incoming/outgoing mail
+servers and payment providers were disabled; queued outgoing email was cancelled
+on the copy. No production data was changed and the source ZIP was retained.
+
+The backup contains older custom payroll module metadata alongside newer
+attendance/report modules. Current templates also differ from the earlier saved
+draft salary configuration. Treat module upgrade, rule repair and explicit
+draft recomputation as separate operations.
+
+Implemented: wage-specific BASIC category headers from saved totals; supported
+Daily/Monthly/Hourly base-code adaptation with retained legacy fallback; report
+deduction sign normalization for both saved NET conventions; and nonoverlapping
+Other Allowances. Upgrade custom_hr_payroll 18.0.4.13.0,
+bambus_hr_attendance_ot_fine 18.0.3.29.0 and hr_payslip_excel_report 18.0.4.13.0.
+
+Validation: **188 Odoo tests passed**, zero failures/errors. Installed Chromium
+checks passed for all three wage-specific header totals and both Excel exports.
+The restored upgrade retained all **138 salary lines and 26 payslip states/batch
+links**. A separate rolled-back recomputation checked all 23 selected drafts: saved
+Basic/header/report values and Gross minus deductions reconciled with Net.
+The three-wage baseline and corrections/switch checks are covered by regression
+tests; see [manual acceptance](MANUAL_PAYROLL_TEST.md) for client execution.
+
+Full restored-server UI parity is not established: seven installed theme/SaaS
+add-on sources are absent locally (bambus_saas_client, debranding and five
+muk_web modules). Payroll backend tests ran with available payroll sources; the
+installed Chromium checks used the complete isolated payroll test installation.
+No fake add-on replacements were installed.
+
+Remaining acceptance: correct multi-day/open punches through HR, review manual
+Present overrides and pending adjustments, and execute the client manual cases.
+Dashboard time editing still does not create/update actual punch records; that
+separate documented blocker remains open. No deployment or cash-payment approval
+is implied by these results.

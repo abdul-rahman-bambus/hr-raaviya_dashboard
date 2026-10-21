@@ -199,3 +199,10 @@ proposals and saved updates.
 - Check Hourly Present/Payable Days in both exports against attended dates, even
   for short shifts. Export must not update saved salary. Recompute after edits.
 - Recheck Monthly/Daily normal pay and approved special-day earnings.
+
+## Restored staging acceptance
+
+Follow [three-wage manual acceptance](docs/MANUAL_PAYROLL_TEST.md). Verify typed
+BASIC header totals, both deduction sign conventions/refunds, separate Other
+Allowances, Daily worked special-day base pay, and saved-line preservation during
+upgrade. Confirm changing template flags alone does not rewrite saved salaries.

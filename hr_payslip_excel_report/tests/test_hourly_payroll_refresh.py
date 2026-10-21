@@ -1,10 +1,12 @@
 from datetime import date, datetime, time, timedelta
 from io import BytesIO
+from types import SimpleNamespace
 import zipfile
 
 from odoo import fields
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
+from odoo.tools.safe_eval import safe_eval
 
 
 @tagged('post_install', '-at_install')
@@ -202,3 +204,89 @@ class TestHourlyPayrollRefresh(TransactionCase):
                 original = self.net(slip)
                 slip.action_compute_sheet()
                 self.assertEqual(self.net(slip), original)
+
+    def test_wage_specific_daily_rule_uses_special_work_and_keeps_legacy_fallback(self):
+        employee, contract = self.employee('daily')
+        self.template.overtime_enabled = True
+        self.env['resource.calendar.leaves'].create({'name': 'Daily rule holiday',
+            'calendar_id': self.calendar.id, 'date_from': '2026-09-14 00:00:00',
+            'date_to': '2026-09-14 12:00:00'})
+        daily = self.env['hr.salary.rule'].create({'name': 'Existing daily base', 'code': 'BASIC_DAILY',
+            'category_id': self.env.ref('hr_payroll_community.BASIC').id,
+            'amount_select': 'code', 'condition_select': 'none',
+            'amount_python_compute': "result = (worked_days.DAYSWORKED.number_of_days if worked_days.DAYSWORKED else 0) * contract.daily_wage"})
+        structure = self.structure.copy({'code': 'DAILY_MIGRATION_TEST',
+            'rule_ids': [(6, 0, (self.structure.rule_ids.filtered(lambda r: r.code != 'BASIC') | daily).ids)]})
+        contract.struct_id = structure
+        self.punch(employee, '2026-09-01', 8)
+        self.punch(employee, '2026-09-14', 8)
+        slip = self.slip(employee, contract)
+        slip.struct_id = structure
+        self.env['hr.salary.rule']._bambus_use_automation_amounts()
+        expression = daily.amount_python_compute
+        self.env['hr.salary.rule']._bambus_use_automation_amounts()
+        self.assertEqual(daily.amount_python_compute, expression)
+        slip.action_compute_sheet()
+        self.assertEqual(slip.total_regular_pay_amount, 1770)
+        self.assertEqual(slip.basic_pay, 1770)
+        self.assertEqual(self.net(slip), 1770)
+        # A no-template installation keeps its original expression, not a new
+        # formula based on the monthly wage field (zero for many Daily staff).
+        legacy = {'payslip': SimpleNamespace(uses_template_regular_pay=False),
+                  'contract': contract,
+                  'worked_days': SimpleNamespace(DAYSWORKED=SimpleNamespace(number_of_days=3))}
+        safe_eval(expression, legacy, mode='exec', nocopy=True)
+        self.assertEqual(legacy['result'], 2655)
+
+    def test_manual_seven_day_baseline_and_corrections_for_all_wage_types(self):
+        # Odoo converts public-holiday creation from the user's timezone into
+        # the calendar timezone. Match the manual test's Asia/Kolkata user.
+        self.env.user.tz = 'Asia/Kolkata'
+        self.calendar.attendance_ids.unlink()
+        for day in range(6):
+            self.env['resource.calendar.attendance'].create([
+                {'calendar_id': self.calendar.id, 'name': 'Morning', 'dayofweek': str(day),
+                 'day_period': 'morning', 'hour_from': 9, 'hour_to': 13},
+                {'calendar_id': self.calendar.id, 'name': 'Afternoon', 'dayofweek': str(day),
+                 'day_period': 'afternoon', 'hour_from': 14, 'hour_to': 18}])
+        self.template.write({'monthly_paid_public_holiday': True, 'full_day_basis': 'schedule'})
+        self.env['resource.calendar.leaves'].create({'name': 'Manual scenario public holiday',
+            'calendar_id': self.calendar.id, 'date_from': '2026-10-25 18:30:00',
+            'date_to': '2026-10-26 18:29:59'})
+        for basis, baseline, corrected in [('monthly', 5500, 6000), ('daily', 3500, 4000), ('hourly', 2800, 3200)]:
+            with self.subTest(wage_type=basis):
+                employee, contract = self.employee(basis)
+                contract.write({'wage': 31000, 'daily_wage': 1000, 'hourly_rate': 100,
+                                'date_start': '2026-10-20', 'date_end': '2026-10-26'})
+                for day in (20, 21, 23, 24):
+                    self.punch(employee, date(2026, 10, day), 4)
+                    if day != 21:
+                        self.punch(employee, date(2026, 10, day), 4, start_hour=8.5)
+                slip = self.env['hr.payslip'].create({'employee_id': employee.id, 'contract_id': contract.id,
+                    'struct_id': self.structure.id, 'date_from': '2026-10-20', 'date_to': '2026-10-26'})
+                self.assertEqual(slip._get_public_holiday_dates(contract, slip.date_from, slip.date_to,
+                                                              self.calendar.tz), {date(2026, 10, 26)})
+                slip.action_compute_sheet()
+                self.assertEqual((slip.basic_pay, self.net(slip)), (baseline, baseline))
+                self.assertEqual(slip.state, 'draft')
+                wizard = self.env['payslip.excel.wizard'].create({'report_type': 'summary',
+                    'duration_type': 'custom', 'start_date': '2026-10-20', 'end_date': '2026-10-26',
+                    'payslip_status': 'draft', 'employee_ids': [(6, 0, employee.ids)]})
+                row = self.env['report.hr_payslip_excel_report.payroll_review']._data(wizard)['register'][0]
+                self.assertEqual((row['basic'], row['net']), (baseline, baseline))
+                if basis == 'hourly':
+                    self.assertEqual((row['present'], row['payable_days']), (4, 4))
+                extra = self.punch(employee, '2026-10-21', 4, start_hour=8.5)
+                slip.action_compute_sheet()
+                self.assertEqual(self.net(slip), corrected)
+                extra.unlink()
+                slip.action_compute_sheet()
+                self.assertEqual(self.net(slip), baseline)
+                self.template.monthly_paid_public_holiday = False
+                slip.action_compute_sheet()
+                self.assertEqual(self.net(slip), baseline - (1000 if basis == 'monthly' else 0))
+                self.template.monthly_paid_public_holiday = True
+                self.template.monthly_paid_weekly_off = False
+                slip.action_compute_sheet()
+                self.assertEqual(self.net(slip), baseline - (1000 if basis == 'monthly' else 0))
+                self.template.monthly_paid_weekly_off = True

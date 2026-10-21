@@ -63,7 +63,7 @@ LEGACY = [('number', 'S.No', 'number'), ('name', 'Staff Name', 'text'),
           ('worked_hours', 'Total Work Hours', 'number'), ('ot_hours', 'Overtime Hours', 'number'),
           ('fine_hours', 'Fine Hours', 'number'), ('basic', 'Basic', 'money'),
           ('overtime', 'System Overtime', 'money'), ('public_holiday_pay', 'Public Holiday Pay', 'money'),
-          ('earnings', 'Total Earnings', 'money'), ('all_allowances', 'Allowance', 'money'),
+          ('earnings', 'Total Earnings', 'money'), ('allowances', 'Other Allowances', 'money'),
           ('fine', 'System Fine', 'money'), ('deductions', 'Total Deductions', 'money'),
           ('net', 'Net Pay Amount', 'money'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number')]
 
@@ -98,9 +98,17 @@ class PayrollReviewReport(models.AbstractModel):
             by_code[line.code] += sign * line.total
         basic = sum(sign * line.total for line in slip.line_ids if self._category(line, 'BASIC'))
         allowances = sum(sign * line.total for line in slip.line_ids if self._category(line, 'ALW'))
-        deductions = -sum(sign * line.total for line in slip.line_ids if self._category(line, 'DED'))
-        fine = -sum(by_code[code] for code in ('LATE', 'LF'))
-        advance = -sum(by_code[code] for code in ('LO', 'SAR'))
+        raw_deductions = sum(sign * line.total for line in slip.line_ids if self._category(line, 'DED'))
+        # Support both saved NET conventions: GROSS + negative DED and
+        # GROSS - positive DED. Do not infer the sign from current rule code.
+        deduction_sign = -1
+        if 'GROSS' in by_code and 'NET' in by_code:
+            difference = by_code['GROSS'] - by_code['NET']
+            if slip.company_id.currency_id.is_zero(difference - raw_deductions):
+                deduction_sign = 1
+        deductions = deduction_sign * raw_deductions
+        fine = deduction_sign * sum(by_code[code] for code in ('LATE', 'LF'))
+        advance = deduction_sign * sum(by_code[code] for code in ('LO', 'SAR'))
         overtime = by_code['OT']
         holiday = by_code['PH'] + by_code['SWD']
         # Missing computed totals are blank, never an invented zero salary.

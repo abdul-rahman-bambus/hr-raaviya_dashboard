@@ -532,6 +532,48 @@ class TestPayrollReview(TransactionCase):
             self.assertIn(b'Net Pay Amount', archive.read('xl/sharedStrings.xml'))
 
 
+    def test_positive_deductions_and_credit_note_follow_saved_net(self):
+        slip = self.slip()
+        self.finance(slip)
+        for line in slip.line_ids.filtered(lambda line: line.code in ('LATE', 'LO')):
+            line.amount = -line.amount
+        for credit, expected in [(False, 1), (True, -1)]:
+            slip.credit_note = credit
+            row = self.report._financials(slip)
+            self.assertEqual((row['fine'], row['advance'], row['deductions']),
+                             (100 * expected, 200 * expected, 300 * expected))
+            self.assertEqual(row['earnings'] - row['deductions'], row['net'])
+
+    def test_wage_specific_basic_headers_use_category_and_line_totals(self):
+        slip = self.slip()
+        base = self.salary(slip, 'BASIC_DAILY', 500, 'BASIC')
+        base.quantity = 2
+        base.rate = 50
+        self.salary(slip, 'BASIC_MONTHLY', 300, 'BASIC')
+        gross = self.salary(slip, 'GROSS', 400, 'GROSS')
+        gross.quantity = 2
+        self.salary(slip, 'NET', 800, 'NET')
+        self.assertEqual((slip.basic_pay, slip.gross_pay, slip.net_pay), (800, 800, 800))
+        slip.state = 'done'
+        saved = [(line.id, line.total) for line in slip.line_ids]
+        slip._compute_pay()
+        self.assertEqual(saved, [(line.id, line.total) for line in slip.line_ids])
+        self.assertEqual(slip.state, 'done')
+        base.unlink()
+        self.assertEqual(slip.basic_pay, 300)
+
+    def test_summary_allowances_exclude_separately_displayed_ot_and_holiday(self):
+        self.finance(self.slip())
+        wizard = self.wizard(report_type='summary')
+        with zipfile.ZipFile(io.BytesIO(wizard._generate_xlsx())) as archive:
+            ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+            monthly = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
+            value = monthly.find("s:sheetData/s:row/s:c[@r='S7']/s:v", ns)
+            self.assertEqual(float(value.text), 500)
+            strings = archive.read('xl/sharedStrings.xml')
+            self.assertIn(b'Other Allowances', strings)
+
+
 @tagged('post_install', '-at_install')
 class TestPayrollDownload(HttpCase):
     def test_bad_report_id_returns_400(self):
