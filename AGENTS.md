@@ -93,3 +93,24 @@ Keep user-facing labels, module versions, README, attendance approvals guide and
 release checklist consistent. Record actual test counts and remaining gaps; local
 test success does not establish deployment or client acceptance. Keep runtime
 logs, scratch scripts and screenshots in `work/`, outside commits.
+
+## Restored staging reconciliation
+
+- BASIC is a salary category, not necessarily a rule code. Header aggregates
+  must use saved line totals and include BASIC_MONTHLY/BASIC_DAILY/BASIC_HOURLY.
+  Header repair must not rewrite salary lines, finalized states or batch links.
+- The attendance upgrade adapts the supported wage-specific BASIC codes to the
+  shared template regular-pay total, retaining their conditions and non-template
+  fallback expression. Do not rewrite unrelated custom salary rules. Daily
+  special-day attendance must not disappear merely because a legacy expression
+  reads only DAYSWORKED. Paid unworked credits still apply only to Monthly.
+- Reporting supports positive-DED/subtracting-NET and negative-DED/adding-NET
+  using saved GROSS/NET reconciliation. Other Allowances excludes separately
+  displayed OT and holiday/special-day earnings. Preserve refund signs.
+- Template changes do not recalculate saved draft salaries. Compare current
+  policy, HR statuses, attendance and saved salary separately; exporting does not
+  approve or recompute payroll. Manual Present overrides can differ from actual
+  worked-day equivalents used in normal pay. Do not silently remove overrides.
+- Restore backups into a separate database containing test in its name, restore
+  the filestore, neutralize before starting HTTP/cron, and preserve the source.
+  Never commit customer dumps, exports, credentials or reconstructed fixtures.

@@ -80,3 +80,44 @@ daily caps, local boundaries, custom rows and saved salary protection. The
 controlled reference replay matched fresh generation after existing-draft edits;
 source daily attendance and customer configuration are still required for full
 client reconciliation. See the release readiness notes for assumptions.
+
+## Staging reconciliation correction (21 October 2026)
+
+Upgrade `custom_hr_payroll` to **18.0.4.13.0**,
+`bambus_hr_attendance_ot_fine` to **18.0.3.29.0**, and
+`hr_payslip_excel_report` to **18.0.4.13.0**, then restart/reload as appropriate.
+The custom payroll migration repairs saved header aggregates using BASIC-category
+line totals, including wage-specific rule codes. It does not rewrite salary lines
+or states. The attendance upgrade adapts supported BASIC_MONTHLY/BASIC_DAILY/
+BASIC_HOURLY code rules to shared template normal pay while retaining conditions
+and the original non-template fallback. Review these rule changes before rollout;
+unrelated custom codes are untouched. Recompute affected existing drafts after
+attendance/template changes. Existing finalized salary lines remain saved.
+
+Reports now support both positive and negative deduction conventions through
+saved GROSS/NET reconciliation. **Other Allowances** excludes OT and holiday pay
+already shown separately. Day units remain attendance classifications/credits;
+special-day base pay can use worked hours divided by calendar hours per day.
+Manual dashboard Present overrides can also differ from payroll work fractions.
+The export does not infer that every displayed day unit is an equal salary unit.
+
+The restored staging investigation confirmed a Daily rule reading DAYSWORKED
+only, wage-specific BASIC codes hidden by the old header, an explicit manual
+Present override, changed paid-holiday configuration with older saved draft pay,
+and multi-day hourly punches. These are separate causes; a blanket rounding
+change would not resolve them. Correct actual punches through HR review, retain
+approved snapshots, and recompute drafts instead of creating duplicates.
+
+See `bambus_hr_daily_ops/docs/MANUAL_PAYROLL_TEST.md` for the three-wage
+manual test entries and expected results.
+
+Restored-staging verification: **188 Odoo tests passed**. Both Excel downloads
+and Monthly/Daily/Hourly saved header totals passed installed Chromium checks.
+The backup upgrade retained all saved salary lines and payslip states; a rolled-
+back 23-draft recomputation reconciled header/report amounts with Net. Full
+restored theme/SaaS UI parity and client acceptance remain separate.
+
+```sh
+python hr_payslip_excel_report/tests/browser/verify_wage_type_totals.py \
+  --url http://localhost:8071 --db <test_database>
+```

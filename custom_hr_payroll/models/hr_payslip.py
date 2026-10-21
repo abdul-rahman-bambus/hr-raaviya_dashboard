@@ -36,6 +36,22 @@ class HrPayslip(models.Model):
     
     employee_type = fields.Selection(related='employee_id.employee_type')
 
+    @api.depends('line_ids.total', 'line_ids.code', 'line_ids.category_id',
+                 'line_ids.category_id.parent_id')
+    def _compute_pay(self):
+        """Read saved totals, including wage-specific BASIC rule codes."""
+        for slip in self:
+            basic = 0.0
+            for line in slip.line_ids:
+                category = line.category_id
+                while category and category.code != 'BASIC':
+                    category = category.parent_id
+                if category:
+                    basic += line.total
+            slip.basic_pay = basic
+            slip.gross_pay = sum(slip.line_ids.filtered(lambda line: line.code == 'GROSS').mapped('total'))
+            slip.net_pay = sum(slip.line_ids.filtered(lambda line: line.code == 'NET').mapped('total'))
+
 
     def action_compute_sheet(self):
         # Stored hourly totals intentionally refresh on Compute Sheet. Exporting

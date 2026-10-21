@@ -95,3 +95,33 @@ fractions. If attendance changed, recompute the draft before exporting to align
 the saved salary/payable totals and current attendance. Exports do not recompute
 salary. Finalized/cancelled salary lines remain untouched. Monthly and Daily
 classification and paid-off rules retain their existing behavior.
+
+## Staging reconciliation correction (21 October 2026)
+
+Upgrade `custom_hr_payroll` to **18.0.4.13.0**,
+`bambus_hr_attendance_ot_fine` to **18.0.3.29.0**, and
+`hr_payslip_excel_report` to **18.0.4.13.0**, then restart/reload as appropriate.
+The custom payroll migration repairs saved header aggregates using BASIC-category
+line totals, including wage-specific rule codes. It does not rewrite salary lines
+or states. The attendance upgrade adapts supported BASIC_MONTHLY/BASIC_DAILY/
+BASIC_HOURLY code rules to shared template normal pay while retaining conditions
+and the original non-template fallback. Review these rule changes before rollout;
+unrelated custom codes are untouched. Recompute affected existing drafts after
+attendance/template changes. Existing finalized salary lines remain saved.
+
+Reports now support both positive and negative deduction conventions through
+saved GROSS/NET reconciliation. **Other Allowances** excludes OT and holiday pay
+already shown separately. Day units remain attendance classifications/credits;
+special-day base pay can use worked hours divided by calendar hours per day.
+Manual dashboard Present overrides can also differ from payroll work fractions.
+The export does not infer that every displayed day unit is an equal salary unit.
+
+The restored staging investigation confirmed a Daily rule reading DAYSWORKED
+only, wage-specific BASIC codes hidden by the old header, an explicit manual
+Present override, changed paid-holiday configuration with older saved draft pay,
+and multi-day hourly punches. These are separate causes; a blanket rounding
+change would not resolve them. Correct actual punches through HR review, retain
+approved snapshots, and recompute drafts instead of creating duplicates.
+
+See [the three-wage manual test](bambus_hr_daily_ops/docs/MANUAL_PAYROLL_TEST.md)
+from the root README, or locate `docs/MANUAL_PAYROLL_TEST.md` in daily operations.
