@@ -202,9 +202,11 @@ class HrPayslip(models.Model):
         "employee_id.attendance_automation_template_id.half_day_hours",
         "employee_id.attendance_automation_template_id.full_day_basis",
         "employee_id.attendance_automation_template_id.full_day_hours",
+        "employee_id.attendance_automation_template_id.reviewed_exception_day_pay",
         "employee_id.company_id.attendance_automation_template_id.half_day_hours",
         "employee_id.company_id.attendance_automation_template_id.full_day_basis",
         "employee_id.company_id.attendance_automation_template_id.full_day_hours",
+        "employee_id.company_id.attendance_automation_template_id.reviewed_exception_day_pay",
         "employee_id.attendance_automation_template_id.active",
         "employee_id.attendance_automation_template_id.date_from",
         "employee_id.attendance_automation_template_id.date_to",
@@ -427,7 +429,7 @@ class HrPayslip(models.Model):
                 # Match attendance reporting: compare actual hours with the
                 # effective template threshold. Capping at the schedule can make
                 # a higher fixed full-day target impossible to reach.
-                effective_worked_for_daycount = float(worked or 0.0)
+                effective_worked_for_daycount = emp._get_attendance_day_pay_hours(d, worked)
 
                 if effective_worked_for_daycount >= float(full_day_target):
                     day_fraction = 1.0

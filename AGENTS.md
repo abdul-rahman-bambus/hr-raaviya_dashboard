@@ -39,7 +39,8 @@ Read the root README and the affected module documentation before changing behav
 - Detection is a proposal. With an effective template, unapproved extra pay/fines
   do not become payroll amounts. Preserve approved snapshots and saved exclusions;
   Ignore/Delete is persisted only by Approve Remaining Items. Cancel discards it.
-- Compare actual daily worked hours to the effective day thresholds. Do not cap
+- Compare actual daily worked hours to the effective day thresholds, except for
+  the explicit opt-in reviewed-exception policy below. Do not cap
   classification hours at a shorter schedule and make a fixed full-day target
   unreachable. Reports and payroll must agree on day classification.
 - Hourly payroll counts distinct local check-in dates with completed, positive
@@ -114,3 +115,31 @@ logs, scratch scripts and screenshots in `work/`, outside commits.
 - Restore backups into a separate database containing test in its name, restore
   the filestore, neutralize before starting HTTP/cron, and preserve the source.
   Never commit customer dumps, exports, credentials or reconstructed fixtures.
+
+## Reviewed exception day pay
+
+- `reviewed_exception_day_pay` defaults to `actual`. The `regularize` option is
+  Monthly/Daily only and uses effective date-specific templates. It adds saved,
+  server-derived exception intervals for classification, never edited fine hours.
+  Keep raw punches, actual hours and Hourly billable hours unchanged.
+- Session late/early/internal-gap decisions are independent. An approved fine
+  deducts its saved amount; ignored decisions deduct zero. Both can excuse only
+  the corresponding saved missing schedule interval. No credit for complete
+  missing sessions, leave, open punches, special dates or invalid contracts.
+  Union intervals once; a subsequent punch change must not expand old coverage.
+- Preserve legacy aggregate approval amounts without inventing session coverage
+  or creating duplicate fine proposals. Never backfill approvals on upgrade.
+  Review Session Exceptions explicitly proposes replacement fines; Cancel keeps
+  the old decision, and approval audits the previous amount/data. Keep OT unchanged
+  when reassessing fines only.
+  Tolerance/seconds changes remain a separate, explicitly deferred task.
+- Half Day Leave opens explicit confirmation: completed FN suggests AN, AN
+  suggests FN, ambiguous cases require HR selection; choose paid/unpaid type.
+  No automatic leave from punches; normal Time Off approval and duplicate/company
+  checks apply. Existing leave opens rather than toggling/deleting silently.
+- After saving reviews, use fresh date-wide pending states before clearing the
+  review filter or moving to the other pending type. Keep the selected date.
+- Payroll detail rates explain saved amounts, with per-hour/per-minute/amount
+  units and separate rows for mixed methods. Do not reprice historical approvals.
+  Report reviewed hours separately from actual hours and aggregate split periods
+  without double-counting overlapping ranges. Recompute existing drafts explicitly.

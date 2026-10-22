@@ -1,4 +1,5 @@
 """One HR review for a day's earnings and individual fine components."""
+import hashlib
 import math
 from datetime import datetime, time, timedelta
 
@@ -38,6 +39,9 @@ class AttendanceReviewWizard(models.TransientModel):
     fine_line_ids = fields.One2many('bambus.hr.attendance.review.fine', 'wizard_id')
     initial_fines = fields.Json(readonly=True)
     source_write_date = fields.Datetime(readonly=True)
+    source_attendance_signature = fields.Char(readonly=True)
+    resplit_fines = fields.Boolean(readonly=True)
+    can_review_sessions = fields.Boolean(readonly=True)
 
     @api.model
     def default_get(self, names):
@@ -49,29 +53,38 @@ class AttendanceReviewWizard(models.TransientModel):
         atts = line._review_attendances()
         last = atts[-1:]
         snapshots = line.fine_review_data or {}
+        can_review_sessions = line._can_review_session_fines()
+        resplit = bool(self.env.context.get('review_session_fines') and can_review_sessions)
+        if resplit:
+            snapshots = {}
         fine_default = self.env['bambus.hr.fine.wizard'].with_context(default_line_id=line.id).new({})
         template = line.employee_id._get_attendance_automation_template(line.date)
-        if snapshots and template:
+        if (snapshots or resplit) and template:
             fine_default = self.env['bambus.hr.fine.wizard'].new({
                 'line_id': line.id, 'fine_hours': last.bambus_fine_hours if last else 0,
                 'calculation_type': template.fine_calculation_type, 'rate': template.fine_rate,
             })
         # Preserve an earlier aggregate HR approval rather than inventing a split.
-        if not snapshots and line.fine_state == 'approved':
+        if not resplit and not snapshots and line.fine_state == 'approved':
             components = {'fine': line.fine_hours}
-        elif line.fine_state == 'rejected' and not snapshots:
+        elif not resplit and line.fine_state == 'rejected' and not snapshots:
             components = {}
         else:
-            components = {
+            session_components = line.employee_id._attendance_exception_components(line.date)
+            components = {key: value['hours'] for key, value in session_components.items()} if session_components is not None else {
                 'late': (last.bambus_late_minutes or 0) / 60 if last else 0,
                 'break': (last.bambus_gap_minutes or 0) / 60 if last else 0,
                 'early': (last.bambus_early_leave_minutes or 0) / 60 if last else 0,
             }
+            if session_components is not None and any(key in snapshots for key in ('late', 'early', 'break', 'fine')):
+                # Older aggregate decisions have no trustworthy session split.
+                # Keep their money; do not add a second set of proposed fines.
+                components = {}
             total = sum(components.values())
             detected = (last.bambus_fine_hours or 0) if last else 0
-            if total and detected < total:
+            if session_components is None and total and detected < total:
                 components = {kind: hours * detected / total for kind, hours in components.items()}
-            if not total and detected:
+            if session_components is None and not total and detected:
                 components = {'fine': detected}
         fixed_allocations = {}
         if fine_default.calculation_type in ('fixed', 'half_day', 'full_day'):
@@ -106,7 +119,10 @@ class AttendanceReviewWizard(models.TransientModel):
         values.update({
             'fine_line_ids': rows, 'initial_fines': initial,
             'source_write_date': line.write_date,
-            'show_overtime': bool(line.contract_id.wage_type in ('daily', 'monthly')
+            'source_attendance_signature': line._review_source_signature(),
+            'resplit_fines': resplit,
+            'can_review_sessions': can_review_sessions and not resplit,
+            'show_overtime': bool(not resplit and line.contract_id.wage_type in ('daily', 'monthly')
                                   and line.overtime_state != 'rejected'
                                   and (line.overtime_hours or line.overtime_detected_hours)),
             'ignore_overtime': line.overtime_state == 'rejected',
@@ -119,6 +135,8 @@ class AttendanceReviewWizard(models.TransientModel):
         line._check_review_access()
         if self.source_write_date and line.write_date != self.source_write_date:
             raise UserError(_('Attendance review changed. Close and reopen this review before approving.'))
+        if self.source_attendance_signature != line._review_source_signature():
+            raise UserError(_('Punches or schedule changed. Close and reopen this review before approving.'))
         if self.show_overtime:
             if not all(math.isfinite(value) and value >= 0 for value in (self.overtime_hours, self.rate)):
                 raise UserError(_('Hours and rates must be finite, nonnegative numbers.'))
@@ -128,6 +146,13 @@ class AttendanceReviewWizard(models.TransientModel):
             else:
                 super().action_save()
         data = dict(self.initial_fines or {})
+        # Coverage is calculated on the server from punches, never from the
+        # edited fine duration or a client-supplied initial snapshot.
+        current_components = line.employee_id._attendance_exception_components(line.date) or {}
+        saved_decisions = line.fine_review_data or {}
+        for kind in data:
+            data[kind] = dict(data[kind], coverage=saved_decisions.get(kind, {}).get(
+                'coverage', current_components.get(kind, {}).get('coverage', [])))
         retained = set(self.fine_line_ids.mapped('kind'))
         if len(retained) != len(self.fine_line_ids):
             raise UserError(_('Each fine component may appear only once.'))
@@ -141,9 +166,13 @@ class AttendanceReviewWizard(models.TransientModel):
             data[row.kind] = {
                 'state': 'approved', 'hours': row.hours, 'amount': row.amount,
                 'calculation_type': row.calculation_type, 'rate': row.rate, 'note': row.note or '',
+                'coverage': data[row.kind].get('coverage', []),
             }
         if data:
             previous = line.fine_hours
+            previous_review = {'decisions': saved_decisions, 'hours': previous,
+                               'amount': line.fine_amount, 'calculation_type': line.fine_calculation_type,
+                               'rate': line.fine_rate}
             line.write({
                 'fine_review_data': data, 'fine_hours': sum(row.hours for row in self.fine_line_ids),
                 'fine_amount': sum(row.amount for row in self.fine_line_ids),
@@ -155,8 +184,16 @@ class AttendanceReviewWizard(models.TransientModel):
             self.env['bambus.hr.attendance.time.audit'].create({
                 'employee_id': line.employee_id.id, 'date': line.date, 'adjustment_type': 'fine',
                 'previous_hours': previous, 'adjusted_hours': line.fine_hours, 'updated_by_id': self.env.uid,
+                'exception_decisions': data,
+                'previous_fine_review': previous_review,
             })
         return {'type': 'ir.actions.act_window_close'}
+
+    def action_review_sessions(self):
+        self.ensure_one()
+        action = self.line_id.action_review_adjustments()
+        action['context']['review_session_fines'] = True
+        return action
 
 
 class AttendanceReviewFine(models.TransientModel):
@@ -165,7 +202,10 @@ class AttendanceReviewFine(models.TransientModel):
 
     wizard_id = fields.Many2one('bambus.hr.attendance.review.wizard', required=True, ondelete='cascade')
     kind = fields.Selection([('late', 'Late Fine'), ('break', 'Break / Gap Fine'),
-                             ('early', 'Early Exit Fine'), ('fine', 'Previously Combined Fine')], required=True)
+                             ('early', 'Early Exit Fine'), ('fine', 'Previously Combined Fine'),
+                             ('late_am', 'First Half: Late Entry'), ('late_pm', 'Second Half: Late Entry'),
+                             ('early_am', 'First Half: Early Exit'), ('early_pm', 'Second Half: Early Exit'),
+                             ('break_am', 'First Half: Break / Gap'), ('break_pm', 'Second Half: Break / Gap')], required=True)
     detected_hours = fields.Float(readonly=True, digits=(16, 6))
     hours = fields.Float(string='Final Hours', digits=(16, 6))
     calculation_type = fields.Selection(selection=lambda self: self.env['bambus.hr.fine.wizard']._fields['calculation_type']._description_selection(self.env), required=True)
@@ -188,6 +228,19 @@ class AttendanceReviewLine(models.Model):
     _inherit = 'bambus.hr.attendance.sheet.line'
 
     fine_review_data = fields.Json(copy=False, default=dict)
+
+    def _can_review_session_fines(self):
+        self.ensure_one()
+        return bool((any(key in (self.fine_review_data or {}) for key in ('late', 'early', 'break', 'fine'))
+                     or (not self.fine_review_data and self.fine_state in ('approved', 'rejected')))
+                    and self.employee_id._attendance_exception_components(self.date))
+
+    def _review_source_signature(self):
+        self.ensure_one()
+        values = [(att.id, str(att.check_in), str(att.check_out)) for att in self._review_attendances()]
+        values.append(self.employee_id._get_attendance_work_periods(self.date))
+        values.append(self.employee_id._attendance_exception_components(self.date))
+        return hashlib.sha256(repr(values).encode()).hexdigest()
 
     def _check_review_access(self):
         self.ensure_one()
@@ -225,10 +278,11 @@ class AttendanceReviewDashboard(models.Model):
     _inherit = 'bambus.hr.attendance.sheet'
 
     @api.model
-    def get_dashboard_review(self, employee_id, selected_date):
+    def get_dashboard_review(self, employee_id, selected_date, review_sessions=False):
         action = self.open_dashboard_adjustment(employee_id, selected_date, 'fine')
         line = self.env['bambus.hr.attendance.sheet.line'].browse(action['context']['default_line_id'])
-        wizard = self.env['bambus.hr.attendance.review.wizard'].with_context(default_line_id=line.id).create({})
+        wizard = self.env['bambus.hr.attendance.review.wizard'].with_context(
+            default_line_id=line.id, review_session_fines=bool(review_sessions)).create({})
         daily_rate, hourly_rate = wizard._contract_rates(line)
         items = []
         if wizard.show_overtime:
@@ -251,6 +305,8 @@ class AttendanceReviewDashboard(models.Model):
         return {
             'wizard_id': wizard.id, 'adjustment': 'review', 'employee': line.employee_id.name,
             'date': fields.Date.to_string(line.date), 'items': items,
+            'can_review_sessions': wizard.can_review_sessions,
+            'resplit_fines': wizard.resplit_fines, 'previous_fine_amount': line.fine_amount,
             'contract_wage_label': wage_label, 'contract_wage_amount': wage_amount,
             'daily_rate': daily_rate, 'hourly_rate': hourly_rate, 'salary_per_minute': fine.salary_per_minute,
             'currency': {'symbol': currency.symbol or '', 'position': currency.position or 'before',

@@ -86,3 +86,16 @@ actual punches or invoking detection. These tests deliberately use actual punche
 Manual Present overrides can raise report Present Days without changing actual
 worked hours; review rather than silently clearing them. Full restored-server UI
 parity also needs all installed theme/SaaS add-on sources available locally.
+
+## Reviewed attendance exceptions (22 October 2026)
+
+Monthly/Daily templates now offer **Day Pay for Reviewed Attendance Exceptions**.
+The default keeps actual-hours classification. Opting into **Regularize Reviewed
+Exception Time** lets saved session-specific HR decisions cover missing scheduled
+time for day pay, while approved fines remain separate and punches stay intact.
+Hourly rules retain their own payable-hour review. Half Day Leave now suggests
+the missing half and asks HR to confirm the half and paid/unpaid Time Off type.
+The last approval clears the review filter; rate displays include correct units.
+No threshold tolerance change is included.
+
+See [configuration, manual cases and upgrade versions](REVIEWED_EXCEPTION_DAY_PAY.md).

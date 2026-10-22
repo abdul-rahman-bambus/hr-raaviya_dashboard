@@ -222,6 +222,8 @@ class AttendanceXlsxReport(models.AbstractModel):
             is_holiday = d in public_holidays
             # OT on special days must not erase the worked-day classification.
             day_count_hours = worked if automation or is_weekend or is_holiday else worked_excl_ot
+            actual_day_count_hours = day_count_hours
+            day_count_hours = emp._get_attendance_day_pay_hours(d, day_count_hours)
             if day_count_hours >= day_full_hours:
                 day_fraction = 1.0
                 base_hours = day_full_hours
@@ -247,6 +249,7 @@ class AttendanceXlsxReport(models.AbstractModel):
             result[d] = {
                 "attendances": day_att,
                 "worked": worked,
+                "regularized_hours": max(0.0, day_count_hours - actual_day_count_hours),
                 "worked_excl_ot": worked_excl_ot,
                 "scheduled_hours": scheduled_hours,
                 "shortfall_hours": shortfall_hours,  # should equal Fine if your OT/Fine code aligned it

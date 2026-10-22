@@ -389,3 +389,262 @@ class TestUnifiedAttendanceReview(TransactionCase):
         self.template.monthly_paid_weekly_off = True
         slip.action_compute_sheet()
         self.assertEqual(slip.worked_days_line_ids.filtered(lambda row: row.code == 'PAID_WEEKLY_OFF').number_of_days, 1)
+
+    def regular_worker(self, wage_type='monthly', punches=None):
+        day = fields.Date.to_date('2026-09-28')
+        self.calendar.attendance_ids = [(5, 0, 0),
+            (0, 0, {'name': 'First', 'dayofweek': '0', 'day_period': 'morning', 'hour_from': 9, 'hour_to': 13}),
+            (0, 0, {'name': 'Second', 'dayofweek': '0', 'day_period': 'afternoon', 'hour_from': 14, 'hour_to': 18})]
+        self.template.write({'reviewed_exception_day_pay': 'regularize', 'full_day_basis': 'schedule',
+                             'late_grace_minutes': 5, 'early_exit_enabled': True, 'fine_calculation_type': 'salary_minute'})
+        employee, contract, line = self.worker(wage_type, day=day, attendance=False)
+        punches = punches if punches is not None else [('09:15', '13:00'), ('14:00', '17:30')]
+        for start, end in punches:
+            self.env['hr.attendance'].create({'employee_id': employee.id,
+                'check_in': '2026-09-28 ' + start + ':00', 'check_out': '2026-09-28 ' + end + ':00'})
+        line.action_refresh()
+        return employee, contract, line
+
+    def test_reviewed_time_restores_day_pay_without_changing_actual_hours(self):
+        from types import SimpleNamespace
+        for wage_type in ('monthly', 'daily'):
+            with self.subTest(wage_type=wage_type):
+                employee, contract, line = self.regular_worker(wage_type)
+                atts = line._review_attendances()
+                punches = [(att.check_in, att.check_out, att.worked_hours) for att in atts]
+                slip = self.slip(employee, contract, line.date)
+                self.assertEqual(slip.total_working_days, .5)
+                wizard = self.wizard(line)
+                self.assertEqual(set(wizard.fine_line_ids.mapped('kind')), {'late_am', 'early_pm'})
+                wizard.fine_line_ids.filtered(lambda row: row.kind == 'late_am').unlink()
+                wizard.action_save()
+                slip.action_compute_sheet()
+                self.assertEqual((slip.total_working_days, slip.total_regular_pay_amount), (1, 100))
+                self.assertAlmostEqual(slip.total_fine_amount, 6.25)
+                self.assertEqual(punches, [(att.check_in, att.check_out, att.worked_hours) for att in atts])
+                self.assertEqual(sum(atts.mapped('worked_hours')), 7.25)
+                self.assertEqual(line.fine_review_data['late_am']['state'], 'ignored')
+                audit = self.env['bambus.hr.attendance.time.audit'].search([('employee_id', '=', employee.id)], limit=1)
+                self.assertEqual(audit.exception_decisions, line.fine_review_data)
+                if 'report.attendance_custom_report.attendance_xlsx' in self.env:
+                    report = self.env['report.attendance_custom_report.attendance_xlsx']
+                    daily = report._compute_employee_daily(employee, SimpleNamespace(date_start=line.date, date_end=line.date), contract=contract)
+                    self.assertEqual(daily[line.date]['day_fraction'], 1)
+                    self.assertEqual(daily[line.date]['worked'], 7.25)
+                    self.assertEqual(daily[line.date]['regularized_hours'], .75)
+                if 'report.hr_payslip_excel_report.payroll_review' in self.env:
+                    export = self.env['payslip.excel.wizard'].create({'report_type': 'summary',
+                        'company_id': employee.company_id.id, 'duration_type': 'custom',
+                        'start_date': line.date, 'end_date': line.date, 'employee_ids': [(6, 0, employee.ids)]})
+                    report = self.env['report.hr_payslip_excel_report.payroll_review']
+                    data = report._data(export)
+                    self.assertEqual(data['register'][0]['regularized_hours'], .75)
+                    self.assertEqual(data['register'][0]['worked_hours'], 7.25)
+                    self.assertEqual(data['register'][0]['present'], 1)
+                    self.assertEqual(report._employee_summary_rows(data['register'])[0]['regularized_hours'], .75)
+                self.template.reviewed_exception_day_pay = 'actual'
+                slip.action_compute_sheet()
+                self.assertEqual(slip.total_working_days, .5)
+
+    def test_edited_fine_minutes_do_not_manufacture_extra_work_or_excuse_absence(self):
+        employee, contract, line = self.regular_worker(punches=[('09:15', '13:00')])
+        wizard = self.wizard(line)
+        self.assertEqual(wizard.fine_line_ids.mapped('kind'), ['late_am'])
+        wizard.fine_line_ids.hours = 10
+        wizard.action_save()
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 3.75), 4)
+        self.assertEqual(self.slip(employee, contract, line.date).total_working_days, .5)
+        # Saved coverage cannot expand after a new earlier checkout.
+        line._review_attendances().check_out = '2026-09-28 12:00:00'
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 2.75), 3)
+        line._review_attendances().unlink()
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 0), 0)
+        self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': '2026-09-28 14:00:00', 'check_out': '2026-09-28 15:00:00'})
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 1), 1)
+
+    def test_ignored_components_are_persistent_and_cancel_has_no_effect(self):
+        employee, contract, line = self.regular_worker()
+        wizard = self.wizard(line)
+        wizard.fine_line_ids.unlink()
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+        wizard.action_save()
+        line.action_refresh()
+        self.assertFalse(self.wizard(line).fine_line_ids)
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 8)
+        self.assertEqual(self.slip(employee, contract, line.date).total_fine_amount, 0)
+
+    def test_stale_punch_review_cannot_save(self):
+        employee, contract, line = self.regular_worker()
+        wizard = self.wizard(line)
+        line._review_attendances()[0].check_in = '2026-09-28 09:20:00'
+        with self.assertRaises(UserError):
+            wizard.action_save()
+
+    def test_half_leave_suggests_opposite_session_and_requires_confirmation(self):
+        for punches, expected in [([('09:00', '13:00')], 'pm'),
+                                  ([('14:00', '18:00')], 'am'),
+                                  ([('09:00', '13:00'), ('14:00', '18:00')], False), ([], False)]:
+            employee, contract, line = self.regular_worker(punches=punches)
+            action = self.env['bambus.hr.attendance.sheet'].create_half_day_leave(employee.id, line.date)
+            self.assertEqual(action['context']['default_period'], expected)
+            self.assertFalse(self.env['hr.leave'].search([('employee_id', '=', employee.id)]))
+
+    def test_salary_multiplier_detail_explains_saved_amount_after_wage_change(self):
+        employee, contract, line = self.worker('monthly')
+        self.wizard(line).action_save()
+        original = line.overtime_amount
+        contract.wage = 6000
+        slip = self.slip(employee, contract)
+        detail = slip.attendance_earning_detail_ids
+        self.assertEqual(detail.calculation_type, 'salary_1_5')
+        self.assertAlmostEqual(detail.rate * detail.hours, original)
+        self.assertEqual(detail.rate_unit, 'per hour')
+        self.assertAlmostEqual(line.overtime_amount, original)
+
+    def test_half_day_leave_paid_and_unpaid_follow_normal_approval(self):
+        for wage_type in ('monthly', 'daily'):
+            for paid in (True, False):
+                with self.subTest(wage_type=wage_type, paid=paid):
+                    employee, contract, line = self.regular_worker(wage_type, punches=[('09:00', '13:00')])
+                    leave_type = self.env['hr.leave.type'].create({'name': 'Half Paid' if paid else 'Half Unpaid',
+                        'request_unit': 'half_day', 'requires_allocation': 'no', 'unpaid': not paid,
+                        'leave_validation_type': 'hr'})
+                    action = self.env['bambus.hr.attendance.sheet'].prepare_half_day_leave(employee.id, line.date)
+                    wizard = self.env[action['res_model']].with_context(**action['context']).create({'leave_type_id': leave_type.id})
+                    wizard.action_confirm()
+                    leave = self.env['hr.leave'].search([('employee_id', '=', employee.id)])
+                    self.assertEqual(leave.state, 'confirm')
+                    self.assertEqual(leave.request_date_from_period, 'pm')
+                    slip = self.slip(employee, contract, line.date)
+                    self.assertEqual(slip.total_regular_pay_amount, 50)
+                    leave.action_approve()
+                    if leave.state != 'validate':
+                        leave.action_validate()
+                    slip.action_compute_sheet()
+                    self.assertEqual(slip.total_regular_pay_amount, 100 if paid else 50)
+                    self.assertEqual(sum(line._review_attendances().mapped('worked_hours')), 4)
+
+    def test_hourly_does_not_receive_reviewed_day_credit(self):
+        employee, contract, line = self.regular_worker('hourly')
+        self.assertIsNone(employee._attendance_exception_components(line.date))
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+        self.assertAlmostEqual(self.slip(employee, contract, line.date).total_regular_pay_amount, 7.25 * 12.5)
+
+    def test_legacy_fine_decisions_are_not_doubled_or_given_guessed_coverage(self):
+        employee, contract, line = self.regular_worker()
+        line.write({'fine_state': 'approved', 'fine_hours': .5, 'fine_amount': 10,
+                    'fine_review_data': {'late': {'state': 'approved', 'hours': .5,
+                        'amount': 10, 'calculation_type': 'fixed', 'rate': 10}}})
+        review = self.wizard(line)
+        self.assertEqual(review.fine_line_ids.mapped('kind'), ['late'])
+        review.action_save()
+        self.assertEqual(line.fine_amount, 10)
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+
+    def test_approved_fine_components_retain_independent_methods_in_payslip(self):
+        employee, contract, line = self.regular_worker()
+        review = self.wizard(line)
+        late = review.fine_line_ids.filtered(lambda row: row.kind == 'late_am')
+        late.write({'hours': .1, 'calculation_type': 'fixed', 'rate': 3})
+        review.action_save()
+        slip = self.slip(employee, contract, line.date)
+        details = slip.attendance_deduction_detail_ids
+        self.assertEqual(set(details.mapped('calculation_type')), {'fixed', 'salary_minute'})
+        per_minute = details.filtered(lambda row: row.calculation_type == 'salary_minute')
+        self.assertEqual(per_minute.rate_unit, 'per minute')
+        self.assertEqual(line.currency_id.round(per_minute.rate * per_minute.hours * 60), per_minute.amount)
+        self.assertAlmostEqual(sum(details.mapped('amount')), slip.total_fine_amount)
+        self.assertEqual(slip.total_working_days, 1)
+
+    def test_day_credit_respects_effective_template_and_special_dates(self):
+        employee, contract, line = self.regular_worker()
+        review = self.wizard(line)
+        review.fine_line_ids.unlink()
+        review.action_save()
+        company_template = self.template.copy({'name': 'Reviewed Company Fallback'})
+        self.env.company.attendance_automation_template_id = company_template
+        self.template.date_from = '2026-10-01'
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 8)
+        company_template.reviewed_exception_day_pay = 'actual'
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+        company_template.reviewed_exception_day_pay = 'regularize'
+        company_template.write({'weekly_off_sunday': False, 'weekly_off_monday': True})
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+        company_template.weekly_off_monday = False
+        holiday = self.env['resource.calendar.leaves'].create({'name': 'Reviewed Holiday',
+            'calendar_id': self.calendar.id, 'date_from': '2026-09-28 00:00:00', 'date_to': '2026-09-28 23:59:59'})
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+        holiday.unlink()
+        contract.date_start = '2026-10-01'
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+
+    def test_unreviewed_seconds_do_not_get_implicit_tolerance(self):
+        employee, contract, line = self.regular_worker(punches=[('09:00', '13:00'), ('14:00', '18:00')])
+        line._review_attendances()[0].check_in = '2026-09-28 09:00:03'
+        actual = sum(line._review_attendances().mapped('worked_hours'))
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, actual), actual)
+        self.assertLess(actual, 8)
+        self.assertEqual(self.slip(employee, contract, line.date).total_working_days, .5)
+
+    def test_day_credit_excludes_leave_intervals_and_open_punches(self):
+        employee, contract, line = self.regular_worker()
+        self.wizard(line).action_save()
+        leave_type = self.env['hr.leave.type'].create({'name': 'Reviewed Unpaid Half',
+            'request_unit': 'half_day', 'requires_allocation': 'no', 'unpaid': True})
+        self.env['hr.leave'].create({'employee_id': employee.id, 'holiday_status_id': leave_type.id,
+            'request_date_from': line.date, 'request_date_to': line.date,
+            'request_unit_half': True, 'request_date_from_period': 'pm'})
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.5)
+        line._review_attendances()[-1].check_out = False
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+
+    def test_half_leave_inference_uses_calendar_period_not_punch_order_or_noon(self):
+        employee, contract, line = self.regular_worker(punches=[('12:00', '13:00')])
+        morning = self.calendar.attendance_ids.filtered(lambda rule: rule.day_period == 'morning')
+        morning.hour_to = 11
+        self.calendar.attendance_ids = [(0, 0, {'name': 'Later Morning', 'dayofweek': '0',
+            'day_period': 'morning', 'hour_from': 11, 'hour_to': 13})]
+        action = self.env['bambus.hr.attendance.sheet'].prepare_half_day_leave(employee.id, line.date)
+        self.assertEqual(action['context']['default_period'], 'pm')
+
+    def test_legacy_session_reassessment_requires_new_approval_and_keeps_previous_audit(self):
+        employee, contract, line = self.regular_worker()
+        line.write({'fine_state': 'approved', 'fine_hours': .5, 'fine_amount': 10,
+                    'overtime_state': 'approved', 'overtime_hours': 1, 'overtime_amount': 75,
+                    'fine_calculation_type': 'fixed', 'fine_rate': 10,
+                    'fine_review_data': {'late': {'state': 'approved', 'hours': .5,
+                        'amount': 10, 'calculation_type': 'fixed', 'rate': 10}}})
+        dashboard = self.env['bambus.hr.attendance.sheet']
+        current = dashboard.get_dashboard_review(employee.id, line.date)
+        self.assertTrue(current['can_review_sessions'])
+        payload = dashboard.get_dashboard_review(employee.id, line.date, True)
+        self.assertTrue(payload['resplit_fines'])
+        self.assertEqual({item['label'] for item in payload['items']}, {'First Half: Late Entry', 'Second Half: Early Exit'})
+        self.assertEqual(line.fine_amount, 10)  # Opening/Cancel does not replace approval.
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 7.25)
+        dashboard.save_dashboard_review(payload['wizard_id'], [])
+        self.assertEqual(line.fine_state, 'rejected')
+        self.assertEqual(line.fine_amount, 0)
+        self.assertEqual((line.overtime_state, line.overtime_hours, line.overtime_amount), ('approved', 1, 75))
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 8)
+        audit = self.env['bambus.hr.attendance.time.audit'].search([('employee_id', '=', employee.id)], limit=1)
+        self.assertEqual(audit.previous_fine_review['amount'], 10)
+        self.assertIn('late', audit.previous_fine_review['decisions'])
+        self.assertFalse(dashboard.get_dashboard_review(employee.id, line.date)['can_review_sessions'])
+
+    def test_split_morning_review_components_stay_in_first_half(self):
+        employee, contract, line = self.regular_worker(punches=[])
+        morning = self.calendar.attendance_ids.filtered(lambda rule: rule.day_period == 'morning')
+        morning.hour_to = 11
+        self.calendar.attendance_ids = [(0, 0, {'name': 'Later Morning', 'dayofweek': '0',
+            'day_period': 'morning', 'hour_from': 11, 'hour_to': 13})]
+        for start, end in [('09:15', '10:45'), ('11:15', '13:00'), ('14:00', '18:00')]:
+            self.env['hr.attendance'].create({'employee_id': employee.id,
+                'check_in': '2026-09-28 ' + start + ':00', 'check_out': '2026-09-28 ' + end + ':00'})
+        line.action_refresh()
+        review = self.wizard(line)
+        self.assertEqual(set(review.fine_line_ids.mapped('kind')), {'late_am', 'early_am'})
+        review.fine_line_ids.unlink()
+        review.action_save()
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 7.25), 8)

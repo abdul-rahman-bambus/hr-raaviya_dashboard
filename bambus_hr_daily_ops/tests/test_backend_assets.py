@@ -179,7 +179,7 @@ class TestBackendAssets(TransactionCase):
         self.assertIn("this.toggleAbsent(employee)", editor_template)
         self.assertIn("this.toggleLeave(employee)", editor_template)
         self.assertIn("applyStatusTransition", editor_source)
-        self.assertIn("openAdjustment(employee, adjustment)", editor_source)
+        self.assertIn("openAdjustment(employee, adjustment, reviewSessions = false)", editor_source)
         self.assertIn('"get_dashboard_adjustment"', editor_source)
         self.assertIn('"save_dashboard_adjustment"', editor_source)
         self.assertIn('class="o_baa_modal"', editor_template)

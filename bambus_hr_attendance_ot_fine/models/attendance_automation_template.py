@@ -36,6 +36,13 @@ class AttendanceAutomationTemplate(models.Model):
     employee_count = fields.Integer(compute="_compute_employee_count")
 
     late_enabled = fields.Boolean(string="Late Entry Rule", default=True)
+    reviewed_exception_day_pay = fields.Selection([
+        ('actual', 'Use Actual Worked Hours'),
+        ('regularize', 'Regularize Reviewed Exception Time'),
+    ], string="Day Pay for Reviewed Attendance Exceptions", required=True, default='actual',
+       help="Monthly/Daily only. Regularize adds the scheduled time covered by saved "
+            "HR-approved or ignored exceptions to day classification. Approved fines "
+            "are still deducted. Actual punches and Hourly pay stay unchanged.")
     late_grace_minutes = fields.Integer(string="Late Entry Grace (Minutes)", default=0)
     post_break_grace_minutes = fields.Integer(
         string="Post-Break Late Grace (Minutes)",

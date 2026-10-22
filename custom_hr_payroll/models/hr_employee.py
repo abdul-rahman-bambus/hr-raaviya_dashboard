@@ -42,6 +42,18 @@ class HrEmployee(models.Model):
         self.ensure_one()
         return not self._get_attendance_work_periods(day)
 
+    def _get_attendance_day_pay_hours(self, day, worked_hours):
+        """Classification hours; extensions may add explicitly excused time.
+
+        Actual attendance/hourly billable hours must never use this value.
+        """
+        self.ensure_one()
+        return float(worked_hours or 0.0)
+
+    def _attendance_exception_components(self, day):
+        """Optional session review engine supplied by the HR dashboard module."""
+        return None
+
     def _is_paid_attendance_weekly_off(self, day, contract):
         """Normal day credit; callers exclude overlapping public holidays."""
         self.ensure_one()

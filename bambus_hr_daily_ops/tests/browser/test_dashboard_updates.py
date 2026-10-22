@@ -231,6 +231,68 @@ class DashboardUpdates(unittest.TestCase):
         self.assertTrue(self.page.evaluate('row.isConnected'))
         self.assertEqual(self.page.get_by_role('dialog').count(), 0)
 
+    def test_last_approval_clears_review_filter_and_preserves_date(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate("""() => {
+            component.state.statusFilter = 'overtime_review';
+            component.state.data.daily_attendance[0].overtime_review_pending = true;
+            component.state.adjustment = {wizard_id: 1, adjustment: 'review', date: '2026-10-07',
+                employee: 'Employee 1', items: [], employeeRecord: component.state.data.daily_attendance[0]};
+            component.saveAdjustment();
+        }""")
+        self.page.evaluate('requests[1].resolve({})')
+        self.tick()
+        self.page.evaluate("requests[2].resolve(dailyData('2026-10-07'))")
+        self.tick()
+        self.assertEqual(self.page.evaluate('component.state.statusFilter'), 'all')
+        self.assertEqual(self.page.evaluate('component.state.selectedDate'), '2026-10-07')
+        self.assertGreater(self.page.locator('.o_bae_employee').count(), 0)
+
+    def test_review_moves_to_remaining_fines_instead_of_empty_ot_filter(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate("""() => {
+            component.state.statusFilter = 'overtime_review';
+            component.syncEmployee(component.state.data.daily_attendance[0], '2026-10-07', true);
+        }""")
+        self.page.evaluate("""() => {
+            const data = dailyData('2026-10-07'); data.daily_attendance[0].fine_review_pending = true;
+            requests[1].resolve(data);
+        }""")
+        self.tick()
+        self.assertEqual(self.page.evaluate('component.state.statusFilter'), 'fine_review')
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 1)
+
+    def test_half_day_button_opens_confirmation_without_optimistic_leave(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate("""() => {
+            window.openedActions = [];
+            services.action.doAction = (action, options) => openedActions.push({action, options});
+            component.createHalfDayLeave(component.state.data.daily_attendance[0]);
+        }""")
+        self.assertEqual(self.page.evaluate('requests[1].args[1]'), 'create_half_day_leave')
+        self.page.evaluate("requests[1].resolve({type: 'ir.actions.act_window', res_model: 'bambus.hr.half.day.leave.wizard', context: {default_period: 'pm'}})")
+        self.tick()
+        self.assertEqual(self.page.evaluate('openedActions[0].action.context.default_period'), 'pm')
+        self.assertEqual(self.page.evaluate('component.state.data.daily_attendance[0].status'), 'present')
+
+    def test_legacy_session_review_opens_proposals_without_saving(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate("""() => {
+            component.state.adjustment = {wizard_id: 1, adjustment: 'review', date: '2026-10-07',
+                employee: 'Employee 1', employeeRecord: component.state.data.daily_attendance[0],
+                can_review_sessions: true, items: []};
+        }""")
+        self.tick()
+        self.page.get_by_role('button', name='Review Session Exceptions', exact=True).click()
+        self.assertEqual(self.page.evaluate('requests[1].args[2]'), [1, '2026-10-07', True])
+        self.page.evaluate("""requests[1].resolve({wizard_id: 2, adjustment: 'review', date: '2026-10-07',
+            employee: 'Employee 1', resplit_fines: true, previous_fine_amount: 10, items: [],
+            currency: {symbol: '₹', position: 'before', decimal_places: 2}})""")
+        self.tick()
+        self.assertIn('replaces the previous fine decisions', self.page.get_by_role('dialog').inner_text())
+        self.page.get_by_role('button', name='Cancel', exact=True).click()
+        self.assertEqual(self.page.evaluate('requests.length'), 2)
+
     def test_combined_review_scrolls_body_and_keeps_buttons_visible(self):
         self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")

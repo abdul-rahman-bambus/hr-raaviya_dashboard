@@ -7,3 +7,5 @@ from . import hr_payslip
 from . import salary_revision
 
 from . import attendance_review
+from . import attendance_exceptions
+from . import half_day_leave

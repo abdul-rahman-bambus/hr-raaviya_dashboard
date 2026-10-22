@@ -308,41 +308,23 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertEqual(line.hourly_pay_hours, 7)
         self.assertEqual(line.hourly_pay_amount, 175)
 
-    def test_half_day_action_creates_and_confirms_unpaid_leave(self):
-        employee = self.env["hr.employee"].create({
-            "name": "Half Day Employee",
-            "company_id": self.env.company.id,
-        })
+    def test_half_day_action_requires_explicit_period_and_type(self):
+        employee = self.env['hr.employee'].create({'name': 'Half Day Employee', 'company_id': self.env.company.id})
         today = fields.Date.context_today(employee)
-
-        result = self.env["bambus.hr.attendance.sheet"].create_half_day_leave(
-            employee.id,
-            fields.Date.to_string(today),
-        )
-
-        leave = self.env["hr.leave"].browse(result["leave_id"])
-        self.assertEqual(leave.employee_id, employee)
-        self.assertIn("unpaid", leave.holiday_status_id.name.lower())
-        self.assertTrue(
-            not leave.holiday_status_id.company_id
-            or leave.holiday_status_id.company_id == employee.company_id
-        )
+        action = self.env['bambus.hr.attendance.sheet'].create_half_day_leave(employee.id, today)
+        self.assertEqual(action['res_model'], 'bambus.hr.half.day.leave.wizard')
+        self.assertFalse(action['context']['default_period'])
+        self.assertFalse(self.env['hr.leave'].search([('employee_id', '=', employee.id)]))
+        wizard = self.env[action['res_model']].with_context(**action['context']).create({
+            'period': 'pm', 'leave_type_id': self.env.ref('hr_holidays.holiday_status_unpaid').id})
+        wizard.action_confirm()
+        leave = self.env['hr.leave'].search([('employee_id', '=', employee.id)])
         self.assertTrue(leave.request_unit_half)
-        self.assertEqual(leave.request_date_from_period, "am")
-        self.assertIn(leave.state, ("confirm", "validate1", "validate"))
-
-        self.env["bambus.hr.attendance.sheet"].revoke_dashboard_status(
-            employee.id,
-            fields.Date.to_string(today),
-            "halfday",
-        )
-        self.assertTrue(leave.exists())
-        self.assertEqual(leave.state, "cancel")
-        sheet = self.env["bambus.hr.attendance.sheet"].search([
-            ("date", "=", today),
-            ("company_id", "=", self.env.company.id),
-        ], limit=1)
-        self.assertFalse(sheet.line_ids.filtered(lambda line: line.employee_id == employee))
+        self.assertEqual(leave.request_date_from_period, 'pm')
+        self.assertIn(leave.state, ('confirm', 'validate1', 'validate'))
+        self.assertEqual(self.env['bambus.hr.attendance.sheet'].create_half_day_leave(employee.id, today)['res_id'], leave.id)
+        with self.assertRaises(UserError):
+            wizard.action_confirm()
 
     def test_absent_status_can_be_revoked(self):
         employee = self.env["hr.employee"].create({
