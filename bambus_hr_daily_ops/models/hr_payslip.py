@@ -41,6 +41,7 @@ class HrPayslip(models.Model):
             )
 
     def action_compute_sheet(self):
+        self = self.filtered(lambda slip: slip.state in ('draft', 'verify'))
         result = super().action_compute_sheet()
         self._bambus_rebuild_attendance_details()
         return result
@@ -123,11 +124,7 @@ class HrPayslip(models.Model):
                     overtime_hours = review.overtime_hours or 0.0
                     overtime_amount = review.overtime_amount or 0.0
                     overtime_type = review.overtime_calculation_type
-                    overtime_rate = (
-                        review.overtime_rate
-                        or review.overtime_resolved_rate
-                        or (overtime_amount / overtime_hours if overtime_hours else 0.0)
-                    )
+                    overtime_rate = self._bambus_detail_rate(overtime_type, overtime_hours, overtime_amount, review.overtime_rate)
                     overtime_state = "approved"
                 elif review and review.overtime_state == "rejected":
                     overtime_hours = 0.0
@@ -189,6 +186,7 @@ class HrPayslip(models.Model):
                 elif review and review.fine_state == "submitted":
                     fine_state = "pending"
 
+                fine_rate_amount = fine_amount
                 if template and fine_state != 'approved':
                     fine_amount = 0.0
                     fine_state = 'pending'
@@ -214,12 +212,12 @@ class HrPayslip(models.Model):
                             )
                         )
                     if review and review.fine_review_data:
-                        labels = {'late': 'Late Entry', 'break': 'Break / Gap', 'early': 'Early Exit', 'fine': 'Attendance Fine'}
+                        labels = dict(self.env['bambus.hr.attendance.review.fine']._fields['kind']._description_selection(self.env))
                         components = [
-                            "%s %s" % (labels[kind], self._bambus_duration_label(value['hours']))
+                            "%s %s" % (labels.get(kind, kind), self._bambus_duration_label(value['hours']))
                             for kind, value in review.fine_review_data.items() if value.get('state') == 'approved'
                         ]
-                    values_list.append({
+                    fine_values = {
                         "payslip_id": payslip.id,
                         "date": day,
                         "category": "deduction",
@@ -227,7 +225,7 @@ class HrPayslip(models.Model):
                         "hours": fine_hours,
                         "amount": fine_amount,
                         "calculation_type": fine_type,
-                        "rate": fine_rate,
+                        "rate": self._bambus_detail_rate(fine_type, fine_hours, fine_rate_amount, fine_rate),
                         "description": ", ".join(components) or (
                             "Attendance Fine %s" % self._bambus_duration_label(fine_hours)
                         ),
@@ -235,10 +233,39 @@ class HrPayslip(models.Model):
                         "source_line_id": review.id if review else False,
                         "reviewed_by_id": review.fine_updated_by_id.id if review else False,
                         "reviewed_on": review.fine_updated_on if review else False,
-                    })
+                    }
+                    if review and review.fine_review_data and fine_state == 'approved':
+                        # A combined approval can contain different methods per
+                        # session. Retain those methods/amounts in payroll detail.
+                        for kind, decision in review.fine_review_data.items():
+                            if decision.get('state') != 'approved':
+                                continue
+                            hours, amount = decision.get('hours', 0), decision.get('amount', 0)
+                            calculation = decision.get('calculation_type', 'fixed')
+                            values_list.append(dict(fine_values, hours=hours, amount=amount,
+                                calculation_type=calculation,
+                                rate=self._bambus_detail_rate(calculation, hours, amount, decision.get('rate', 0)),
+                                description='%s %s' % (labels.get(kind, kind), self._bambus_duration_label(hours))))
+                    else:
+                        values_list.append(fine_values)
 
             if values_list:
                 detail_model.create(values_list)
+
+    @api.model
+    def _bambus_detail_rate(self, calculation, hours, amount, stored_rate=0):
+        """Explain a saved amount without applying today's wage/template again."""
+        if calculation == 'salary_minute':
+            return amount / (hours * 60) if hours else 0
+        if calculation in ('salary_1', 'salary_1_5', 'salary_2'):
+            return amount / hours if hours else 0
+        if calculation == 'fixed_hour':
+            return amount / hours if hours else stored_rate
+        if calculation in ('fixed', 'half_day', 'full_day'):
+            return amount
+        if calculation == 'regularize':
+            return 0
+        return stored_rate
 
     def _bambus_hourly_billable_hours(self, employee, contract, date_from, date_to):
         """Use HR-approved daily payable hours with the effective daily hour cap."""
@@ -340,7 +367,15 @@ class HrPayslipAttendanceDetail(models.Model):
         ("salary_1_5", "1.5x Salary"),
         ("salary_2", "2x Salary"),
     ], string="Calculation")
-    rate = fields.Monetary(currency_field="currency_id")
+    rate = fields.Float(string="Rate / Amount", digits=(16, 6))
+    rate_unit = fields.Char(string="Unit", compute='_compute_rate_unit')
+
+    @api.depends('calculation_type')
+    def _compute_rate_unit(self):
+        for detail in self:
+            detail.rate_unit = ('per minute' if detail.calculation_type == 'salary_minute' else
+                                'per hour' if detail.calculation_type in ('fixed_hour', 'salary_1', 'salary_1_5', 'salary_2') else
+                                'no charge' if detail.calculation_type == 'regularize' else 'amount')
     description = fields.Char(required=True)
     display_description = fields.Char(
         string="Description", compute="_compute_display_classification"

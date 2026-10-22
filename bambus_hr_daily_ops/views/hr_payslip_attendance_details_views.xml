@@ -64,7 +64,8 @@
               <field name="date" string="Entry Date"/>
               <field name="duration_display"/>
               <field name="calculation_type" optional="show"/>
-              <field name="rate" widget="monetary" optional="show"/>
+              <field name="rate" optional="show"/>
+              <field name="rate_unit"/>
               <field name="amount" widget="monetary" sum="Total Earnings"/>
               <field name="display_description" string="Description"/>
               <field name="review_state" widget="badge"/>
@@ -83,7 +84,8 @@
               <field name="date" string="Entry Date"/>
               <field name="duration_display"/>
               <field name="calculation_type" optional="show"/>
-              <field name="rate" widget="monetary" optional="show"/>
+              <field name="rate" optional="show"/>
+              <field name="rate_unit"/>
               <field name="amount" widget="monetary" sum="Total Deductions"/>
               <field name="display_description" string="Description"/>
               <field name="review_state" widget="badge"/>

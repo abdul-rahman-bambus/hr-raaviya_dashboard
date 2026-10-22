@@ -206,3 +206,21 @@ Follow [three-wage manual acceptance](docs/MANUAL_PAYROLL_TEST.md). Verify typed
 BASIC header totals, both deduction sign conventions/refunds, separate Other
 Allowances, Daily worked special-day base pay, and saved-line preservation during
 upgrade. Confirm changing template flags alone does not rewrite saved salaries.
+
+## Reviewed attendance exceptions (22 October 2026)
+
+Monthly/Daily templates now offer **Day Pay for Reviewed Attendance Exceptions**.
+The default keeps actual-hours classification. Opting into **Regularize Reviewed
+Exception Time** lets saved session-specific HR decisions cover missing scheduled
+time for day pay, while approved fines remain separate and punches stay intact.
+Hourly rules retain their own payable-hour review. Half Day Leave now suggests
+the missing half and asks HR to confirm the half and paid/unpaid Time Off type.
+The last approval clears the review filter; rate displays include correct units.
+No threshold tolerance change is included.
+
+See [configuration, manual cases and upgrade versions](docs/REVIEWED_EXCEPTION_DAY_PAY.md).
+
+Candidate validation (22 October): **204 backend tests**, **14 OWL Chromium tests**
+and both installed combined-review/reviewed-day-pay checks passed. The final
+focused exception suite passed **37 cases** after the last interval guard change.
+See the linked guide for entries, expected amounts and deferred tolerance work.

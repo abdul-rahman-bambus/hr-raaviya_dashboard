@@ -16,3 +16,4 @@ access_payslip_attendance_detail_user,payslip attendance detail user,model_bambu
 access_payslip_attendance_detail_manager,payslip attendance detail manager,model_bambus_hr_payslip_attendance_detail,hr.group_hr_manager,1,1,1,1
 access_attendance_review_wizard,attendance review wizard,model_bambus_hr_attendance_review_wizard,hr.group_hr_user,1,1,1,1
 access_attendance_review_fine,attendance review fine,model_bambus_hr_attendance_review_fine,hr.group_hr_user,1,1,1,1
+access_half_day_leave_wizard,half day leave wizard,model_bambus_hr_half_day_leave_wizard,hr.group_hr_user,1,1,1,1

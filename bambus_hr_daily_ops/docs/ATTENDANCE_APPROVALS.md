@@ -247,3 +247,16 @@ approved snapshots, and recompute drafts instead of creating duplicates.
 
 See `bambus_hr_daily_ops/docs/MANUAL_PAYROLL_TEST.md` for the three-wage
 manual test entries and expected results.
+
+## Reviewed attendance exceptions (22 October 2026)
+
+Monthly/Daily templates now offer **Day Pay for Reviewed Attendance Exceptions**.
+The default keeps actual-hours classification. Opting into **Regularize Reviewed
+Exception Time** lets saved session-specific HR decisions cover missing scheduled
+time for day pay, while approved fines remain separate and punches stay intact.
+Hourly rules retain their own payable-hour review. Half Day Leave now suggests
+the missing half and asks HR to confirm the half and paid/unpaid Time Off type.
+The last approval clears the review filter; rate displays include correct units.
+No threshold tolerance change is included.
+
+See [configuration, manual cases and upgrade versions](REVIEWED_EXCEPTION_DAY_PAY.md).

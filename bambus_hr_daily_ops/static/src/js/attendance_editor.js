@@ -161,33 +161,15 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async createHalfDayLeave(employee) {
-        if (employee.status === "halfday" || (employee.leave_id && employee.leave_is_half_day)) {
-            await this.revokeStatus(employee, "halfday");
-            return;
-        }
-        if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
-            return;
-        }
+        if (!this.canEditAttendance || this.state.savingIds[employee.id]) return;
+        const date = this.state.data.date;
         this.state.savingIds[employee.id] = true;
         try {
-            const result = await this.orm.call(
-                "bambus.hr.attendance.sheet",
-                "create_half_day_leave",
-                [employee.id, this.state.data.date]
-            );
-            const previousStatus = employee.status;
-            employee.leave_id = result.leave_id;
-            employee.leave_is_half_day = true;
-            employee.status = "halfday";
-            employee.status_label = "Half Day";
-            this.applyStatusTransition(employee, previousStatus, "halfday");
-            this.notification.add(`${employee.name} half-day leave created and confirmed.`, {
-                type: "success",
-            });
+            const action = await this.orm.call("bambus.hr.attendance.sheet", "create_half_day_leave", [employee.id, date]);
+            if (date !== this.state.selectedDate) return;
+            await this.action.doAction(action, { onClose: () => this.syncEmployee(employee, date) });
         } catch (error) {
-            this.notification.add(error.cause?.message || error.message || "Unable to create half-day leave.", {
-                type: "danger",
-            });
+            this.notification.add(error.cause?.message || error.message || "Unable to open half-day leave.", {type: "danger"});
         } finally {
             this.state.savingIds[employee.id] = false;
         }
@@ -262,7 +244,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         });
     }
 
-    async syncEmployee(employee, date = this.state.data.date) {
+    async syncEmployee(employee, date = this.state.data.date, afterReview = false) {
         const sequence = this.loadSequence;
         try {
             const data = await this.orm.call(
@@ -279,6 +261,15 @@ export class AttendanceEditor extends AttendanceDashboard {
             this.state.data.metrics = data.metrics;
             this.state.data.departments = data.departments;
             this.state.data.shifts = data.shifts;
+            if (afterReview && ["overtime_review", "fine_review"].includes(this.state.statusFilter)) {
+                const pendingOT = data.daily_attendance.some(row => row.overtime_review_pending);
+                const pendingFine = data.daily_attendance.some(row => row.fine_review_pending);
+                const activePending = this.state.statusFilter === "overtime_review" ? pendingOT : pendingFine;
+                if (!activePending) {
+                    this.state.statusFilter = pendingOT ? "overtime_review" : pendingFine ? "fine_review" : "all";
+                    this.state.currentPage = 1;
+                }
+            }
         } catch (error) {
             this.notification.add(error.cause?.message || error.message || "Unable to refresh attendance.", {
                 type: "danger",
@@ -294,7 +285,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.logEmployee = null;
     }
 
-    async openAdjustment(employee, adjustment) {
+    async openAdjustment(employee, adjustment, reviewSessions = false) {
         const sequence = this.loadSequence;
         if (!this.canEditAttendance || this.state.savingIds[employee.id]) {
             return;
@@ -303,7 +294,8 @@ export class AttendanceEditor extends AttendanceDashboard {
             const data = await this.orm.call(
                 "bambus.hr.attendance.sheet",
                 adjustment === "hourly_pay" ? "get_dashboard_adjustment" : "get_dashboard_review",
-                adjustment === "hourly_pay" ? [employee.id, this.state.data.date, adjustment] : [employee.id, this.state.data.date]
+                adjustment === "hourly_pay" ? [employee.id, this.state.data.date, adjustment] :
+                    reviewSessions ? [employee.id, this.state.data.date, true] : [employee.id, this.state.data.date]
             );
             if (sequence !== this.loadSequence || !this.canEditAttendance) return;
             this.state.adjustment = { ...data, employeeRecord: employee, saving: false };
@@ -408,7 +400,7 @@ export class AttendanceEditor extends AttendanceDashboard {
             }
             const employee = adjustment.employeeRecord;
             this.state.adjustment = null;
-            await this.syncEmployee(employee);
+            await this.syncEmployee(employee, adjustment.date, true);
             this.notification.add(
                 `${adjustment.adjustment === "review" ? "Attendance adjustments" : adjustment.adjustment === "overtime" ? "Overtime" : (adjustment.adjustment === "hourly_pay" ? "Hourly pay" : "Late / fine")} saved for ${adjustment.employee}.`,
                 { type: "success" }

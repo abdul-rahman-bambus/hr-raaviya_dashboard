@@ -32,6 +32,7 @@ REGISTER = IDENTITY + [
     ('deductions', 'Total Deductions', 'money'), ('net', 'Net Pay', 'money'),
     ('pending', 'Pending Review Items', 'number'), ('issues', 'Review Flags', 'text'),
     ('weekly_off_leave', 'Paid Weekly-off Days', 'number'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number'),
+    ('regularized_hours', 'Reviewed Exception Hours (Current)', 'duration'),
 ]
 DAILY = IDENTITY + [
     ('payslip', 'Payslip', 'text'), ('date', 'Date', 'text'), ('classification', 'Day Classification', 'text'),
@@ -47,6 +48,7 @@ DAILY = IDENTITY + [
     ('reviewed_by', 'Reviewed By', 'text'), ('reviewed_on', 'Reviewed On', 'text'),
     ('paid_weekly_off', 'Normal Weekly-off Day Credit', 'number'),
     ('paid_public_holiday', 'Normal Public Holiday Day Credit', 'number'),
+    ('regularized_hours', 'Reviewed Exception Hours', 'duration'),
 ]
 EXCEPTIONS = IDENTITY + [('payslip', 'Payslip', 'text'), ('date', 'Date', 'text'),
                          ('issue', 'Review Item', 'text'), ('message', 'Details', 'text')]
@@ -65,7 +67,8 @@ LEGACY = [('number', 'S.No', 'number'), ('name', 'Staff Name', 'text'),
           ('overtime', 'System Overtime', 'money'), ('public_holiday_pay', 'Public Holiday Pay', 'money'),
           ('earnings', 'Total Earnings', 'money'), ('allowances', 'Other Allowances', 'money'),
           ('fine', 'System Fine', 'money'), ('deductions', 'Total Deductions', 'money'),
-          ('net', 'Net Pay Amount', 'money'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number')]
+          ('net', 'Net Pay Amount', 'money'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number'),
+          ('regularized_hours', 'Reviewed Exception Hours', 'number')]
 
 
 
@@ -168,7 +171,7 @@ class PayrollReviewReport(models.AbstractModel):
         output = []
         salary_keys = ('basic', 'all_allowances', 'earnings', 'deductions', 'net', 'overtime', 'fine', 'public_holiday_pay')
         attendance_keys = ('payable_days', 'present', 'weekly_off_leave', 'paid_holiday_days', 'absent', 'holidays', 'weekly_off_worked', 'holiday_worked',
-                           'worked_hours', 'ot_hours', 'fine_hours')
+                           'worked_hours', 'ot_hours', 'fine_hours', 'regularized_hours')
         for employee_rows in grouped.values():
             merged = dict(employee_rows[0])
             for key in salary_keys:
@@ -401,6 +404,7 @@ class PayrollReviewReport(models.AbstractModel):
             counts['holidays'] += info['is_holiday']
             counts['holiday_worked'] += fraction if info['is_holiday'] else 0
             counts['worked_hours'] += info['worked']
+            counts['regularized_hours'] = counts.get('regularized_hours', 0) + info['regularized_hours']
             last = self.env['report.attendance_custom_report.attendance_xlsx']._last_attendance(attendance)
             snapshot = slip.attendance_detail_ids.filtered(lambda detail: detail.date == day)
             row = {**base, 'date': str(day), 'classification': classification, 'status': status,
@@ -410,7 +414,8 @@ class PayrollReviewReport(models.AbstractModel):
                    'policy': dict(template._fields['weekly_off_overtime_policy']._description_selection(self.env)).get(template.weekly_off_overtime_policy, '') if template else '',
                    'check_in': '; '.join(fields.Datetime.context_timestamp(self.with_context(tz=tzname), att.check_in).strftime('%H:%M') for att in attendance),
                    'check_out': '; '.join(fields.Datetime.context_timestamp(self.with_context(tz=tzname), att.check_out).strftime('%H:%M') if att.check_out else 'Missing' for att in attendance),
-                   'worked': info['worked'], 'ot_detected': sum(max(att.overtime_hours, 0) for att in attendance),
+                   'worked': info['worked'], 'regularized_hours': info['regularized_hours'],
+                   'ot_detected': sum(max(att.overtime_hours, 0) for att in attendance),
                    'ot_proposed_amount': sum(attendance.mapped('bambus_overtime_amount')),
                    'fine_detected': last.bambus_fine_hours if last else 0,
                    'fine_proposed_amount': last.bambus_fine_amount if last else 0,

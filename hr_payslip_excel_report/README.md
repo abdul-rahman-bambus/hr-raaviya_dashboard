@@ -121,3 +121,11 @@ restored theme/SaaS UI parity and client acceptance remain separate.
 python hr_payslip_excel_report/tests/browser/verify_wage_type_totals.py \
   --url http://localhost:8071 --db <test_database>
 ```
+
+## Reviewed exception day pay
+
+See [the coordinated upgrade and manual test guide](../bambus_hr_daily_ops/docs/REVIEWED_EXCEPTION_DAY_PAY.md).
+The opt-in Monthly/Daily policy preserves raw attendance, uses saved reviewed
+intervals for day classification, and retains saved fine amounts. Payroll exports
+append reviewed hours separately from actual work. Recompute existing drafts;
+exports do not calculate salary. Threshold tolerance is outside this change.

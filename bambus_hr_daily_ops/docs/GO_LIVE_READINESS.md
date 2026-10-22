@@ -1,7 +1,7 @@
 # Attendance and payroll go-live readiness
 
 Original target: **Monday 19 October 2026**, client timezone Asia/Kolkata.
-Latest review: **20 October 2026**. Production deployment and client sign-off are
+Latest review: **22 October 2026**. Production deployment and client sign-off are
 not established by the local test results recorded here.
 
 ## Status
@@ -183,3 +183,18 @@ Present overrides and pending adjustments, and execute the client manual cases.
 Dashboard time editing still does not create/update actual punch records; that
 separate documented blocker remains open. No deployment or cash-payment approval
 is implied by these results.
+
+## Reviewed exception candidate (22 October)
+
+See [the reviewed exception guide](REVIEWED_EXCEPTION_DAY_PAY.md). The new
+Monthly/Daily option defaults off; HR-reviewed intervals can restore day pay
+without changing punches. Explicit half-day confirmation, approval navigation,
+saved-rate units and report reviewed-hour columns are included. Threshold
+seconds/tolerance and the dashboard-only punch-entry gap remain separate open
+items. Existing aggregate approvals are not backfilled with guessed intervals.
+Production deployment and client acceptance are still pending.
+
+Candidate evidence: 204 backend tests, 14 production OWL Chromium tests, final
+37-case reviewed-exception suite, and installed checks for three wages, native
+combined review, legacy reassessment/audit, half-day confirmation and both XLSX
+exports passed. No production deployment is established by these checks.

@@ -91,6 +91,14 @@
                     </group>
                     <notebook>
                         <page string="Late &amp; Early Exit">
+                            <group string="Day Pay">
+                                <field name="reviewed_exception_day_pay"/>
+                                <div class="text-muted">
+                                    Monthly/Daily only. Regularize reviewed exception time for day pay;
+                                    approved fines remain separate. Actual punches are retained.
+                                    Review each session explicitly; missing halves require a leave decision.
+                                </div>
+                            </group>
                             <group>
                                 <group string="Late Entry">
                                     <field name="late_enabled"/>
