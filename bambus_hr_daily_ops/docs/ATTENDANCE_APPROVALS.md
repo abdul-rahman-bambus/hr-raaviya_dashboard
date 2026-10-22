@@ -260,3 +260,12 @@ The last approval clears the review filter; rate displays include correct units.
 No threshold tolerance change is included.
 
 See [configuration, manual cases and upgrade versions](REVIEWED_EXCEPTION_DAY_PAY.md).
+
+### Daily Attendance return navigation
+
+Version **18.0.1.85.0** adds a **Daily Attendance** button beside the date/History
+controls whenever a filter or search is active. It clears that filter/search and
+resets the page while preserving the selected date. After the last review is
+saved, automatic return now covers **Late / Fine** and **Overtime**, as well as
+the **To Review** filters. Remaining reviews still take priority. Upgrade the
+daily-operations module and reload the web client to load the new assets.

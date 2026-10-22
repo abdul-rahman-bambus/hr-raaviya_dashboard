@@ -248,6 +248,49 @@ class DashboardUpdates(unittest.TestCase):
         self.assertEqual(self.page.evaluate('component.state.selectedDate'), '2026-10-07')
         self.assertGreater(self.page.locator('.o_bae_employee').count(), 0)
 
+    def test_broad_fine_and_overtime_filters_return_after_last_approval(self):
+        for metric in ('fine', 'overtime'):
+            with self.subTest(metric=metric):
+                if metric == 'overtime':
+                    self.page.evaluate('app.destroy(); requests.length = 0')
+                self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+                self.page.evaluate("""metric => {
+                    component.openMetric(metric);
+                    const employee = component.state.data.daily_attendance[0];
+                    employee[metric + '_hours'] = .25;
+                    employee[metric + '_review_pending'] = true;
+                    component.state.adjustment = {wizard_id: 1, adjustment: 'review', date: '2026-10-07',
+                        employee: 'Employee 1', items: [], employeeRecord: employee};
+                    component.saveAdjustment();
+                }""", metric)
+                self.page.evaluate('requests[1].resolve({})')
+                self.tick()
+                self.page.evaluate("""metric => {
+                    const data = dailyData('2026-10-07');
+                    data.daily_attendance[0][metric + '_hours'] = .25;
+                    requests[2].resolve(data);
+                }""", metric)
+                self.tick()
+                self.assertEqual(self.page.evaluate('component.state.statusFilter'), 'all')
+                self.assertEqual(self.page.evaluate('component.state.selectedDate'), '2026-10-07')
+                self.assertEqual(self.page.locator('.o_bae_employee').count(), 25)
+
+    def test_daily_attendance_button_clears_filters_without_changing_date(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate("""() => {
+            component.openMetric('fine'); component.state.query = 'Employee 1';
+            component.state.currentPage = 2;
+        }""")
+        self.tick()
+        self.page.get_by_role('button', name='Daily Attendance', exact=True).click()
+        self.tick()
+        self.assertEqual(self.page.evaluate('component.state.statusFilter'), 'all')
+        self.assertEqual(self.page.evaluate('component.state.query'), '')
+        self.assertEqual(self.page.evaluate('component.state.currentPage'), 1)
+        self.assertEqual(self.page.evaluate('component.state.selectedDate'), '2026-10-07')
+        self.assertEqual(self.page.evaluate('requests.length'), 1)
+        self.assertEqual(self.page.get_by_role('button', name='Daily Attendance', exact=True).count(), 0)
+
     def test_review_moves_to_remaining_fines_instead_of_empty_ot_filter(self):
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")
         self.page.evaluate("""() => {

@@ -261,10 +261,10 @@ export class AttendanceEditor extends AttendanceDashboard {
             this.state.data.metrics = data.metrics;
             this.state.data.departments = data.departments;
             this.state.data.shifts = data.shifts;
-            if (afterReview && ["overtime_review", "fine_review"].includes(this.state.statusFilter)) {
+            if (afterReview && ["overtime", "fine", "overtime_review", "fine_review"].includes(this.state.statusFilter)) {
                 const pendingOT = data.daily_attendance.some(row => row.overtime_review_pending);
                 const pendingFine = data.daily_attendance.some(row => row.fine_review_pending);
-                const activePending = this.state.statusFilter === "overtime_review" ? pendingOT : pendingFine;
+                const activePending = this.state.statusFilter.startsWith("overtime") ? pendingOT : pendingFine;
                 if (!activePending) {
                     this.state.statusFilter = pendingOT ? "overtime_review" : pendingFine ? "fine_review" : "all";
                     this.state.currentPage = 1;
@@ -275,6 +275,12 @@ export class AttendanceEditor extends AttendanceDashboard {
                 type: "danger",
             });
         }
+    }
+
+    showDailyAttendance() {
+        this.state.statusFilter = "all";
+        this.state.query = "";
+        this.state.currentPage = 1;
     }
 
     openLogs(employee) {
