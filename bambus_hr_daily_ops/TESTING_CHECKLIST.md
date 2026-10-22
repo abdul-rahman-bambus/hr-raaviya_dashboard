@@ -238,3 +238,17 @@ Navigation follow-up validation: **16 production OWL Chromium tests** and
 **12 backend asset checks** passed. Installed-browser verification confirmed
 auto-return from the broader Late / Fine filter, the Daily Attendance button,
 selected-date retention, and the existing payroll/leave/export workflow.
+
+## Partial attendance salary policy
+
+See [the configuration/manual guide](docs/PARTIAL_ATTENDANCE_SALARY.md). Verify
+Daily 885 with 09:45–12:00 attendance gives Basic 885, approved six-hour fine
+643.64 and Net 241.36; one day and 2.25 actual hours must reach Worked Days.
+Repeat pending, ignored and HR-edited fines, Monthly calendar-month pricing,
+Hourly unchanged, whole absence/open/zero/outside-schedule punches, missing FN/AN,
+explicit paid/unpaid leave, special-day policies, mode changes and saved approvals.
+Compare both payroll XLSX exports and wage-specific BASIC rules/header amounts.
+
+Local validation: **224 backend tests** and **16 production OWL Chromium tests**
+passed. Installed-browser scripts passed sequentially with and without
+`--fine-only`, including native salary/deduction views and both XLSX downloads.

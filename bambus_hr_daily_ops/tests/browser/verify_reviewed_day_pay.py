@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--url', required=True)
     parser.add_argument('--db', required=True)
+    parser.add_argument('--fine-only', action='store_true', help='Verify normal day pay minus approved whole-day missing-time fines.')
     args = parser.parse_args()
     if 'test' not in args.db.lower():
         parser.error('Use an isolated database containing test in its name.')
@@ -54,6 +55,7 @@ def main():
                     (0, 0, {'name': 'AN', 'dayofweek': '0', 'day_period': 'afternoon', 'hour_from': 14.75, 'hour_to': 18.75})]})
             template = create('bambus.attendance.automation.template', {'name': 'Reviewed Pay Browser Policy',
                 'company_id': company, 'reviewed_exception_day_pay': 'regularize', 'full_day_basis': 'schedule',
+                'partial_attendance_salary_treatment': 'fine_only' if args.fine_only else 'thresholds',
                 'late_grace_minutes': 5, 'early_exit_enabled': True, 'fine_calculation_type': 'salary_minute',
                 'weekly_off_source': 'weekdays', 'weekly_off_sunday': True})
             rules = []
@@ -67,6 +69,7 @@ def main():
             structure = create('hr.payroll.structure', {'name': 'Reviewed Pay Browser Payroll', 'code': 'BROWSER_REVIEWED',
                 'parent_id': False, 'rule_ids': [(6, 0, rules)]})
             slips, lines = [], []
+            actual_hours = 2.25 if args.fine_only else 7.5
             for wage_type in ('monthly', 'daily', 'hourly'):
                 employee = create('hr.employee', {'name': 'Reviewed Browser ' + wage_type, 'company_id': company,
                     'resource_calendar_id': calendar, 'attendance_automation_template_id': template})
@@ -76,7 +79,8 @@ def main():
                     'wage_type': wage_type, 'wage': 8000, 'daily_wage': 885, 'hourly_rate': 53,
                     'resource_calendar_id': calendar, 'struct_id': structure})
                 # Asia/Kolkata 10:00-14:00 and 14:45-18:15, 7.5 actual hours.
-                for check_in, check_out in [('04:30:00', '08:30:00'), ('09:15:00', '12:45:00')]:
+                spans = [('04:15:00', '06:30:00')] if args.fine_only else [('04:30:00', '08:30:00'), ('09:15:00', '12:45:00')]
+                for check_in, check_out in spans:
                     create('hr.attendance', {'employee_id': employee, 'check_in': '2026-10-26 ' + check_in,
                                              'check_out': '2026-10-26 ' + check_out})
                 slip = create('hr.payslip', {'name': 'Reviewed Browser Payslip ' + wage_type, 'employee_id': employee,
@@ -84,13 +88,23 @@ def main():
                 slips.append(slip)
                 rpc('hr.payslip', 'action_compute_sheet', [[slip]])
                 before = read('hr.payslip', slip, ['total_regular_pay_amount', 'total_working_days'])
-                expected = 8000 / 31 / 2 if wage_type == 'monthly' else 885 / 2 if wage_type == 'daily' else 7.5 * 53
+                fraction = 1 if args.fine_only else .5
+                expected = 8000 / 31 * fraction if wage_type == 'monthly' else 885 * fraction if wage_type == 'daily' else actual_hours * 53
                 assert abs(before['total_regular_pay_amount'] - expected) < .01, before
                 if wage_type != 'hourly':
                     payload = rpc('bambus.hr.attendance.sheet', 'get_dashboard_review', [employee, '2026-10-26'])
-                    assert {item['label'] for item in payload['items']} == {'First Half: Late Entry', 'Second Half: Early Exit'}, payload
+                    labels = {'Early Exit Fine'} if args.fine_only else {'First Half: Late Entry', 'Second Half: Early Exit'}
+                    assert {item['label'] for item in payload['items']} == labels, payload
+                    if args.fine_only:
+                        assert payload['items'][0]['hours'] == 6, payload
                     line = read('bambus.hr.attendance.review.wizard', payload['wizard_id'], ['line_id'])['line_id'][0]
                     lines.append(line)
+
+            if args.fine_only:
+                dashboard = rpc('bambus.hr.attendance.sheet', 'get_attendance_dashboard', [], {'selected_date': '2026-10-26'})
+                for row in dashboard['daily_attendance']:
+                    if row['id'] in employees[:2]:
+                        assert row['fine_hours'] == 6, {key: row.get(key) for key in ('name', 'fine_hours', 'fine_review_pending', 'fine_enabled')}
 
             page = context.new_page(); errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
@@ -100,27 +114,37 @@ def main():
             action(page, {'type': 'ir.actions.act_window', 'res_model': 'bambus.attendance.automation.template',
                           'res_id': template, 'views': [[False, 'form']], 'target': 'current'})
             page.get_by_role('tab', name='Late & Early Exit', exact=True).click()
+            policy = page.locator('.o_field_widget[name="partial_attendance_salary_treatment"] select')
+            assert policy.input_value().strip('"') == ('fine_only' if args.fine_only else 'thresholds')
             selector = page.locator('.o_field_widget[name="reviewed_exception_day_pay"] select')
-            assert selector.input_value().strip('"') == 'regularize'
+            if args.fine_only:
+                assert not selector.is_visible()
+            else:
+                assert selector.input_value().strip('"') == 'regularize'
             # Exercise real dashboard review rows, Ignore and approval navigation.
             action(page, {'type': 'ir.actions.client', 'tag': 'bambus_attendance_editor',
                           'params': {'selected_date': '2026-10-26', 'metric_filter': 'fine'}})
+            page.get_by_placeholder('Search Staff by Name, Department or Schedule').fill('Reviewed Browser')
             for wage_type in ('monthly', 'daily'):
                 row = page.locator('.o_bae_employee').filter(has_text='Reviewed Browser ' + wage_type)
                 row.get_by_title('Review late / fine', exact=True).click()
                 modal = page.locator('.o_baa_modal')
-                modal.get_by_text('First Half: Late Entry', exact=True).wait_for()
-                # The first item is the morning cab delay; ignore it, keep PM fine.
-                modal.get_by_role('button', name='Delete / Ignore').first.click()
+                modal.get_by_text('Early Exit Fine' if args.fine_only else 'First Half: Late Entry', exact=True).wait_for()
+                if not args.fine_only:
+                    # Ignore morning cab delay; fine-only mode approves all six early-exit hours.
+                    modal.get_by_role('button', name='Delete / Ignore').first.click()
                 modal.get_by_role('button', name='Approve Remaining Items').click()
                 modal.wait_for(state='hidden')
             page.get_by_placeholder('Search Staff by Name, Department or Schedule').fill('Reviewed Browser')
             page.locator('.o_bae_employee').filter(has_text='Reviewed Browser hourly').wait_for()
             assert page.locator('input[type=date]').input_value() == '2026-10-26'
-            for index, expected in enumerate((8000 / 31, 885, 7.5 * 53)):
+            for index, expected in enumerate((8000 / 31, 885, actual_hours * 53)):
                 rpc('hr.payslip', 'action_compute_sheet', [[slips[index]]])
                 result = read('hr.payslip', slips[index], ['total_regular_pay_amount', 'total_fine_amount', 'total_working_days', 'attendance_deduction_detail_ids'])
                 assert abs(result['total_regular_pay_amount'] - expected) < .01, result
+                if args.fine_only:
+                    totals = read('hr.payslip', slips[index], ['basic_pay', 'net_pay'])
+                    assert abs(totals['net_pay'] - (70.38, 241.36, 119.25)[index]) < .01, totals
                 if index < 2:
                     assert result['total_working_days'] == 1, result
                     detail = read('bambus.hr.payslip.attendance.detail', result['attendance_deduction_detail_ids'][0], ['rate', 'rate_unit', 'hours', 'amount'])
@@ -141,33 +165,34 @@ def main():
                     strings = archive.read('xl/sharedStrings.xml').decode()
                     assert 'Reviewed Exception Hours' in strings
                     assert all('Reviewed Browser ' + kind in strings for kind in ('monthly', 'daily', 'hourly'))
-            # Existing aggregate approval: reassessment is explicit and Cancel preserves it.
-            rpc('bambus.hr.attendance.sheet.line', 'write', [[lines[0]], {
-                'fine_state': 'approved', 'fine_hours': .5, 'fine_amount': 10,
-                'fine_calculation_type': 'fixed', 'fine_rate': 10,
-                'fine_review_data': {'late': {'state': 'approved', 'hours': .5, 'amount': 10,
-                                             'calculation_type': 'fixed', 'rate': 10}}}])
-            action(page, {'type': 'ir.actions.client', 'tag': 'bambus_attendance_editor', 'params': {'selected_date': '2026-10-26'}})
-            page.get_by_placeholder('Search Staff by Name, Department or Schedule').fill('Reviewed Browser monthly')
-            row = page.locator('.o_bae_employee').filter(has_text='Reviewed Browser monthly')
-            row.get_by_title('Review late / fine', exact=True).click()
-            modal = page.locator('.o_baa_modal')
-            modal.get_by_role('button', name='Review Session Exceptions', exact=True).click()
-            modal.get_by_text('First Half: Late Entry', exact=True).wait_for()
-            assert 'replaces the previous fine decisions' in modal.inner_text()
-            modal.get_by_role('button', name='Cancel', exact=True).click()
-            assert read('bambus.hr.attendance.sheet.line', lines[0], ['fine_amount'])['fine_amount'] == 10
-            row.get_by_title('Review late / fine', exact=True).click()
-            modal.get_by_role('button', name='Review Session Exceptions', exact=True).click()
-            modal.get_by_text('First Half: Late Entry', exact=True).wait_for()
-            modal.get_by_role('button', name='Delete / Ignore').first.click()
-            modal.get_by_role('button', name='Delete / Ignore').first.click()
-            modal.get_by_role('button', name='Approve Remaining Items').click()
-            modal.wait_for(state='hidden')
-            assert read('bambus.hr.attendance.sheet.line', lines[0], ['fine_amount'])['fine_amount'] == 0
-            audit = rpc('bambus.hr.attendance.time.audit', 'search_read', [[['employee_id', '=', employees[0]]]],
-                        {'fields': ['previous_fine_review'], 'order': 'id desc', 'limit': 1})[0]
-            assert audit['previous_fine_review']['amount'] == 10
+            if not args.fine_only:
+                # Existing aggregate approval: reassessment is explicit and Cancel preserves it.
+                rpc('bambus.hr.attendance.sheet.line', 'write', [[lines[0]], {
+                    'fine_state': 'approved', 'fine_hours': .5, 'fine_amount': 10,
+                    'fine_calculation_type': 'fixed', 'fine_rate': 10,
+                    'fine_review_data': {'late': {'state': 'approved', 'hours': .5, 'amount': 10,
+                                                 'calculation_type': 'fixed', 'rate': 10}}}])
+                action(page, {'type': 'ir.actions.client', 'tag': 'bambus_attendance_editor', 'params': {'selected_date': '2026-10-26'}})
+                page.get_by_placeholder('Search Staff by Name, Department or Schedule').fill('Reviewed Browser monthly')
+                row = page.locator('.o_bae_employee').filter(has_text='Reviewed Browser monthly')
+                row.get_by_title('Review late / fine', exact=True).click()
+                modal = page.locator('.o_baa_modal')
+                modal.get_by_role('button', name='Review Session Exceptions', exact=True).click()
+                modal.get_by_text('First Half: Late Entry', exact=True).wait_for()
+                assert 'replaces the previous fine decisions' in modal.inner_text()
+                modal.get_by_role('button', name='Cancel', exact=True).click()
+                assert read('bambus.hr.attendance.sheet.line', lines[0], ['fine_amount'])['fine_amount'] == 10
+                row.get_by_title('Review late / fine', exact=True).click()
+                modal.get_by_role('button', name='Review Session Exceptions', exact=True).click()
+                modal.get_by_text('First Half: Late Entry', exact=True).wait_for()
+                modal.get_by_role('button', name='Delete / Ignore').first.click()
+                modal.get_by_role('button', name='Delete / Ignore').first.click()
+                modal.get_by_role('button', name='Approve Remaining Items').click()
+                modal.wait_for(state='hidden')
+                assert read('bambus.hr.attendance.sheet.line', lines[0], ['fine_amount'])['fine_amount'] == 0
+                audit = rpc('bambus.hr.attendance.time.audit', 'search_read', [[['employee_id', '=', employees[0]]]],
+                            {'fields': ['previous_fine_review'], 'order': 'id desc', 'limit': 1})[0]
+                assert audit['previous_fine_review']['amount'] == 10
 
             # New day: only FN exists, so button must suggest PM without creating a leave.
             # Existing employee's calendar has Monday only; use next Monday for inference.
@@ -189,7 +214,10 @@ def main():
             assert page.locator('.o_bad_filter_control select').input_value() == 'all'
             assert page.get_by_placeholder('Search Staff by Name, Department or Schedule').input_value() == ''
             assert not errors, errors
-            print('PASS: installed policy, separate session decisions, broad Late/Fine final-approval navigation and Daily Attendance button, Monthly/Daily day pay, unchanged Hourly hours, rate units, both XLSX exports, explicit legacy reassessment/Cancel/audit, PM half-leave suggestion and Cancel.')
+            if args.fine_only:
+                print('PASS: fine-only template selector, full day pay before approval, six-hour Early Exit Fine, Monthly net 70.38, Daily net 241.36, Hourly net 119.25, approval navigation, saved rate units, both XLSX exports, explicit half-leave suggestion/Cancel and Daily Attendance button.')
+            else:
+                print('PASS: installed policy, separate session decisions, broad Late/Fine final-approval navigation and Daily Attendance button, Monthly/Daily day pay, unchanged Hourly hours, rate units, both XLSX exports, explicit legacy reassessment/Cancel/audit, PM half-leave suggestion and Cancel.')
         finally:
             if employees:
                 daily_lines = rpc('bambus.hr.attendance.sheet.line', 'search', [[['employee_id', 'in', employees]]])

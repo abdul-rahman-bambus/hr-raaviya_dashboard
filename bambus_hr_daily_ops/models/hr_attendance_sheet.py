@@ -397,6 +397,12 @@ class BambusHrAttendanceSheet(models.Model):
                     attendance.bambus_fine_hours or 0.0
                     for attendance in employee_attendances
                 )
+            if employee._fine_only_attendance_context(day) is not None:
+                # Whole missing sessions belong to the date-wide proposal;
+                # legacy punch fines can omit a session with no punch.
+                employee_fine_hours = sum(
+                    item['hours'] for item in employee._attendance_exception_components(day).values()
+                )
             display_check_in = override.check_in if override else (min(check_ins) if check_ins else False)
             display_check_out = override.check_out if override else (max(check_outs) if check_outs else False)
             attendance_logs = []

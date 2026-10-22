@@ -92,8 +92,15 @@
                     <notebook>
                         <page string="Late &amp; Early Exit">
                             <group string="Day Pay">
-                                <field name="reviewed_exception_day_pay"/>
-                                <div class="text-muted">
+                                <field name="partial_attendance_salary_treatment"/>
+                                <div class="text-muted" invisible="partial_attendance_salary_treatment != 'fine_only'">
+                                    Monthly/Daily: an attended working date receives normal day pay.
+                                    Missing scheduled time, including a missing session, is proposed
+                                    under the enabled fine rules. Only approved fines are deducted.
+                                    Whole-day absence gives no attendance pay. No leave is created.
+                                </div>
+                                <field name="reviewed_exception_day_pay" invisible="partial_attendance_salary_treatment != 'thresholds'"/>
+                                <div class="text-muted" invisible="partial_attendance_salary_treatment != 'thresholds'">
                                     Monthly/Daily only. Regularize reviewed exception time for day pay;
                                     approved fines remain separate. Actual punches are retained.
                                     Review each session explicitly; missing halves require a leave decision.

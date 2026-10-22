@@ -36,6 +36,13 @@ class AttendanceAutomationTemplate(models.Model):
     employee_count = fields.Integer(compute="_compute_employee_count")
 
     late_enabled = fields.Boolean(string="Late Entry Rule", default=True)
+    partial_attendance_salary_treatment = fields.Selection([
+        ('thresholds', 'Use Half/Full-Day Thresholds'),
+        ('fine_only', 'Normal Day Pay Minus Approved Fines'),
+    ], string='Partial Attendance Salary Treatment', required=True, default='thresholds',
+       help='Monthly/Daily regular working dates only. Fine-only mode gives normal day pay '
+            'for completed positive attendance and deducts saved HR-approved fines separately. '
+            'Whole-day absence earns no attendance pay. Existing leave and special-day policies remain applicable.')
     reviewed_exception_day_pay = fields.Selection([
         ('actual', 'Use Actual Worked Hours'),
         ('regularize', 'Regularize Reviewed Exception Time'),

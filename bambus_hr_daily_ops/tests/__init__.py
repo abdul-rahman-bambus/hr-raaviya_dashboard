@@ -7,3 +7,5 @@ from . import test_unified_review
 from . import test_calendar_month_rates
 
 from . import test_paid_day_withholding
+
+from . import test_partial_salary_treatment

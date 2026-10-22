@@ -170,6 +170,7 @@ From this repository, with Playwright and Chromium installed:
 ODOO_SOURCE=/path/to/odoo python -m unittest discover -s bambus_hr_daily_ops/tests/browser -v
 python bambus_hr_daily_ops/tests/browser/verify_combined_review.py --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_reviewed_day_pay.py --url http://localhost:8071 --db <test_database>
+python bambus_hr_daily_ops/tests/browser/verify_reviewed_day_pay.py --fine-only --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_paid_special_days.py --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_paid_day_labels.py --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_paid_day_withholding.py --url http://localhost:8071 --db <test_database>
@@ -452,3 +453,14 @@ resets the page while preserving the selected date. After the last review is
 saved, automatic return now covers **Late / Fine** and **Overtime**, as well as
 the **To Review** filters. Remaining reviews still take priority. Upgrade the
 daily-operations module and reload the web client to load the new assets.
+
+## Partial attendance salary treatment
+
+Templates now offer **Use Half/Full-Day Thresholds** (existing behaviour) or
+**Normal Day Pay Minus Approved Fines** for Monthly/Daily regular working dates.
+The latter gives normal attendance-day pay for completed positive scheduled work
+and deducts only saved approved fines, including a missing session. Actual work
+hours, Hourly calculations, paid special-day policies and explicit leave remain
+separate. Recompute existing drafts after selecting the option.
+
+See [configuration, upgrade versions and expected payslip amounts](docs/PARTIAL_ATTENDANCE_SALARY.md).

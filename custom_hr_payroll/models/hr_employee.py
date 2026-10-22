@@ -54,6 +54,10 @@ class HrEmployee(models.Model):
         """Optional session review engine supplied by the HR dashboard module."""
         return None
 
+    def _get_attendance_day_fraction(self, day, worked_hours, half_day_hours, full_day_hours):
+        hours = self._get_attendance_day_pay_hours(day, worked_hours)
+        return 1.0 if hours >= full_day_hours else .5 if hours >= half_day_hours else 0.0
+
     def _is_paid_attendance_weekly_off(self, day, contract):
         """Normal day credit; callers exclude overlapping public holidays."""
         self.ensure_one()

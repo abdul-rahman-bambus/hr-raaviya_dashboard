@@ -80,6 +80,10 @@ class AttendanceReviewWizard(models.TransientModel):
                 # Older aggregate decisions have no trustworthy session split.
                 # Keep their money; do not add a second set of proposed fines.
                 components = {}
+            if template and template.partial_attendance_salary_treatment == 'fine_only' and snapshots:
+                # A mode change never adds new fine proposals alongside saved
+                # session approvals. HR can explicitly edit the saved decisions.
+                components = {}
             total = sum(components.values())
             detected = (last.bambus_fine_hours or 0) if last else 0
             if session_components is None and total and detected < total:
@@ -231,6 +235,9 @@ class AttendanceReviewLine(models.Model):
 
     def _can_review_session_fines(self):
         self.ensure_one()
+        template = self.employee_id._get_attendance_automation_template(self.date)
+        if template and template.partial_attendance_salary_treatment == 'fine_only':
+            return False
         return bool((any(key in (self.fine_review_data or {}) for key in ('late', 'early', 'break', 'fine'))
                      or (not self.fine_review_data and self.fine_state in ('approved', 'rejected')))
                     and self.employee_id._attendance_exception_components(self.date))

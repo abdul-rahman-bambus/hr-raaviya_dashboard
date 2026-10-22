@@ -48,6 +48,7 @@ class ReviewedExceptionEmployee(models.Model):
         contract = self._get_attendance_contract(day)
         if (not contract or contract.company_id != self.company_id
                 or contract.wage_type not in ('monthly', 'daily') or not template
+                or template.partial_attendance_salary_treatment != 'thresholds'
                 or template.reviewed_exception_day_pay != 'regularize'
                 or self._is_attendance_weekly_off(day)):
             return False, [], self.env['hr.attendance'], []
@@ -104,6 +105,9 @@ class ReviewedExceptionEmployee(models.Model):
         A wholly absent session is never inferred to be a late/early exception.
         Grace changes fine minutes, but explicit review can excuse its raw gap.
         """
+        fine_only_components = super()._attendance_exception_components(day)
+        if fine_only_components is not None:
+            return fine_only_components
         template, sessions, atts, leave_intervals = self._attendance_exception_context(day)
         if not template:
             return None

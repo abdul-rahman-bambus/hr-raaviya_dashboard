@@ -148,3 +148,22 @@ logs, scratch scripts and screenshots in `work/`, outside commits.
   their pending-review variants. Approved hours can remain positive: determine
   completion from fresh pending flags, not from zero hours. The Daily Attendance
   button clears filter/search/page only, retaining the date and saved decisions.
+
+## Configurable partial attendance salary
+
+- `partial_attendance_salary_treatment` defaults to `thresholds`, preserving the
+  existing threshold/reviewed-interval policy. The opt-in `fine_only` mode gives
+  normal attendance-day credit once for positive completed work overlapping the
+  assigned regular working periods. No threshold-based half-day cut in that mode.
+- Fine-only mode overrides the earlier `reviewed_exception_day_pay` behaviour;
+  never fabricate full worked/regularized hours to implement day pay. Shared day
+  fractions must feed payroll, generated work rows, attendance and payroll reports.
+- Include missing whole sessions in enabled late/early/internal-gap proposals on
+  attended dates. Do not create leave, approve money automatically, generate an
+  absence fine, or count only open/zero/outside-schedule punches as attended.
+- Preserve Hourly pay, effective-template/contract/company boundaries, validated
+  leave fractions, special-date credits/withholding and separately approved OT.
+  No duplicate attendance credit for leave time. Keep saved fine snapshots even
+  when a mode changes; do not append duplicate session/aggregate proposals.
+- Recompute existing draft/verification payslips; the new day credit must reach
+  DAYSWORKED days while retaining actual hours. Preserve finalized salary/details.
