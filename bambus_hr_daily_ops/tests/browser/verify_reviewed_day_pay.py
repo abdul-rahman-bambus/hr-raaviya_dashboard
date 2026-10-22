@@ -104,7 +104,7 @@ def main():
             assert selector.input_value().strip('"') == 'regularize'
             # Exercise real dashboard review rows, Ignore and approval navigation.
             action(page, {'type': 'ir.actions.client', 'tag': 'bambus_attendance_editor',
-                          'params': {'selected_date': '2026-10-26', 'metric_filter': 'fine_review'}})
+                          'params': {'selected_date': '2026-10-26', 'metric_filter': 'fine'}})
             for wage_type in ('monthly', 'daily'):
                 row = page.locator('.o_bae_employee').filter(has_text='Reviewed Browser ' + wage_type)
                 row.get_by_title('Review late / fine', exact=True).click()
@@ -181,8 +181,15 @@ def main():
             assert dialog.locator('.o_field_widget[name="period"] select').input_value().strip('"') == 'pm'
             assert not rpc('hr.leave', 'search', [[['employee_id', '=', employees[0]]]])
             dialog.get_by_role('button', name='Cancel', exact=True).click()
+            # A visible route back is available from any filtered attendance list.
+            page.locator('.o_bad_metric').filter(has_text='Late / Fine Hours').click()
+            page.get_by_role('button', name='Daily Attendance', exact=True).click()
+            assert page.locator('input[type=date]').input_value() == '2026-11-02'
+            page.wait_for_function("document.querySelector('.o_bad_filter_control select').value === 'all'")
+            assert page.locator('.o_bad_filter_control select').input_value() == 'all'
+            assert page.get_by_placeholder('Search Staff by Name, Department or Schedule').input_value() == ''
             assert not errors, errors
-            print('PASS: installed policy, separate session decisions, final-approval navigation, Monthly/Daily day pay, unchanged Hourly hours, rate units, both XLSX exports, explicit legacy reassessment/Cancel/audit, PM half-leave suggestion and Cancel.')
+            print('PASS: installed policy, separate session decisions, broad Late/Fine final-approval navigation and Daily Attendance button, Monthly/Daily day pay, unchanged Hourly hours, rate units, both XLSX exports, explicit legacy reassessment/Cancel/audit, PM half-leave suggestion and Cancel.')
         finally:
             if employees:
                 daily_lines = rpc('bambus.hr.attendance.sheet.line', 'search', [[['employee_id', 'in', employees]]])

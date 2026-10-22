@@ -224,3 +224,17 @@ Candidate validation (22 October): **204 backend tests**, **14 OWL Chromium test
 and both installed combined-review/reviewed-day-pay checks passed. The final
 focused exception suite passed **37 cases** after the last interval guard change.
 See the linked guide for entries, expected amounts and deferred tolerance work.
+
+### Daily Attendance return navigation
+
+Version **18.0.1.85.0** adds a **Daily Attendance** button beside the date/History
+controls whenever a filter or search is active. It clears that filter/search and
+resets the page while preserving the selected date. After the last review is
+saved, automatic return now covers **Late / Fine** and **Overtime**, as well as
+the **To Review** filters. Remaining reviews still take priority. Upgrade the
+daily-operations module and reload the web client to load the new assets.
+
+Navigation follow-up validation: **16 production OWL Chromium tests** and
+**12 backend asset checks** passed. Installed-browser verification confirmed
+auto-return from the broader Late / Fine filter, the Daily Attendance button,
+selected-date retention, and the existing payroll/leave/export workflow.

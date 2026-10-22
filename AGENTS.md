@@ -143,3 +143,8 @@ logs, scratch scripts and screenshots in `work/`, outside commits.
   units and separate rows for mixed methods. Do not reprice historical approvals.
   Report reviewed hours separately from actual hours and aggregate split periods
   without double-counting overlapping ranges. Recompute existing drafts explicitly.
+
+- Attendance return navigation applies to both general fine/overtime filters and
+  their pending-review variants. Approved hours can remain positive: determine
+  completion from fresh pending flags, not from zero hours. The Daily Attendance
+  button clears filter/search/page only, retaining the date and saved decisions.

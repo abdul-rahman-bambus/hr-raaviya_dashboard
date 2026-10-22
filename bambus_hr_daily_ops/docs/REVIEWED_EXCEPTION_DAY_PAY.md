@@ -8,7 +8,7 @@ Upgrade and restart these modules together:
 | --- | --- |
 | custom_hr_payroll | 18.0.4.14.0 |
 | bambus_hr_attendance_ot_fine | 18.0.3.30.0 |
-| bambus_hr_daily_ops | 18.0.1.84.0 |
+| bambus_hr_daily_ops | 18.0.1.85.0 |
 | attendance_custom_report | 18.0.1.9.0 |
 | hr_payslip_excel_report | 18.0.4.14.0 |
 
@@ -53,8 +53,11 @@ fine decision/amount and the new decisions in the audit. This is the path to
 regularizing an already-reviewed date without silently repricing it.
 
 After the last OT/fine approval for the selected date, the dashboard clears its
-review filter and returns to the normal daily list. If another type still has
-pending items, it switches to that review filter. The selected date stays the same.
+review filter and returns to the normal daily list. This also applies when
+approval was opened from the broader **Late / Fine** or **Overtime** filter. If another type still has pending items, it switches to that review
+filter. The selected date stays the same. A **Daily Attendance** button beside
+the date and History controls also clears the current filter/search and returns to all
+staff for that date, without changing approvals or reloading payroll.
 
 ## Explicit half-day leave
 
