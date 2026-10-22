@@ -198,3 +198,17 @@ Candidate evidence: 204 backend tests, 14 production OWL Chromium tests, final
 37-case reviewed-exception suite, and installed checks for three wages, native
 combined review, legacy reassessment/audit, half-day confirmation and both XLSX
 exports passed. No production deployment is established by these checks.
+
+## Normal day pay minus approved fines
+
+The opt-in [partial-attendance policy](PARTIAL_ATTENDANCE_SALARY.md) addresses the
+customer's attended-day normal-pay minus missing-time fines workflow, including
+whole missing sessions. Existing thresholds remain the default. Deployment must
+include the four coordinated module upgrades, explicit template selection and
+draft recomputation. Threshold tolerance and dashboard-only punch synchronization
+remain separate; this candidate does not establish production acceptance.
+
+Local evidence: **224 Odoo tests**, **16 production OWL Chromium tests**, and
+sequential installed-browser checks for both salary modes passed. The new mode
+verified six-hour dashboard/review proposals, Monthly/Daily/Hourly payslip totals
+and both XLSX downloads; the existing reviewed-interval workflow passed too.

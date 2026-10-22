@@ -158,3 +158,11 @@ python bambus_hr_daily_ops/tests/browser/verify_reviewed_day_pay.py \
 These checks establish local behavior for the candidate, not production rollout
 or customer acceptance. The separate threshold tolerance and dashboard-only
 punch synchronization work remain open.
+
+## Whole attended-day salary with missing-time fines
+
+The later [Partial Attendance Salary Treatment option](PARTIAL_ATTENDANCE_SALARY.md)
+is the customer's selected approach when all missing time on an attended date,
+including a completely missing session, must be fine review instead of a half-day
+salary cut. That option takes precedence over the reviewed-interval setting
+described above. Existing templates and saved approvals are not switched silently.

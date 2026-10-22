@@ -203,10 +203,12 @@ class HrPayslip(models.Model):
         "employee_id.attendance_automation_template_id.full_day_basis",
         "employee_id.attendance_automation_template_id.full_day_hours",
         "employee_id.attendance_automation_template_id.reviewed_exception_day_pay",
+        "employee_id.attendance_automation_template_id.partial_attendance_salary_treatment",
         "employee_id.company_id.attendance_automation_template_id.half_day_hours",
         "employee_id.company_id.attendance_automation_template_id.full_day_basis",
         "employee_id.company_id.attendance_automation_template_id.full_day_hours",
         "employee_id.company_id.attendance_automation_template_id.reviewed_exception_day_pay",
+        "employee_id.company_id.attendance_automation_template_id.partial_attendance_salary_treatment",
         "employee_id.attendance_automation_template_id.active",
         "employee_id.attendance_automation_template_id.date_from",
         "employee_id.attendance_automation_template_id.date_to",
@@ -429,14 +431,8 @@ class HrPayslip(models.Model):
                 # Match attendance reporting: compare actual hours with the
                 # effective template threshold. Capping at the schedule can make
                 # a higher fixed full-day target impossible to reach.
-                effective_worked_for_daycount = emp._get_attendance_day_pay_hours(d, worked)
-
-                if effective_worked_for_daycount >= float(full_day_target):
-                    day_fraction = 1.0
-                elif effective_worked_for_daycount >= float(half_day_target):
-                    day_fraction = 0.5
-                else:
-                    day_fraction = 0.0
+                day_fraction = emp._get_attendance_day_fraction(
+                    d, worked, float(half_day_target), float(full_day_target))
 
                 # ✅ for HOURS BUCKETS: keep regular base hours excluding OT (as you already do)
                 base_hours = max(0.0, float(worked or 0.0) - float(ot or 0.0))
@@ -575,12 +571,16 @@ class HrPayslip(models.Model):
             contract = slip.contract_id
             template_handles_holidays = False
             template_handles_weekly_off = False
+            template_handles_partial_pay = False
             current_day = fields.Date.to_date(slip.date_from)
             last_day = fields.Date.to_date(slip.date_to)
             while slip.employee_id and current_day and last_day and current_day <= last_day:
                 day_template = slip.employee_id._get_attendance_automation_template(
                     current_day
                 )
+                if (day_template and day_template.partial_attendance_salary_treatment == 'fine_only'
+                        and slip.employee_id._fine_only_attendance_context(current_day) is not None):
+                    template_handles_partial_pay = True
                 if (
                     day_template
                     and slip.employee_id._is_attendance_weekly_off(current_day)
@@ -610,10 +610,10 @@ class HrPayslip(models.Model):
                         template_handles_holidays = True
                         break
 
-            # Use the standard payroll buckets when no template handles
-            # weekly-off/public-holiday work, or for hourly contracts.
+            # Use standard buckets when no template handles special dates or
+            # partial attendance salary, and always for hourly contracts.
             if (not template_handles_weekly_off
-                    and not template_handles_holidays and not slip.paid_weekly_off_days
+                    and not template_handles_holidays and not template_handles_partial_pay and not slip.paid_weekly_off_days
                     and not slip.paid_public_holiday_days) \
                 or contract.wage_type == 'hourly':
 

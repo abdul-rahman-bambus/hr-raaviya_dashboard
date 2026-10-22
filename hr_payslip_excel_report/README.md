@@ -129,3 +129,14 @@ The opt-in Monthly/Daily policy preserves raw attendance, uses saved reviewed
 intervals for day classification, and retains saved fine amounts. Payroll exports
 append reviewed hours separately from actual work. Recompute existing drafts;
 exports do not calculate salary. Threshold tolerance is outside this change.
+
+## Partial attendance salary treatment
+
+Templates now offer **Use Half/Full-Day Thresholds** (existing behaviour) or
+**Normal Day Pay Minus Approved Fines** for Monthly/Daily regular working dates.
+The latter gives normal attendance-day pay for completed positive scheduled work
+and deducts only saved approved fines, including a missing session. Actual work
+hours, Hourly calculations, paid special-day policies and explicit leave remain
+separate. Recompute existing drafts after selecting the option.
+
+See [configuration, upgrade versions and expected payslip amounts](../bambus_hr_daily_ops/docs/PARTIAL_ATTENDANCE_SALARY.md).

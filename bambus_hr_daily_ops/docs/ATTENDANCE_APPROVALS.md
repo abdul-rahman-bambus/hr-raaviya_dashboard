@@ -269,3 +269,14 @@ resets the page while preserving the selected date. After the last review is
 saved, automatic return now covers **Late / Fine** and **Overtime**, as well as
 the **To Review** filters. Remaining reviews still take priority. Upgrade the
 daily-operations module and reload the web client to load the new assets.
+
+## Partial attendance salary treatment
+
+Templates now offer **Use Half/Full-Day Thresholds** (existing behaviour) or
+**Normal Day Pay Minus Approved Fines** for Monthly/Daily regular working dates.
+The latter gives normal attendance-day pay for completed positive scheduled work
+and deducts only saved approved fines, including a missing session. Actual work
+hours, Hourly calculations, paid special-day policies and explicit leave remain
+separate. Recompute existing drafts after selecting the option.
+
+See [configuration, upgrade versions and expected payslip amounts](PARTIAL_ATTENDANCE_SALARY.md).

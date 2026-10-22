@@ -8,3 +8,4 @@ from . import hr_payslip
 from . import hr_salary_rule
 
 from . import paid_day_decision
+from . import partial_attendance

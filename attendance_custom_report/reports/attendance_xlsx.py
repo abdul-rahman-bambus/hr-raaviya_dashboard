@@ -224,15 +224,9 @@ class AttendanceXlsxReport(models.AbstractModel):
             day_count_hours = worked if automation or is_weekend or is_holiday else worked_excl_ot
             actual_day_count_hours = day_count_hours
             day_count_hours = emp._get_attendance_day_pay_hours(d, day_count_hours)
-            if day_count_hours >= day_full_hours:
-                day_fraction = 1.0
-                base_hours = day_full_hours
-            elif day_count_hours >= day_half_hours:
-                day_fraction = 0.5
-                base_hours = day_count_hours
-            else:
-                day_fraction = 0.0
-                base_hours = 0.0
+            day_fraction = emp._get_attendance_day_fraction(
+                d, actual_day_count_hours, day_half_hours, day_full_hours)
+            base_hours = min(day_count_hours, day_full_hours) if day_fraction else 0.0
 
             # Absent flag: schedule exists AND not weekend/holiday
             is_absent = (not day_att) and bool(shifts) and (not is_weekend) and (not is_holiday)
