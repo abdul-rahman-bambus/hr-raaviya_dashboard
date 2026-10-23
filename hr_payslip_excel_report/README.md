@@ -140,3 +140,14 @@ hours, Hourly calculations, paid special-day policies and explicit leave remain
 separate. Recompute existing drafts after selecting the option.
 
 See [configuration, upgrade versions and expected payslip amounts](../bambus_hr_daily_ops/docs/PARTIAL_ATTENDANCE_SALARY.md).
+
+## Withheld worked dates and Payable Days
+
+Upgrade `bambus_hr_attendance_ot_fine` to **18.0.3.32.0**, then Compute Sheet on
+existing draft/verification payslips. Generated WEEKEND/HOLIDAYS rows retain work
+hours but exclude the Monthly withheld normal-day fractions. Both workbooks read
+these saved rows for Payable Days; Present/Week-off Worked/Holiday Worked retain
+their attendance classifications, including withheld work. Saved salary and
+approved OT/fines retain their amounts. Finalized slips are not refreshed, and
+exports do not recompute payroll. See the
+[reconciliation and manual check](../bambus_hr_daily_ops/docs/WITHHELD_PAYABLE_DAYS.md).

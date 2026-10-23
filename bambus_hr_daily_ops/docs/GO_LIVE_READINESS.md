@@ -212,3 +212,15 @@ Local evidence: **224 Odoo tests**, **16 production OWL Chromium tests**, and
 sequential installed-browser checks for both salary modes passed. The new mode
 verified six-hour dashboard/review proposals, Monthly/Daily/Hourly payslip totals
 and both XLSX downloads; the existing reviewed-interval workflow passed too.
+
+## Worked withheld special-day count correction (23 October)
+
+Upgrade `bambus_hr_attendance_ot_fine` to **18.0.3.32.0** and recompute existing
+draft/verification payslips. Withheld Monthly work no longer adds a normal paid
+day through WEEKEND/HOLIDAYS rows or the standard calendar fallback. Actual work
+statistics/hours and approved earnings/fines remain; finalized rows stay saved.
+The supplied October reproduction now reports **11 Payable Days** with unchanged
+Basic 2,838.71, OT 773.75, Fine 294.55 and Net 3,317.91. **228 Odoo tests** and the
+installed dashboard/both-XLSX-download check passed. Seconds tolerance, production
+deployment and client acceptance remain separate. See
+[the upgrade/manual guide](WITHHELD_PAYABLE_DAYS.md).

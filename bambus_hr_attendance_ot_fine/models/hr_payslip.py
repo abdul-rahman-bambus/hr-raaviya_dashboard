@@ -100,6 +100,8 @@ class HrPayslip(models.Model):
     # paid-day credit belongs in the separate PAID_* worked-day rows.
     paid_weekly_off_worked_days = fields.Float(compute="_compute_all_stats", store=True)
     paid_public_holiday_worked_days = fields.Float(compute="_compute_all_stats", store=True)
+    withheld_weekly_off_worked_days = fields.Float(compute="_compute_all_stats", store=True)
+    withheld_public_holiday_worked_days = fields.Float(compute="_compute_all_stats", store=True)
     total_regular_pay_amount = fields.Float(string="Regular Pay Amount", compute="_compute_all_stats", store=True)
 
     # ---------------------------
@@ -260,6 +262,8 @@ class HrPayslip(models.Model):
             slip.weekend_hours = 0.0
             slip.holiday_worked = 0.0
             slip.holiday_hours = 0.0
+            slip.withheld_weekly_off_worked_days = 0.0
+            slip.withheld_public_holiday_worked_days = 0.0
 
             slip.uses_template_regular_pay = False
             slip.paid_weekly_off_days = 0.0
@@ -494,7 +498,10 @@ class HrPayslip(models.Model):
                     if contract.wage_type == 'monthly' and withheld:
                         # A saved HR rejection removes normal special-day pay,
                         # including the worked-hours fallback; OT stays separate.
-                        pass
+                        if is_holiday:
+                            slip.withheld_public_holiday_worked_days += day_fraction
+                        else:
+                            slip.withheld_weekly_off_worked_days += day_fraction
                     elif is_weekend and emp._is_paid_attendance_weekly_off(d, contract):
                         slip.paid_weekly_off_days += 1
                         slip.paid_weekly_off_worked_days += day_fraction
@@ -614,7 +621,9 @@ class HrPayslip(models.Model):
             # partial attendance salary, and always for hourly contracts.
             if (not template_handles_weekly_off
                     and not template_handles_holidays and not template_handles_partial_pay and not slip.paid_weekly_off_days
-                    and not slip.paid_public_holiday_days) \
+                    and not slip.paid_public_holiday_days
+                    and not slip.withheld_weekly_off_worked_days
+                    and not slip.withheld_public_holiday_worked_days) \
                 or contract.wage_type == 'hourly':
 
                 return default_res
@@ -632,8 +641,9 @@ class HrPayslip(models.Model):
                 'contract_id': contract.id,
             })
 
-            # Preserve actual worked fractions in WEEKEND/HOLIDAYS. The credit
-            # rows top those up to one paid day, without counting a date twice.
+            # Credit rows top up eligible worked fractions to one paid day.
+            # Withheld work retains actual hours/statistics, but contributes
+            # zero normal paid days even when separately approved OT is paid.
             weekly_credit = slip.paid_weekly_off_days - (
                 slip.paid_weekly_off_worked_days if template_handles_weekly_off else 0.0)
             holiday_credit = slip.paid_public_holiday_days - (
@@ -655,7 +665,7 @@ class HrPayslip(models.Model):
                     'name': 'Weekend Working Days',
                     'sequence': 5,
                     'code': 'WEEKEND',
-                    'number_of_days': slip.weekend_worked,
+                    'number_of_days': max(0.0, slip.weekend_worked - slip.withheld_weekly_off_worked_days),
                     'number_of_hours': slip.weekend_hours,
                     'contract_id': contract.id,
                 })
@@ -669,7 +679,7 @@ class HrPayslip(models.Model):
                     'name': 'Public Holidays',
                     'sequence': 10,
                     'code': 'HOLIDAYS',
-                    'number_of_days': slip.holiday_worked,
+                    'number_of_days': max(0.0, slip.holiday_worked - slip.withheld_public_holiday_worked_days),
                     'number_of_hours': slip.holiday_hours,
                     'contract_id': contract.id,
                 })

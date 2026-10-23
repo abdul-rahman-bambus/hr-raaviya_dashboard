@@ -28,6 +28,10 @@ Read the root README and the affected module documentation before changing behav
   Shared eligibility helpers exclude withheld credits in payroll and reports.
   Withheld Monthly special dates also bypass normal worked-hours fallback; retain
   actual work statistics and approved OT/fines. Restore reapplies current eligibility.
+  Generated WEEKEND/HOLIDAYS days exclude withheld worked fractions; their hours
+  remain actual work. Never let a withheld worked date re-enter Payable Days via
+  a generated row or the default calendar fallback. Export saved day rows without
+  silently recomputing salary; finalized rows and amounts remain snapshots.
   Use unpaid derived statuses only on otherwise unmarked dates, and show a separate
   withheld indicator on worked/manual/leave rows. Never persist derived status keys.
 - Weekly Off Policy and Public Holiday Policy independently control additional

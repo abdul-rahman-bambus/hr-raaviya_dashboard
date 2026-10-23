@@ -111,6 +111,10 @@ class TestPaidDayWithholding(TransactionCase):
         self.assertEqual((slip.total_overtime_amount, slip.total_fine_amount), (250, 10))
         self.assertEqual((line.overtime_amount, line.fine_amount), (250, 10))
         self.assertEqual(slip.weekend_worked, 1)
+        self.assertEqual(slip.withheld_weekly_off_worked_days, 1)
+        weekend = slip.worked_days_line_ids.filtered(lambda row: row.code == 'WEEKEND')
+        self.assertEqual((weekend.number_of_days, weekend.number_of_hours), (0, 8))
+        self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 1)
         # Detection/recalculation must not undo the decision.
         self.env['hr.attendance.overtime'].bambus_recompute_range(
             self.employee.ids, fields.Date.to_date('2026-10-18'), fields.Date.to_date('2026-10-19'))
@@ -118,6 +122,34 @@ class TestPaidDayWithholding(TransactionCase):
         self.decide(action='restore')
         slip.action_compute_sheet()
         self.assertAlmostEqual(slip.total_regular_pay_amount, 2 * 12000 / 31)
+        self.assertEqual(slip.withheld_weekly_off_worked_days, 0)
+        self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 2)
+
+    def test_worked_withheld_holiday_has_hours_but_no_paid_day(self):
+        self.env['hr.attendance'].create({'employee_id': self.employee.id,
+            'check_in': '2026-10-19 09:00:00', 'check_out': '2026-10-19 17:00:00'})
+        self.decide('2026-10-19', 'public_holiday')
+        slip = self.slip()
+        slip.action_compute_sheet()
+        holiday = slip.worked_days_line_ids.filtered(lambda row: row.code == 'HOLIDAYS')
+        self.assertEqual((holiday.number_of_days, holiday.number_of_hours), (0, 8))
+        self.assertEqual((slip.holiday_worked, slip.withheld_public_holiday_worked_days), (1, 1))
+        self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 1)
+        self.decide('2026-10-19', 'public_holiday', 'restore')
+        slip.action_compute_sheet()
+        self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 2)
+
+    def test_withheld_work_without_ot_policy_does_not_fall_back_to_calendar_days(self):
+        self.template.write({'overtime_enabled': False, 'weekly_off_overtime_policy': 'disabled',
+                             'monthly_paid_public_holiday': False})
+        self.env['hr.attendance'].create({'employee_id': self.employee.id,
+            'check_in': '2026-10-18 09:00:00', 'check_out': '2026-10-18 17:00:00'})
+        self.decide()
+        slip = self.slip()
+        slip.action_compute_sheet()
+        self.assertEqual(slip.total_regular_pay_amount, 0)
+        self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 0)
+        self.assertEqual(slip.weekend_worked, 1)
 
     def test_restore_obeys_current_template_overlap_and_contract(self):
         self.template.weekly_off_monday = True

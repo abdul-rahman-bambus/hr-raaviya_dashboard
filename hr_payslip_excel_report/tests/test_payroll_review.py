@@ -359,6 +359,34 @@ class TestPayrollReview(TransactionCase):
         self.assertEqual((row['weekly_off_leave'], row['weekly_off_worked'], row['payable_days']), (1, .5, 1))
         self.assertEqual(data['daily'][0]['status'], 'Worked Paid Weekly Off')
 
+    def test_withheld_worked_special_dates_excluded_from_saved_payable_days_and_exports(self):
+        self.env.user.tz = 'Asia/Kolkata'
+        self.env['resource.calendar.leaves'].create({'name': 'Withheld Monday holiday',
+            'calendar_id': self.calendar.id, 'date_from': '2026-09-06 18:30:00',
+            'date_to': '2026-09-07 18:29:59'})
+        self.template.monthly_paid_public_holiday = True
+        for day, kind in [('2026-09-06', 'weekly_off'), ('2026-09-07', 'public_holiday')]:
+            self.env['hr.attendance'].create({'employee_id': self.employee.id,
+                'check_in': day + ' 03:30:00', 'check_out': day + ' 11:30:00'})
+            slip = self.slip(date_from=day, date_to=day)
+            info = self.env['bambus.hr.attendance.sheet']._paid_day_info(
+                self.employee, slip.date_from, self.contract)
+            self.assertEqual((info['kind'], info['eligible']), (kind, True), (day, info))
+            self.env['bambus.hr.attendance.sheet'].set_dashboard_paid_day(
+                self.employee.id, day, kind, 'withhold', 'Pay only separately approved earnings')
+            slip.action_compute_sheet()
+            self.assertEqual(self.report._payable_days(slip), 0)
+            self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_hours')), 8)
+        for report_type in ('review', 'summary'):
+            wizard = self.wizard(report_type=report_type, payslip_status='draft')
+            data = self.report._data(wizard)
+            self.assertEqual(len(data['register']), 2)
+            self.assertTrue(all(row['payable_days'] == 0 for row in data['register']))
+            self.assertEqual(sum(row['worked_hours'] for row in data['register']), 16)
+            self.assertEqual(sum(row['present'] for row in data['register']), 2)
+            self.assertEqual(self.report._employee_summary_rows(data['register'])[0]['payable_days'], 0)
+            self.assertTrue(wizard._generate_xlsx().startswith(b'PK'))
+
     def test_weekly_off_switch_matches_payroll_attendance_and_summary(self):
         slip = self.slip(date_from='2026-09-06', date_to='2026-09-06')
         report = self.env['report.attendance_custom_report.attendance_xlsx']

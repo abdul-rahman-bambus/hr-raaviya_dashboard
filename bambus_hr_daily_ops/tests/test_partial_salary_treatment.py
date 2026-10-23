@@ -298,3 +298,79 @@ class TestPartialSalaryTreatment(TransactionCase):
         review = self.wizard(line)
         self.assertEqual(review.fine_line_ids.mapped('kind'), ['late'])
         self.assertAlmostEqual(review.fine_line_ids.hours, 250 / 60, places=6)
+
+    def test_withheld_sunday_reconciles_eleven_paid_days_and_saved_money(self):
+        # Isolate the two holidays in this reproduction from installed demo
+        # global holidays; TransactionCase rolls this fixture change back.
+        self.env['resource.calendar.leaves'].search([
+            ('resource_id', '=', False), ('calendar_id', '=', False),
+            ('date_from', '<=', '2026-10-31 23:59:59'),
+            ('date_to', '>=', '2026-10-01 00:00:00')]).unlink()
+        self.template.write({'weekly_off_sunday': True, 'monthly_paid_weekly_off': True,
+            'monthly_paid_public_holiday': True, 'weekly_off_overtime_policy': 'all'})
+        employee, contract, first_line = self.person('monthly')
+        self.wizard(first_line).action_save()
+        ot_rule = self.env['hr.salary.rule'].create({'name': 'Saved OT', 'code': 'OT', 'sequence': 20,
+            'category_id': self.env.ref('hr_payroll_community.ALW').id,
+            'condition_select': 'none', 'amount_select': 'code',
+            'amount_python_compute': 'result = payslip.total_overtime_amount'})
+        self.structure.rule_ids |= ot_rule
+        for day in ('2026-10-02', '2026-10-20'):
+            self.env['resource.calendar.leaves'].create({'name': 'Paid test holiday',
+                'calendar_id': self.calendar.id, 'date_from': day + ' 09:00:00',
+                'date_to': day + ' 17:00:00'})
+        examples = [
+            ('2026-10-18', [('09:45:00', '14:00:00'), ('14:45:00', '18:45:00')], 0, 0, 8.25, 387.10),
+            ('2026-10-23', [('09:45:00', '12:00:00')], 3, 93.84, 0, 0),
+            ('2026-10-24', [('09:45:00', '12:00:00')], 0, 0, 0, 0),
+            ('2026-10-25', [('09:45:34', '14:00:00'), ('14:45:00', '18:45:00')], 0, 0, 8.25 - 34 / 3600, 386.65),
+            ('2026-10-26', [('10:05:00', '14:00:00'), ('14:45:00', '18:45:00')], .25, 7.82, 0, 0),
+            ('2026-10-27', [('09:45:00', '14:00:00'), ('14:55:00', '18:45:00')], 1 / 6, 5.21, 0, 0),
+            ('2026-10-29', [('09:45:00', '12:00:00')], 0, 0, 0, 0),
+        ]
+        reviews = self.env['bambus.hr.attendance.sheet.line']
+        for day, spans, fine_hours, fine_amount, ot_hours, ot_amount in examples:
+            for start, end in spans:
+                self.env['hr.attendance'].create({'employee_id': employee.id,
+                    'check_in': day + ' ' + start, 'check_out': day + ' ' + end})
+            sheet = self.env['bambus.hr.attendance.sheet'].search([('date', '=', day)], limit=1)
+            sheet = sheet or self.env['bambus.hr.attendance.sheet'].create({'date': day})
+            reviews |= self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id,
+                'employee_id': employee.id, 'contract_id': contract.id,
+                'fine_state': 'approved' if fine_amount else 'rejected',
+                'fine_hours': fine_hours, 'fine_amount': fine_amount,
+                'overtime_state': 'approved' if ot_amount else 'rejected',
+                'overtime_hours': ot_hours, 'overtime_amount': ot_amount})
+        self.env['bambus.hr.attendance.sheet'].set_dashboard_paid_day(
+            employee.id, '2026-10-18', 'weekly_off', 'withhold', 'Sunday work earning only')
+        slip = self.slip(employee, contract, '2026-10-01', '2026-10-31')
+        self.assertEqual((slip.total_working_days, slip.paid_weekly_off_days, slip.paid_public_holiday_days), (6, 3, 2),
+            str(slip._get_public_holiday_dates(contract, slip.date_from, slip.date_to, self.calendar.tz)))
+        self.assertAlmostEqual(slip.total_regular_pay_amount, 8000 / 31 * 11)
+        self.assertEqual((slip.weekend_worked, slip.withheld_weekly_off_worked_days), (1.5, 1))
+        self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 11)
+        self.assertEqual(slip.total_overtime_amount, 773.75)
+        self.assertAlmostEqual(slip.total_fine_amount, 294.55, places=2)
+        self.assertEqual(self.net(slip), 3317.91)
+        self.assertEqual(sum(reviews.mapped('overtime_amount')), 773.75)
+        if 'report.hr_payslip_excel_report.payroll_review' in self.env:
+            wizard = self.env['payslip.excel.wizard'].create({'report_type': 'summary',
+                'duration_type': 'custom', 'start_date': '2026-10-01', 'end_date': '2026-10-31',
+                'employee_ids': [(6, 0, employee.ids)], 'payslip_status': 'draft'})
+            report = self.env['report.hr_payslip_excel_report.payroll_review']
+            for report_type in ('summary', 'review'):
+                wizard.report_type = report_type
+                row = report._data(wizard)['register'][0]
+                self.assertEqual((row['payable_days'], row['basic'], row['overtime'], row['fine'], row['net']),
+                                 (11, 2838.71, 773.75, 294.55, 3317.91))
+                self.assertAlmostEqual(row['worked_hours'], 41.5 - 34 / 3600)
+                self.assertEqual(row['weekly_off_worked'], 1.5)
+                self.assertTrue(wizard._generate_xlsx().startswith(b'PK'))
+        saved_days = [(row.id, row.number_of_days, row.number_of_hours) for row in slip.worked_days_line_ids]
+        saved_salary = [(row.id, row.total) for row in slip.line_ids]
+        slip.state = 'done'
+        self.env['bambus.hr.attendance.sheet'].set_dashboard_paid_day(
+            employee.id, '2026-10-18', 'weekly_off', 'restore', 'Restore after snapshot')
+        slip.action_compute_sheet()
+        self.assertEqual([(row.id, row.number_of_days, row.number_of_hours) for row in slip.worked_days_line_ids], saved_days)
+        self.assertEqual([(row.id, row.total) for row in slip.line_ids], saved_salary)
