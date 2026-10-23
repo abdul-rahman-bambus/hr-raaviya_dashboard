@@ -6,8 +6,10 @@ python bambus_hr_daily_ops/tests/browser/verify_paid_day_withholding.py \
 Fixtures are removed at the end. Requires Playwright and Chromium.
 """
 import argparse
+import io
 import os
 
+import openpyxl
 from playwright.sync_api import sync_playwright
 
 
@@ -47,13 +49,27 @@ def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         try:
             calendar = create('resource.calendar', {'name': 'Paid Label Calendar', 'tz': 'UTC'})
+            rules = []
+            for code, category, sequence, expression in [
+                ('BASIC', 'BASIC', 10, 'payslip.total_regular_pay_amount'),
+                ('OT', 'ALW', 20, 'payslip.total_overtime_amount'),
+                ('LF', 'DED', 30, '-payslip.total_fine_amount'),
+                ('GROSS', 'GROSS', 40, 'categories.BASIC + categories.ALW'),
+                ('NET', 'NET', 50, 'categories.BASIC + categories.ALW + categories.DED')]:
+                category_id = rpc('ir.model.data', 'search_read', [[['module', '=', 'hr_payroll_community'],
+                    ['name', '=', category]]], {'fields': ['res_id']})[0]['res_id']
+                rules.append(create('hr.salary.rule', {'name': 'Withholding ' + code, 'code': code,
+                    'category_id': category_id, 'sequence': sequence, 'condition_select': 'none',
+                    'amount_select': 'code', 'amount_python_compute': 'result = ' + expression}))
+            structure = create('hr.payroll.structure', {'name': 'Withholding browser payroll',
+                'code': 'WITHHELD_BROWSER', 'parent_id': False, 'rule_ids': [(6, 0, rules)]})
             template = create('bambus.attendance.automation.template', {
                 'name': 'Paid Label Rules', 'weekly_off_source': 'weekdays',
                 'weekly_off_sunday': True, 'monthly_paid_weekly_off': True,
                 'monthly_paid_public_holiday': True})
             employee = create('hr.employee', {'name': 'Paid Label Browser Employee',
                 'resource_calendar_id': calendar, 'attendance_automation_template_id': template})
-            create('hr.contract', {'name': 'Paid Label Contract', 'employee_id': employee,
+            create('hr.contract', {'name': 'Paid Label Contract', 'employee_id': employee, 'struct_id': structure,
                 'date_start': '2026-10-01', 'wage_type': 'monthly', 'wage': 12000,
                 'resource_calendar_id': calendar})
             create('resource.calendar.leaves', {'name': 'Paid Label Monday', 'calendar_id': calendar,
@@ -74,6 +90,7 @@ def main():
                 assert label in row.locator('.o_bae_employee_info').inner_text()
 
             slip = create('hr.payslip', {'employee_id': employee,
+                'struct_id': structure,
                 'contract_id': rpc('hr.contract', 'search', [[['employee_id', '=', employee]]])[0],
                 'date_from': '2026-10-18', 'date_to': '2026-10-19'})
 
@@ -124,8 +141,42 @@ def main():
             info.get_by_text('Paid-off Credit Withheld', exact=True).wait_for()
             assert 'Present' in info.inner_text()
             assert '8h 00m' in info.inner_text()
+            # A worked withheld Sunday keeps its hours and approved money but
+            # must not add a paid day through the WEEKEND generated row.
+            rpc('bambus.attendance.automation.template', 'write', [[template], {'weekly_off_overtime_policy': 'all'}])
+            sheet = rpc('bambus.hr.attendance.sheet', 'search', [[['date', '=', '2026-10-18']]], {'limit': 1})
+            sheet = sheet[0] if sheet else create('bambus.hr.attendance.sheet', {'date': '2026-10-18'})
+            create('bambus.hr.attendance.sheet.line', {'sheet_id': sheet, 'employee_id': employee,
+                'overtime_state': 'approved', 'overtime_hours': 8, 'overtime_amount': 250,
+                'fine_state': 'approved', 'fine_hours': .1, 'fine_amount': 10})
+            rpc('hr.payslip', 'action_compute_sheet', [[slip]])
+            totals = rpc('hr.payslip', 'read', [[slip], ['total_regular_pay_amount', 'total_overtime_amount',
+                'total_fine_amount', 'net_pay', 'weekend_worked', 'weekend_hours', 'worked_days_line_ids']])[0]
+            assert (totals['total_regular_pay_amount'], totals['total_overtime_amount'],
+                    totals['total_fine_amount'], totals['net_pay']) == (0, 250, 10, 240), totals
+            assert (totals['weekend_worked'], totals['weekend_hours']) == (1, 8), totals
+            rows = rpc('hr.payslip.worked.days', 'read', [totals['worked_days_line_ids'],
+                ['code', 'number_of_days', 'number_of_hours']])
+            assert sum(row['number_of_days'] for row in rows) == 0, rows
+            assert sum(row['number_of_hours'] for row in rows) == 8, rows
+            # Download both real workbooks and inspect numeric saved-day totals.
+            for report_type, sheet_name, day_heading in [('summary', 'Monthly', 'Payable Days'),
+                    ('review', 'Employee Payroll Register', 'Payable Days (Payslip)')]:
+                wizard = create('payslip.excel.wizard', {'report_type': report_type,
+                    'duration_type': 'custom', 'start_date': '2026-10-18', 'end_date': '2026-10-19',
+                    'employee_ids': [(6, 0, [employee])], 'payslip_status': 'draft'})
+                download = rpc('payslip.excel.wizard', 'action_download_payslip_excel_report', [[wizard]])
+                response = context.request.get(url + download['url'])
+                assert response.ok, response.status
+                workbook = openpyxl.load_workbook(io.BytesIO(response.body()), data_only=True)
+                worksheet = workbook[sheet_name]
+                header = next(row for row in worksheet.iter_rows() if any(cell.value == day_heading for cell in row))
+                day_column = next(cell.column for cell in header if cell.value == day_heading)
+                employee_data = next(row for row in worksheet.iter_rows(min_row=header[0].row + 1)
+                    if any(cell.value == 'Paid Label Browser Employee' for cell in row))
+                assert employee_data[day_column - 1].value == 0
             assert not errors, errors
-            print('PASS installed withholding: cancel, reason, immediate unpaid status, persisted reload, audit, payroll, restore/current policy, worked attendance')
+            print('PASS installed withholding: cancel, reason, unpaid status, persisted reload, audit, restore/current policy, worked attendance, zero payable days with eight actual hours, saved OT 250/fine 10/net 240, both XLSX downloads')
         finally:
             if 'employee' in locals():
                 punches = rpc('hr.attendance', 'search', [[['employee_id', '=', employee]]])

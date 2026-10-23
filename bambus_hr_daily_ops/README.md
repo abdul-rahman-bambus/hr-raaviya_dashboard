@@ -122,6 +122,12 @@ For example, on a 12,000 Monthly contract in October, withholding one otherwise
 paid date removes 12,000 / 31 (about 387.10) from normal pay; separately approved
 extra pay and fines retain their saved amounts.
 
+For worked dates, upgrade `bambus_hr_attendance_ot_fine` to **18.0.3.32.0** and
+recompute drafts so withheld worked fractions also leave generated payable-day
+rows. Actual special-day work statistics/hours and approved amounts remain.
+Both payroll workbooks use those saved rows. See the
+[withheld Payable Days correction](docs/WITHHELD_PAYABLE_DAYS.md).
+
 Restart Odoo, upgrade `bambus_hr_attendance_ot_fine` to `18.0.3.27.0` and
 `bambus_hr_daily_ops` to `18.0.1.83.0`, then reload the client. Existing employees
 have no withheld dates on upgrade. This feature does not fix the separate manual
@@ -164,7 +170,8 @@ python odoo-bin -c <test.conf> -d <test_database> --test-enable --stop-after-ini
   --test-tags /custom_hr_payroll,/bambus_hr_daily_ops,/attendance_custom_report,/hr_payslip_excel_report
 ```
 
-From this repository, with Playwright and Chromium installed:
+From this repository, with Playwright and Chromium installed (the withholding
+download check also requires `openpyxl`):
 
 ```sh
 ODOO_SOURCE=/path/to/odoo python -m unittest discover -s bambus_hr_daily_ops/tests/browser -v

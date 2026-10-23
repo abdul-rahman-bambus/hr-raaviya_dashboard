@@ -252,3 +252,17 @@ Compare both payroll XLSX exports and wage-specific BASIC rules/header amounts.
 Local validation: **224 backend tests** and **16 production OWL Chromium tests**
 passed. Installed-browser scripts passed sequentially with and without
 `--fine-only`, including native salary/deduction views and both XLSX downloads.
+
+## Worked withheld weekly off/public holiday: payable-day count
+
+See [the upgrade and reproduction](docs/WITHHELD_PAYABLE_DAYS.md). Withhold normal
+credit on a worked Monthly special date, recompute its draft and verify zero
+normal paid-day contribution while actual hours and saved approved OT/fines
+remain. Restore and verify one credit without duplication. Repeat with disabled
+OT policy and a public holiday. Both exports must use the saved generated day
+rows; finalized rows/amounts are retained. The supplied October example is
+**11 Payable Days**, Basic 2,838.71, OT 773.75, Fine 294.55, Net 3,317.91.
+
+Validation: **228 backend tests**, zero failures/errors; installed Chromium
+passed the decision/audit workflow, zero paid days with eight actual hours and
+approved money, and both XLSX downloads. No client assets changed in this fix.

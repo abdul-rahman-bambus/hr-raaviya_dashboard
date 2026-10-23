@@ -31,6 +31,12 @@ Weekly Off / Unpaid Public Holiday; worked dates keep attendance and a withheld
 indicator. Payroll and reports respect the exception; approved OT/fines remain
 separate. Recompute draft payslips after the decision.
 
+Upgrade `bambus_hr_attendance_ot_fine` to **18.0.3.32.0** to correct Payable Days
+for worked dates whose normal special-day credit was withheld. Compute Sheet
+refreshes existing draft rows: withheld work contributes zero normal paid days,
+while actual work and saved approved earnings remain. See the
+[withholding count correction](bambus_hr_daily_ops/docs/WITHHELD_PAYABLE_DAYS.md).
+
 The automation form has matching Weekly Off and Public Holiday Payroll Treatment
 sections. Contract wage displays, bounded review scrolling, persistent exclusions,
 paid special-day counters, and separate earnings/deduction details are supported.
