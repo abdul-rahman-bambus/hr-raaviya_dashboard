@@ -298,3 +298,19 @@ hours, Hourly calculations, paid special-day policies and explicit leave remain
 separate. Recompute existing drafts after selecting the option.
 
 See [configuration, upgrade versions and expected payslip amounts](PARTIAL_ATTENDANCE_SALARY.md).
+
+## Dashboard refresh after actual punch corrections — 18.0.1.91.0
+
+When actual punches exist for the selected employee/local date, Daily Attendance
+shows their earliest check-in, latest available checkout and summed worked hours.
+A saved daily-sheet snapshot no longer overrides those times. Unapproved hourly
+pay preview follows current worked hours; explicitly approved hourly pay, manual
+statuses, fine/OT approvals and exclusions remain saved HR decisions. Manual-only
+dates without punches keep their existing snapshot fallback; this does not fix
+the separate dashboard manual-time-to-punch synchronization gap.
+
+After editing Punch Logs through the pencil, return to Daily Attendance (or reload
+its selected date). Review/reassess any old fine approval explicitly: fixing punches
+does not automatically cancel a previously approved deduction. Recompute draft
+payslips before exporting; finalized payslips are not rewritten. Upgrade Daily Ops
+and restart Odoo to apply the server fix.
