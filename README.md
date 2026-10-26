@@ -49,10 +49,14 @@ their actual attendance entries for the selected local date. Upgrade
 ## Payroll workflow
 
 Use **Payroll > Payslip Batches > Generate Payslips**, then **Payroll Reports >
-Payslip Summary**. Include **Draft** or **All Except Rejected** status and select
-the correct period/employees. Computed draft amounts are reportable without
+Payslip Summary**. Status defaults to **Draft**; choose **All Except Rejected** if
+needed and select the correct period/employees. Computed draft amounts are reportable without
 confirming payslips. After attendance or HR decisions change, recompute draft
 payslips before exporting. The export reads saved salary lines.
+
+Confirmation is optional for reporting. If the month is finalized through
+payslip confirmation, select **Done** or **All Except Rejected** for later exports.
+Upgrade `hr_payslip_excel_report` to **18.0.4.15.0** for the Draft default.
 
 The separate Prepare Draft Payroll flow has been withdrawn. Upgrade
 `hr_payslip_excel_report` to `18.0.4.11.0` to remove its installed menu/buttons;
