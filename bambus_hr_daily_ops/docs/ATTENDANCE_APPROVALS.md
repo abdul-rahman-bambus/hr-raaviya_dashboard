@@ -19,6 +19,17 @@ Previously approved snapshots and ignored items survive daily-sheet refresh.
 Stale reviews must be reopened before saving; only HR users in the selected
 company can approve them.
 
+## Open actual attendance entries
+
+Click the **pencil beside the employee's name** on Daily Attendance to open the
+standard attendance list for that employee and the selected date, using the
+dashboard user's timezone and local check-in date. An empty date opens an empty
+list. Existing attendance access rules apply. **Logs** still shows dashboard
+history; opening either view does not approve adjustments or recompute payroll.
+After punch corrections, review affected adjustments and Compute Sheet on the
+existing draft payslip. Upgrade `bambus_hr_daily_ops` to **18.0.1.87.0** and reload
+client assets for this control.
+
 ## Pay rules
 
 - Daily and Monthly holiday / weekly-off worked hours receive regular pay plus

@@ -92,6 +92,23 @@ class DashboardUpdates(unittest.TestCase):
     def tick(self):
         self.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
 
+    def test_pencil_opens_selected_employee_day_and_reports_access_errors(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate('() => { window.openedActions = []; services.action.doAction = action => openedActions.push(action); }')
+        buttons = self.page.get_by_role('button', name='Open attendance entries', exact=True)
+        self.assertEqual(buttons.count(), 25)
+        buttons.nth(1).click()
+        self.assertEqual(self.page.evaluate('requests[1].args'),
+                         ['bambus.hr.attendance.sheet', 'open_dashboard_attendance_entries', [2, '2026-10-07']])
+        self.page.evaluate("requests[1].resolve({type: 'ir.actions.act_window', res_model: 'hr.attendance', domain: [['employee_id', '=', 2]]})")
+        self.tick()
+        self.assertEqual(self.page.evaluate('openedActions[0].res_model'), 'hr.attendance')
+        buttons.first.click()
+        self.page.evaluate('requests[2].reject(new Error("Access denied"))')
+        self.tick()
+        self.assertEqual(self.page.evaluate('openedActions.length'), 1)
+        self.assertEqual(self.page.evaluate('notifications[0][0]'), 'Access denied')
+
     def test_daily_screens_keep_nodes_focus_and_filters_during_date_change(self):
         for name in ('AttendanceDashboard', 'AttendanceEditor'):
             with self.subTest(component=name):

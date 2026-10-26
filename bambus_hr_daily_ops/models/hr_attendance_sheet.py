@@ -123,6 +123,32 @@ class BambusHrAttendanceSheet(models.Model):
         return self.get_attendance_dashboard(fields.Date.to_string(day))
 
     @api.model
+    def open_dashboard_attendance_entries(self, employee_id, selected_date):
+        """Open actual punches using the dashboard's local check-in date."""
+        self.env['hr.attendance'].check_access('read')
+        employee = self.env['hr.employee'].browse(employee_id).exists()
+        if not employee:
+            raise UserError(_("The employee is not available."))
+        employee.check_access('read')
+        day = fields.Date.to_date(selected_date)
+        if not day:
+            raise ValidationError(_("Select an attendance date."))
+        timezone = pytz.timezone(self.env.user.tz or 'UTC')
+        start = timezone.localize(datetime.combine(day, time.min))
+        end = timezone.localize(datetime.combine(day + timedelta(days=1), time.min))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Attendance Entries: %(employee)s (%(date)s)", employee=employee.name, date=day),
+            'res_model': 'hr.attendance',
+            'views': [(False, 'list'), (False, 'form')],
+            'target': 'current',
+            'domain': [('employee_id', '=', employee.id),
+                       ('check_in', '>=', fields.Datetime.to_string(start.astimezone(pytz.UTC).replace(tzinfo=None))),
+                       ('check_in', '<', fields.Datetime.to_string(end.astimezone(pytz.UTC).replace(tzinfo=None)))],
+            'context': {'default_employee_id': employee.id},
+        }
+
+    @api.model
     def get_attendance_dashboard(self, selected_date=None):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
