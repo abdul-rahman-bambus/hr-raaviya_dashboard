@@ -1,6 +1,6 @@
 {
     'name': 'HR Payroll Custom Enhancements',
-    'version': '18.0.4.15.0',
+    'version': '18.0.4.16.0',
     'summary': 'Custom payroll with template-driven attendance and hourly & monthly wage logic.',
     'author': 'Bambus Technologies',
     'license': 'LGPL-3',
@@ -20,6 +20,7 @@
         'views/hr_contract_view.xml',
         'wizard/hr_contract_wizard_views.xml',
         'wizard/salary_revision_wizard_views.xml',
+        'wizard/bulk_payslip_confirmation_views.xml',
         'views/hr_employee_view.xml',
     ],
     'demo': [],

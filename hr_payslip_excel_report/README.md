@@ -33,6 +33,13 @@ them. Daily attendance review is a separate process; this report default does
 not implement a day-level attendance lock. Existing wizard records keep their
 saved filters; newly opened reports default to Draft.
 
+Bulk confirmation is available after upgrading `custom_hr_payroll` to
+**18.0.4.16.0**: select computed Draft/Waiting records in Employee Payslips and
+choose **Actions > Confirm Payslips**. Review the selected records and total Net,
+then **Confirm Selected Payslips**. Standard confirmation is used; if salary
+amounts have changed or any record fails, the selection is rolled back. See the
+[bulk confirmation guide](../custom_hr_payroll/README.md).
+
 For this default change, upgrade **hr_payslip_excel_report to 18.0.4.15.0** and
 restart Odoo. No payslip status, salary line, attendance or approval is changed.
 Validation: **56 payroll-report tests** passed, including standard batch generation

@@ -280,3 +280,16 @@ Validation: **15 backend tests** (navigation and asset checks), **17 production
 OWL Chromium tests**, and the installed Monthly/Daily/Hourly/empty-date browser
 check passed. Backend cases include local-midnight and DST bounds and denied
 access. This navigation does not modify punches, approvals or payroll.
+
+
+## Bulk payslip confirmation
+
+Upgrade `custom_hr_payroll` to **18.0.4.16.0**. In Employee Payslips select computed
+Draft/Waiting records from one company and choose Actions > Confirm Payslips.
+Check count, periods and total Net; Cancel must preserve Draft and salary. Confirm
+must move all selected slips to Done with reviewed amounts unchanged. Verify the
+Done report, since Draft excludes confirmed records. Uncomputed, Done, Rejected
+and mixed-company selections must fail; changed salary or any normal confirmation
+error must roll back the entire selection. Bank/cash payment is a separate step.
+**237 backend tests** and the installed native-list/Cancel/three-wage confirmation/
+Done-download check passed. See `custom_hr_payroll/README.md` for the workflow.

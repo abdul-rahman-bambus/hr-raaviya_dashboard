@@ -1,0 +1,42 @@
+<odoo>
+    <record id="view_bulk_payslip_confirmation" model="ir.ui.view">
+        <field name="name">hr.payslip.bulk.confirm.wizard.form</field>
+        <field name="model">hr.payslip.bulk.confirm.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Confirm Payslips">
+                <group>
+                    <field name="company_id"/>
+                    <field name="slip_count"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="total_net"/>
+                </group>
+                <p>Confirm the selected payslips after checking the final salary report.
+                    Standard confirmation recalculates salary and runs any installed payroll accounting or loan steps.
+                    If salary amounts have changed, nothing is confirmed: recompute and review first.</p>
+                <field name="payslip_ids" nolabel="1">
+                    <list create="0" edit="0" delete="0">
+                        <field name="employee_id"/>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                        <field name="net_pay"/>
+                        <field name="state"/>
+                    </list>
+                </field>
+                <p>Confirmed payslips become Done. For later exports, select Done or All Except Rejected in Payroll Reports.</p>
+                <footer>
+                    <button name="action_confirm" type="object" string="Confirm Selected Payslips" class="btn-primary"/>
+                    <button special="cancel" string="Cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    <record id="action_bulk_confirm_payslips" model="ir.actions.server">
+        <field name="name">Confirm Payslips</field>
+        <field name="model_id" ref="hr_payroll_community.model_hr_payslip"/>
+        <field name="binding_model_id" ref="hr_payroll_community.model_hr_payslip"/>
+        <field name="binding_view_types">list</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_community.group_hr_payroll_community_user'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_bulk_confirmation()</field>
+    </record>
+</odoo>
