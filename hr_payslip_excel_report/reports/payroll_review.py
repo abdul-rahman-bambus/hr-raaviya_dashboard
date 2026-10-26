@@ -248,9 +248,7 @@ class PayrollReviewReport(models.AbstractModel):
                                         money_format if kind == 'money' else number_format, row[key])
 
     def _data(self, wizard):
-        slips, excluded = self._resolve_duplicate_periods(wizard._selected_payslips())
-        if wizard.report_type == 'summary' and not slips:
-            raise UserError(_('No payslips match the selected period and filters.'))
+        slips, excluded = self._resolve_duplicate_periods(wizard._report_payslips())
         employees = wizard._scope_employees() | slips.employee_id
         if not employees:
             raise UserError(_('No employees match the selected filters.'))

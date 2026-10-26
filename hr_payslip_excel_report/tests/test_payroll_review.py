@@ -549,6 +549,38 @@ class TestPayrollReview(TransactionCase):
             self.wizard(report_type='summary')._generate_xlsx()
         self.assertTrue(self.wizard(report_type='review')._generate_xlsx())
 
+    def test_empty_summary_warns_before_returning_download_action(self):
+        wizard = self.wizard(report_type='summary')
+        with self.assertRaisesRegex(UserError, 'Generate payslips first'):
+            wizard.action_download_payslip_excel_report()
+        # Direct download requests retain the same validation after a wizard
+        # has been opened, so stale URLs cannot produce a misleading workbook.
+        with self.assertRaisesRegex(UserError, 'Generate payslips first'):
+            wizard._generate_xlsx()
+
+    def test_summary_warning_respects_status_and_period_without_modifying_slips(self):
+        slip = self.slip(state='done')
+        self.finance(slip)
+        wizard = self.wizard(report_type='summary')
+        with self.assertRaisesRegex(UserError, 'select Done or All Except Rejected'):
+            wizard.action_download_payslip_excel_report()
+        wizard.payslip_status = 'done'
+        action = wizard.action_download_payslip_excel_report()
+        self.assertEqual(action['type'], 'ir.actions.act_url')
+        self.assertEqual(action['target'], 'download')
+        self.assertEqual(action['url'], '/my_excel/download?id=%s' % wizard.id)
+        self.assertEqual(slip.state, 'done')
+        self.assertEqual(slip.line_ids.filtered(lambda line: line.code == 'NET').total, 8700)
+        wizard.write({'start_date': '2026-10-01', 'end_date': '2026-10-31'})
+        with self.assertRaisesRegex(UserError, 'No payslips match'):
+            wizard.action_download_payslip_excel_report()
+
+    def test_review_can_still_download_missing_payslip_exceptions(self):
+        wizard = self.wizard(report_type='review')
+        action = wizard.action_download_payslip_excel_report()
+        self.assertEqual(action['type'], 'ir.actions.act_url')
+        self.assertTrue(wizard._generate_xlsx().startswith(b'PK'))
+
     def test_legacy_summary_retained_and_empty_selection_explained(self):
         with self.assertRaises(UserError):
             self.wizard(report_type='summary')._generate_xlsx()
