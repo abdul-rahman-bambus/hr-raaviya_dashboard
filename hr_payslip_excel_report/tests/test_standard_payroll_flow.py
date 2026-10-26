@@ -32,7 +32,7 @@ class TestStandardPayrollFlow(TransactionCase):
         self.assertTrue(net)
         saved = [(line.id, line.total) for line in slip.line_ids]
         report = self.env['payslip.excel.wizard'].create({
-            'report_type': 'summary', 'payslip_status': 'draft', 'duration_type': 'custom',
+            'report_type': 'summary', 'duration_type': 'custom',
             'start_date': '2026-09-01', 'end_date': '2026-09-30',
             'employee_ids': [(6, 0, employee.ids)]})
         self.assertEqual(report._selected_payslips(), slip)

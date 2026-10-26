@@ -81,7 +81,10 @@ def main():
             page.get_by_role('button', name='Download Excel', exact=True).wait_for()
             report = page.locator('.o_field_widget[name="report_type"] select')
             assert report.locator('option:checked').inner_text() == 'Payslip Summary'
+            status = page.locator('.o_field_widget[name="payslip_status"] select')
+            assert status.locator('option:checked').inner_text() == 'Draft'
             report.select_option(label='Payroll Review')
+            assert status.locator('option:checked').inner_text() == 'Draft'
             page.locator('.o_field_widget[name="duration_type"] select').select_option(label='Custom Date Range')
             page.locator('.o_field_widget[name="start_date"] input').fill('09/01/2026')
             page.locator('.o_field_widget[name="start_date"] input').press('Tab')

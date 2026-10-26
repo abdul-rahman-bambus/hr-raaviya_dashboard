@@ -11,7 +11,8 @@ at the client's request. Use the existing batch generator and reports.
    changes, open the affected draft payslips and use **Compute Sheet** before
    downloading again. The report does not recalculate salary.
 4. Open **Payroll > Payroll Reports**, select **Payslip Summary**, the matching
-   period/employees and **Draft** (or **All Except Rejected**) status, then
+   period/employees. Status defaults to **Draft**; select **All Except Rejected**
+   if multiple states are needed, then
    **Download Excel**. Payslips must fall entirely within the selected dates.
 
 Payslip Summary contains **Monthly**, **Hourly**, **Daily** and **Final Summary**
@@ -23,6 +24,21 @@ Generating a batch does not confirm payslips or record cash payment. Keep the
 actual Excel used for cash payment as the payment-period record. Only approved
 adjustments are payable under effective templates. The separate manual-dashboard
 punch/detection gap remains documented in the attendance module.
+
+Confirmation is not required to export computed Draft payslips. After reviewing
+the final month totals, payroll staff may confirm payslips through the normal
+workflow if they want a finalized payroll record. Confirmed slips are excluded
+by the Draft filter: select **Done** or **All Except Rejected** when exporting
+them. Daily attendance review is a separate process; this report default does
+not implement a day-level attendance lock. Existing wizard records keep their
+saved filters; newly opened reports default to Draft.
+
+For this default change, upgrade **hr_payslip_excel_report to 18.0.4.15.0** and
+restart Odoo. No payslip status, salary line, attendance or approval is changed.
+Validation: **56 payroll-report tests** passed, including standard batch generation
+and export using the default filter without confirming or marking payment. The
+installed browser verified Draft on the initial Summary and after switching to
+Payroll Review, and both downloads passed. Done/All remain selectable.
 
 The standard Generate Payslips action does not have the removed automation's
 idempotent reuse: inspect existing slips before generating again to avoid

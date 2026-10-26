@@ -93,7 +93,7 @@ class TestPayrollReview(TransactionCase):
         done = self.slip(state='done')
         self.finance(done)
         self.finance(self.slip())
-        selected, excluded = self.report._resolve_duplicate_periods(self.wizard()._selected_payslips())
+        selected, excluded = self.report._resolve_duplicate_periods(self.wizard(payslip_status='all')._selected_payslips())
         self.assertEqual(selected, done)
         done.state = 'draft'
         empty = self.slip()
@@ -149,6 +149,8 @@ class TestPayrollReview(TransactionCase):
         self.slip(date_from='2026-08-01', date_to='2026-08-31')
         self.slip(state='cancel')
         wizard = self.wizard()
+        self.assertEqual(wizard._selected_payslips(), second)
+        wizard.payslip_status = 'all'
         self.assertEqual(set(wizard._selected_payslips().ids), {first.id, second.id})
         wizard.payslip_status = 'done'
         self.assertEqual(wizard._selected_payslips(), first)

@@ -68,9 +68,12 @@ Read the root README and the affected module documentation before changing behav
 ## Payroll workflow
 
 Use standard Payslip Batches > Generate Payslips, then Payroll Reports > Payslip
-Summary. Computed Draft payslips are valid report sources; users must include
-Draft (or All Except Rejected) and recompute draft salary after attendance/review
-changes. Exports do not compute salary, confirm payroll or record payment.
+Summary. New report wizards default to Draft. Computed Draft payslips are valid
+report sources; users must include Draft (or All Except Rejected) and recompute
+draft salary after attendance/review changes. Exports do not compute salary,
+confirm payroll or record payment.
+Confirmed payslips require Done or All Except Rejected in the report filter.
+Changing a wizard default must not rewrite existing slips, decisions or filters.
 The separate Prepare Draft Payroll wizard from PR #121 was withdrawn at the
 client's request. Do not reintroduce its menu, batch shortcuts or report handoff.
 Preserve existing batches, salary lines and the Monthly/Hourly/Daily summary.

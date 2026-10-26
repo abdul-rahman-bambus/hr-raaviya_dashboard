@@ -22,7 +22,7 @@ class PayslipReportWizard(models.TransientModel):
     payslip_status = fields.Selection([
         ('all', 'All Except Rejected'), ('draft', 'Draft'), ('verify', 'Waiting'),
         ('done', 'Done'), ('cancel', 'Rejected'),
-    ], required=True, default='all')
+    ], required=True, default='draft')
 
     def _month_dates(self):
         today = fields.Date.context_today(self)
