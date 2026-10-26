@@ -84,6 +84,9 @@ Saved HR approvals are retained rather than automatically repriced.
 
 For the Odoo 18 deprecation, metadata and startup-log corrections, see
 [runtime warning cleanup and coordinated upgrade versions](bambus_hr_daily_ops/docs/RUNTIME_WARNINGS.md).
+The [additional local-log cleanup](bambus_hr_daily_ops/docs/ADDITIONAL_RUNTIME_WARNINGS.md)
+covers Employee Info, Loans, Salary Advances and Apps descriptions; the SaaS
+client is explicitly excluded.
 
 - [Contributor guidance](AGENTS.md)
 - [Attendance module README](bambus_hr_daily_ops/README.md)

@@ -1,5 +1,10 @@
 # Odoo 18 runtime warning cleanup
 
+The later supplied local log includes extra Employee Info/Loan/Salary Advance
+messages and Apps Markdown-description rendering warnings. See the
+[additional cleanup and newer upgrade versions](ADDITIONAL_RUNTIME_WARNINGS.md).
+That follow-up explicitly excludes `bambus_saas_client`.
+
 This change addresses messages reproduced in the shared payroll test/upgrade
 and normal HTTP logs. It does not disable Python/Odoo warning logging or change
 the log level. Logs from a separate customer/local installation still need to be

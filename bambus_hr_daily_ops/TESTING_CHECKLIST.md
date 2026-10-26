@@ -307,3 +307,15 @@ Final local evidence: **237 tests passed**, zero WARNING/ERROR entries during
 upgrade/tests and fresh normal HTTP/browser checks. Exact 1,234.56 salary,
 all four cards and both downloads passed. Check other local-only messages
 separately; this does not establish production deployment.
+
+
+## Additional local backend warnings (SaaS client excluded)
+
+Follow [the six-module follow-up](docs/ADDITIONAL_RUNTIME_WARNINGS.md). Include
+Employee Info, Loan and Salary Advance dependencies in the isolated test registry.
+Check family fields/document labels, single/list creates with unique sequences,
+pending-loan validation and advance status chatter. Force rendering of the three
+custom Apps descriptions, then check normal startup and employee/loan/advance
+forms plus both Excel downloads. Do not modify bambus_saas_client or suppress
+warning logging. Expanded 85-module validation passed **243 tests** with clean
+upgrade/test and fresh sequential normal-browser logs.

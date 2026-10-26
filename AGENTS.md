@@ -117,6 +117,12 @@ logging to pass checks, or equate HR-approved/post-grace fines with raw split
 minutes. Preserve field names, precision names and saved payroll amounts when
 correcting labels/metadata or removing obsolete constraints.
 
+Provide explicit valid module descriptions when keeping Markdown READMEs with
+fenced examples: Odoo's fallback Apps renderer parses them as reStructuredText.
+Force description_html rendering when verifying description-log cleanup. Validate
+extra installed HR/loan/advance modules in the test registry when their warnings
+appear in customer logs; a smaller payroll-only registry does not cover them.
+
 ## Restored staging reconciliation
 
 - BASIC is a salary category, not necessarily a rule code. Header aggregates

@@ -270,3 +270,17 @@ Final local validation: **237 tests**, zero warnings/errors on upgrade/test logs
 and clean fresh normal HTTP/browser logs. All four native payroll cards and both
 Excel exports passed, retaining exact decimal salary. Deployment and any warnings
 unique to the client's local installation still require that installation's check.
+
+
+## Additional local-log warnings (26 October)
+
+The client log exposed Employee Info/Loan/Salary Advance warnings outside the
+previous payroll-only registry and Markdown fallback-description parsing errors.
+See [the follow-up source fixes and upgrade list](ADDITIONAL_RUNTIME_WARNINGS.md).
+The SaaS client is explicitly excluded and left unchanged.
+
+Expanded validation with 85 modules passed **243 tests**. Coordinated upgrade/test
+and fresh normal HTTP/sequential browser logs had zero warnings/errors. Family,
+loan and advance forms, list-create sequences, advance status, three Apps
+descriptions and both payroll downloads passed. Client-local modules beyond that
+registry and the deliberately excluded SaaS messages are not claimed fixed.
