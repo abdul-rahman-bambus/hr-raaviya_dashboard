@@ -1,8 +1,6 @@
 
-from odoo import _, models, fields, api
-from datetime import timedelta
+from odoo import models, fields
 from calendar import monthrange
-from odoo.exceptions import ValidationError
 
 
 class HrContract(models.Model):
@@ -34,7 +32,7 @@ class HrContract(models.Model):
     public_holiday_wage_type = fields.Selection([
         ('fixed', 'Fixed'),
         ('wage_based', 'Wage Based'),
-    ], string='Pay Type', default='fixed')   
+    ], string='Public Holiday Pay Type', default='fixed')
     public_holiday_wage_rate = fields.Float(string="Pay Rate")
 
     weekend_special_working = fields.Boolean(
@@ -45,7 +43,7 @@ class HrContract(models.Model):
         ('normal', 'Regular Pay'),
         ('fixed', 'Fixed Allowance'),
         ('wage_based', 'Wage Based Allowance'),
-    ], string="Pay Type")
+    ], string="Weekly-off Pay Type")
 
     weekend_wage_rate = fields.Float(
         string="Weekend Pay Rate",
@@ -69,10 +67,3 @@ class HrContract(models.Model):
         self.ensure_one()
         day = fields.Date.to_date(day or fields.Date.context_today(self))
         return (self.wage or 0.0) / monthrange(day.year, day.month)[1]
-
-    @api.constrains('sunday_wage_rate', 'saturday_wage_rate')
-    def _check_wage_rate(self):
-        """Function to add constrains for wage rate field not to increase more than 2"""
-        if self.saturday_wage_rate > 2 or self.sunday_wage_rate > 2:
-            raise ValidationError(
-                _('Error! Please do not add Wage Rate more than 2'))

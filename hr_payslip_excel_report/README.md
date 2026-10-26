@@ -1,5 +1,9 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.16.0** removes eager test imports from normal startup; Odoo still discovers
+the report tests in test mode. The Draft default and report behavior remain.
+See [runtime cleanup and upgrade versions](../bambus_hr_daily_ops/docs/RUNTIME_WARNINGS.md).
+
 The separate Prepare Draft Payroll flow introduced in PR #121 has been withdrawn
 at the client's request. Use the existing batch generator and reports.
 

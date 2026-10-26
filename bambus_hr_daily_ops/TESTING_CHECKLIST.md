@@ -293,3 +293,17 @@ and mixed-company selections must fail; changed salary or any normal confirmatio
 error must roll back the entire selection. Bank/cash payment is a separate step.
 **237 backend tests** and the installed native-list/Cancel/three-wage confirmation/
 Done-download check passed. See `custom_hr_payroll/README.md` for the workflow.
+
+
+## Odoo 18 warning/startup cleanup
+
+Follow [the coordinated module upgrade](docs/RUNTIME_WARNINGS.md). Recheck the
+actual upgrade and normal HTTP logs; warning logging must remain enabled.
+Validate payroll company defaults/precision, the four native payroll kanban
+cards opening forms, HR-approved fines differing from raw minutes, and both
+Excel exports. Report tests must remain discoverable without being imported at
+normal startup. Existing salary calculations and saved approvals remain.
+Final local evidence: **237 tests passed**, zero WARNING/ERROR entries during
+upgrade/tests and fresh normal HTTP/browser checks. Exact 1,234.56 salary,
+all four cards and both downloads passed. Check other local-only messages
+separately; this does not establish production deployment.

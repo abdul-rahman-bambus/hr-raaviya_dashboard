@@ -3,6 +3,9 @@
 This module supplies contract wage types, attendance/payroll helpers and salary
 revisions. The root README describes the coordinated attendance and report flow.
 
+Runtime warning cleanup uses **18.0.4.17.0**; the bulk confirmation feature below
+remains available. See [the coordinated warning-cleanup upgrade](../bambus_hr_daily_ops/docs/RUNTIME_WARNINGS.md).
+
 ## Bulk confirmation of reviewed payslips
 
 Upgrade **custom_hr_payroll to 18.0.4.16.0**, restart Odoo and refresh the client.

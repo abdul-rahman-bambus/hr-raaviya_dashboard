@@ -58,21 +58,21 @@ class HrPayslip(models.Model):
             slip.write({'worked_days_line_ids': [(0, 0, row) for row in days]})
         return super().action_compute_sheet()
 
-    days_excl_weekend_holidays = fields.Float("Regular Days", compute="_compute_all_stats", store=True)
-    total_working_days = fields.Float("Regular Days", compute="_compute_all_stats", store=True)
-    total_worked_hours_excl_ot = fields.Float("Regular Days", compute="_compute_all_stats", store=True)
+    days_excl_weekend_holidays = fields.Float("Scheduled Regular Days", compute="_compute_all_stats", store=True)
+    total_working_days = fields.Float("Regular Worked Days", compute="_compute_all_stats", store=True)
+    total_worked_hours_excl_ot = fields.Float("Regular Worked Hours (Excluding OT)", compute="_compute_all_stats", store=True)
     total_validated_overtime = fields.Float("Overtime", compute="_compute_all_stats", store=True)
-    total_late_login_minutes = fields.Float("Late Hours", compute="_compute_all_stats", store=True)
+    total_late_login_minutes = fields.Float("Late Login Hours", compute="_compute_all_stats", store=True)
     total_late_after_grace = fields.Float("Late after grace", compute="_compute_all_stats", store=True)
 
-    weekend_days = fields.Float("Weekend", compute="_compute_all_stats", store=True)
-    weekend_worked = fields.Float("Weekend", compute="_compute_all_stats", store=True)
-    weekend_hours = fields.Float("Weekend", compute="_compute_all_stats", store=True)
+    weekend_days = fields.Float("Weekly-off Calendar Days", compute="_compute_all_stats", store=True)
+    weekend_worked = fields.Float("Weekly-off Worked Days", compute="_compute_all_stats", store=True)
+    weekend_hours = fields.Float("Weekly-off Worked Hours", compute="_compute_all_stats", store=True)
 
 
-    holiday_days = fields.Float("Public Holidays", compute="_compute_all_stats", store=True)
-    holiday_worked = fields.Float("Public Holidays", compute="_compute_all_stats", store=True)
-    holiday_hours = fields.Float("Public Holidays", compute="_compute_all_stats", store=True)
+    holiday_days = fields.Float("Public Holiday Calendar Days", compute="_compute_all_stats", store=True)
+    holiday_worked = fields.Float("Public Holiday Worked Days", compute="_compute_all_stats", store=True)
+    holiday_hours = fields.Float("Public Holiday Worked Hours", compute="_compute_all_stats", store=True)
 
     total_overtime_amount = fields.Float(string="Overtime Amount", compute="_compute_all_stats", store=True)
     total_public_holiday_amount = fields.Float(

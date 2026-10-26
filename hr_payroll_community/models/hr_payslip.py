@@ -22,7 +22,7 @@
 #############################################################################
 from datetime import date, datetime, time
 from dateutil.relativedelta import relativedelta
-from odoo import api, fields, models, tools, _
+from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 from pytz import timezone
 import babel
@@ -81,8 +81,7 @@ class HrPayslip(models.Model):
                                help="Choose Payslip for line")
     company_id = fields.Many2one('res.company', string='Company',
                                  copy=False, help="Choose Company for line",
-                                 default=lambda self: self.env[
-                                     'res.company']._company_default_get())
+                                 default=lambda self: self.env.company)
     worked_days_line_ids = fields.One2many('hr.payslip.worked.days',
                                            'payslip_id',
                                            string='Payslip Worked Days',
@@ -571,9 +570,8 @@ class HrPayslip(models.Model):
         locale = self.env.context.get('lang') or 'en_US'
         res['value'].update({
             'name': _('Salary Slip of %s for %s') % (
-                employee.name, tools.ustr(
-                    babel.dates.format_date(date=ttyme, format='MMMM-y',
-                                            locale=locale))),
+                employee.name, babel.dates.format_date(date=ttyme, format='MMMM-y',
+                                            locale=locale)),
             'company_id': employee.company_id.id,
         })
         if not self.env.context.get('contract'):
@@ -622,9 +620,8 @@ class HrPayslip(models.Model):
         ttyme = datetime.combine(fields.Date.from_string(date_from), time.min)
         locale = self.env.context.get('lang') or 'en_US'
         self.name = _('Salary Slip of %s for %s') % (
-            employee.name, tools.ustr(
-                babel.dates.format_date(date=ttyme, format='MMMM-y',
-                                        locale=locale)))
+            employee.name, babel.dates.format_date(date=ttyme, format='MMMM-y',
+                                        locale=locale))
         self.company_id = employee.company_id
         if not self.env.context.get('contract') or not self.contract_id:
             contract_ids = self.get_contract(employee, date_from, date_to)
