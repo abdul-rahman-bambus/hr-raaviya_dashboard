@@ -8,6 +8,9 @@ Read the root README and the affected module documentation before changing behav
 - `hr.attendance` contains actual punch records used by automatic detection.
   `bambus.hr.attendance.sheet.line` holds HR daily snapshots and saved approvals.
   An HR audit log is not itself a punch record.
+- On dashboard reads, current actual punches take precedence over saved sheet
+  punch times/worked hours when punches exist. Keep manual-only snapshot fallback,
+  explicit statuses and saved approvals separate; do not rewrite HR money on reads.
 - The dashboard's `update_dashboard_attendance` currently saves the sheet snapshot
   and time audit only. It does not create/update `hr.attendance` or invoke detection.
   This is a known go-live gap; do not document manual dashboard entry as a complete

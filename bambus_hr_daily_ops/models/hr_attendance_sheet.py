@@ -429,8 +429,17 @@ class BambusHrAttendanceSheet(models.Model):
                 employee_fine_hours = sum(
                     item['hours'] for item in employee._attendance_exception_components(day).values()
                 )
-            display_check_in = override.check_in if override else (min(check_ins) if check_ins else False)
-            display_check_out = override.check_out if override else (max(check_outs) if check_outs else False)
+            # Sheet rows are saved HR snapshots and can predate punch corrections.
+            # Current punches own visible times/hours; retain manual-only entry
+            # fallback and keep explicit statuses and approved money independent.
+            if employee_attendances:
+                display_check_in = min(check_ins) if check_ins else False
+                display_check_out = max(check_outs) if check_outs else False
+                display_worked_hours = sum(a.worked_hours for a in employee_attendances)
+            else:
+                display_check_in = override.check_in if override else False
+                display_check_out = override.check_out if override else False
+                display_worked_hours = override.worked_hours if override else 0.0
             attendance_logs = []
             for attendance in sorted(employee_attendances, key=lambda item: item.check_in):
                 local_in = fields.Datetime.context_timestamp(self, attendance.check_in)
@@ -606,7 +615,7 @@ class BambusHrAttendanceSheet(models.Model):
                 "hourly_pay_hours": round(
                     override.hourly_pay_hours
                     if override and override.hourly_pay_state == "approved"
-                    else (override.worked_hours if override else sum(a.worked_hours for a in employee_attendances)),
+                    else display_worked_hours,
                     2,
                 ),
                 "status": status,
@@ -621,7 +630,7 @@ class BambusHrAttendanceSheet(models.Model):
                 "check_out_value": fields.Datetime.context_timestamp(self, display_check_out).strftime("%H:%M") if display_check_out else "",
                 "overtime_hours": round(employee_overtime_hours, 2),
                 "fine_hours": round(employee_fine_hours, 2),
-                "worked_hours": round(override.worked_hours if override else sum(a.worked_hours for a in employee_attendances), 2),
+                "worked_hours": round(display_worked_hours, 2),
                 "has_attendance": bool(employee_attendances),
                 "line_id": override.id if override else False,
                 "leave_id": day_leave.id or False,

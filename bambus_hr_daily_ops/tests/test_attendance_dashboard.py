@@ -208,6 +208,69 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertFalse(row["has_attendance"])
         self.assertEqual(row["fine_hours"], 0)
 
+    def test_current_punches_replace_stale_dashboard_times_without_changing_reviews(self):
+        """Punch corrections refresh all wage types without repricing HR decisions."""
+        day = fields.Date.to_date('2026-10-22')
+        calendar = self.env['resource.calendar'].create({
+            'name': 'Punch correction split schedule', 'tz': 'UTC',
+            'attendance_ids': [(5, 0, 0),
+                (0, 0, {'name': 'FN', 'dayofweek': '3', 'day_period': 'morning',
+                        'hour_from': 9.75, 'hour_to': 14}),
+                (0, 0, {'name': 'AN', 'dayofweek': '3', 'day_period': 'afternoon',
+                        'hour_from': 14.75, 'hour_to': 18.75})],
+        })
+        dashboard = self.env['bambus.hr.attendance.sheet'].with_context(tz='UTC')
+        for wage_type in ('monthly', 'daily', 'hourly'):
+            with self.subTest(wage_type=wage_type):
+                employee = self.env['hr.employee'].create({
+                    'name': 'Corrected punches ' + wage_type,
+                    'resource_calendar_id': calendar.id,
+                    'company_id': self.env.company.id,
+                })
+                self.env['hr.contract'].create({
+                    'name': 'Corrected punches ' + wage_type,
+                    'employee_id': employee.id, 'date_start': '2026-10-01',
+                    'resource_calendar_id': calendar.id,
+                    'wage_type': wage_type, 'wage': 8000,
+                    'daily_wage': 885, 'hourly_rate': 53,
+                })
+                morning = self.env['hr.attendance'].create({
+                    'employee_id': employee.id, 'check_in': '2026-10-22 09:45:00',
+                    'check_out': '2026-10-22 12:00:00',
+                })
+                line = self.env['bambus.hr.attendance.sheet.line'].create({
+                    'sheet_id': self._sheet_for(day).id, 'employee_id': employee.id,
+                    'check_in': morning.check_in, 'check_out': morning.check_out,
+                    'worked_hours': 2.25, 'status': 'halfday',
+                    'attendance_status_manual': True,
+                    'fine_state': 'approved', 'fine_hours': 6, 'fine_amount': 187.68,
+                })
+                morning.write({'check_out': '2026-10-22 14:00:00'})
+                afternoon = self.env['hr.attendance'].create({
+                    'employee_id': employee.id, 'check_in': '2026-10-22 14:45:00',
+                    'check_out': '2026-10-22 18:45:00',
+                })
+                def row():
+                    return next(item for item in dashboard.get_attendance_dashboard(str(day))[
+                        'daily_attendance'] if item['id'] == employee.id)
+                updated = row()
+                self.assertEqual(updated['worked_hours'], 8.25)
+                self.assertEqual(updated['check_in_value'], '09:45')
+                self.assertEqual(updated['check_out_value'], '18:45')
+                self.assertEqual(updated['hourly_pay_hours'], 8.25)
+                self.assertEqual(updated['status'], 'halfday')
+                self.assertEqual(updated['fine_hours'], 6)
+                self.assertEqual(line.fine_amount, 187.68)
+                self.assertEqual(line.worked_hours, 2.25, 'Reading must not rewrite the sheet')
+                # Removing the second session must also refresh the visible totals.
+                afternoon.unlink()
+                self.assertEqual(row()['worked_hours'], 4.25)
+                self.assertEqual(row()['check_out_value'], '14:00')
+                # Open punches cannot keep the previous closed snapshot's checkout.
+                morning.write({'check_out': False})
+                self.assertFalse(row()['check_out_value'])
+                self.assertEqual(row()['worked_hours'], round(morning.worked_hours, 2))
+
     def test_incomplete_manual_time_is_not_present_or_fined(self):
         employee = self.env["hr.employee"].create({
             "name": "Incomplete Manual Time Employee",

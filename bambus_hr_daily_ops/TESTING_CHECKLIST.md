@@ -329,3 +329,27 @@ unchanged. Upgrade Daily Ops and reload the client. Isolated test validation:
 Chromium check confirmed both tab placement and schedule/fixed field visibility,
 with half-day/full-day values retained. Test and runtime logs contained no
 warnings/errors. This evidence does not establish customer deployment.
+
+## Dashboard refresh after actual punch corrections — 18.0.1.91.0
+
+When actual punches exist for the selected employee/local date, Daily Attendance
+shows their earliest check-in, latest available checkout and summed worked hours.
+A saved daily-sheet snapshot no longer overrides those times. Unapproved hourly
+pay preview follows current worked hours; explicitly approved hourly pay, manual
+statuses, fine/OT approvals and exclusions remain saved HR decisions. Manual-only
+dates without punches keep their existing snapshot fallback; this does not fix
+the separate dashboard manual-time-to-punch synchronization gap.
+
+After editing Punch Logs through the pencil, return to Daily Attendance (or reload
+its selected date). Review/reassess any old fine approval explicitly: fixing punches
+does not automatically cancel a previously approved deduction. Recompute draft
+payslips before exporting; finalized payslips are not rewritten. Upgrade Daily Ops
+and restart Odoo to apply the server fix.
+
+Validation: reproduced the original 2.25 vs 8.25 stale snapshot for all three wage
+types before the fix. Then 59 dashboard/unified-review Odoo tests passed with zero
+failures/errors, including split-punch edits, removing a session, open checkout,
+manual status preservation and unchanged saved fines. Installed Chromium verified
+Monthly/Daily/Hourly pencil navigation and refreshed values after action-stack
+return, with the selected date and approved fine amounts retained. No WARNING or
+ERROR entries in the passing test/runtime logs. Customer deployment remains pending.

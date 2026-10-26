@@ -10,7 +10,7 @@ from datetime import datetime
 import os
 from zoneinfo import ZoneInfo
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 
 def main():
@@ -53,13 +53,24 @@ def main():
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
         try:
+            calendar = create('resource.calendar', {'name': 'Pencil split schedule',
+                'tz': str(timezone), 'attendance_ids': [(5, 0, 0),
+                    (0, 0, {'name': 'FN', 'dayofweek': '3', 'day_period': 'morning',
+                            'hour_from': 9.75, 'hour_to': 14}),
+                    (0, 0, {'name': 'AN', 'dayofweek': '3', 'day_period': 'afternoon',
+                            'hour_from': 14.75, 'hour_to': 18.75})]})
+            sheet_ids = rpc('bambus.hr.attendance.sheet', 'search', [[
+                ['date', '=', '2026-10-22'],
+                ['company_id', '=', session['user_companies']['current_company']]]])
+            sheet = sheet_ids[0] if sheet_ids else create('bambus.hr.attendance.sheet', {
+                'date': '2026-10-22', 'company_id': session['user_companies']['current_company']})
             workers = []
             for basis in ('monthly', 'daily', 'hourly'):
                 name = 'Pencil Browser ' + basis
-                employee = create('hr.employee', {'name': name})
+                employee = create('hr.employee', {'name': name, 'resource_calendar_id': calendar})
                 create('hr.contract', {'name': name + ' contract', 'employee_id': employee,
                     'date_start': '2026-10-01', 'wage_type': basis, 'wage': 8000,
-                    'daily_wage': 885, 'hourly_rate': 53})
+                    'daily_wage': 885, 'hourly_rate': 53, 'resource_calendar_id': calendar})
                 punches = []
                 for day, start, end in [('2026-10-21', '09:45', '12:00'),
                         ('2026-10-22', '09:45', '14:00'), ('2026-10-22', '14:45', '18:45'),
@@ -68,6 +79,10 @@ def main():
                         'check_in': utc(day + ' ' + start), 'check_out': utc(day + ' ' + end)})
                     if day == '2026-10-22':
                         punches.append(punch)
+                create('bambus.hr.attendance.sheet.line', {'sheet_id': sheet,
+                    'employee_id': employee, 'check_in': utc('2026-10-22 09:45'),
+                    'check_out': utc('2026-10-22 12:00'), 'worked_hours': 2.25,
+                    'fine_state': 'approved', 'fine_hours': 6, 'fine_amount': 187.68})
                 workers.append((employee, name, punches))
             page.goto(url + '/odoo?debug=assets')
             page.wait_for_selector('.o_web_client', timeout=60000)
@@ -77,6 +92,7 @@ def main():
                     params: {selected_date: '2026-10-22'}})""")
                 page.get_by_placeholder('Search Staff by Name, Department or Schedule').fill(name)
                 card = page.locator('.o_bae_employee').filter(has_text=name)
+                expect(card).to_contain_text('8h 15m')
                 with page.expect_response(lambda response: response.url.endswith('/hr.attendance/web_search_read')) as loaded:
                     card.get_by_role('button', name='Open attendance entries', exact=True).click()
                 page.locator('.o_list_view .o_data_row').first.wait_for()
@@ -88,6 +104,20 @@ def main():
                 action = rpc('bambus.hr.attendance.sheet', 'open_dashboard_attendance_entries',
                     [employee, '2026-10-22'])
                 assert sorted(rpc('hr.attendance', 'search', [action['domain']])) == sorted(punches)
+                # Native ORM edit while away from the dashboard; return through
+                # the action stack exactly as the pencil workflow does.
+                rpc('hr.attendance', 'write', [[punches[1]],
+                    {'check_out': utc('2026-10-22 17:45')}])
+                page.evaluate('() => odoo.__WOWL_DEBUG__.root.env.services.action.restore()')
+                search = page.get_by_placeholder('Search Staff by Name, Department or Schedule')
+                search.fill(name)
+                expect(page.locator('.o_bae_employee').filter(has_text=name)).to_contain_text('7h 15m')
+                assert page.locator('input[type="date"]').input_value() == '2026-10-22'
+                saved = rpc('bambus.hr.attendance.sheet.line', 'search_read', [[
+                    ['sheet_id', '=', sheet], ['employee_id', '=', employee]]],
+                    {'fields': ['fine_hours', 'fine_amount']})[0]
+                assert saved['fine_hours'] == 6 and saved['fine_amount'] == 187.68
+
             # A card without punches must still expose the route and open an empty list.
             page.evaluate("""() => odoo.__WOWL_DEBUG__.root.env.services.action.doAction({
                 type: 'ir.actions.client', tag: 'bambus_attendance_editor',
@@ -100,7 +130,7 @@ def main():
             assert loaded.value.json()['result']['records'] == []
             assert page.locator('.o_list_view .o_data_row').count() == 0
             assert not errors, errors
-            print('PASS: installed pencil for Monthly/Daily/Hourly; correct employee/date, split punches, adjacent dates excluded, empty day opens native list.')
+            print('PASS: installed pencil for Monthly/Daily/Hourly; correct employee/date, split punches, adjacent dates excluded, empty day opens native list; corrected punches refresh on return while approved fines remain saved.')
         finally:
             for model, record in reversed(created):
                 rpc(model, 'unlink', [[record]])
