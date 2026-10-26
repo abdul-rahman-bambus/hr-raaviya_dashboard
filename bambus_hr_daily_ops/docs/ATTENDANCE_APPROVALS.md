@@ -1,5 +1,12 @@
 # Attendance approvals and weekly-off pay
 
+Attendance Day Classification is under **Late & Early Exit**, directly below
+**Day Pay** (Daily Ops **18.0.1.90.0**). Configure **Half Day Hours**, **Full Day
+Basis**, and, for a fixed basis, **Full Day Hours** there. This form layout change
+preserves saved values and attendance/payroll calculations. Upgrade the module
+and reload the client to display the new location.
+
+
 Open HRMS → Attendance → Attendance Editor. Either the OT or Fine control opens
 one review containing every applicable item for that employee and local date:
 OT, Late Fine, Break / Gap Fine and Early Exit Fine. Hourly Pay keeps its own
