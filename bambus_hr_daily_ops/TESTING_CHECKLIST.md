@@ -266,3 +266,17 @@ rows; finalized rows/amounts are retained. The supplied October example is
 Validation: **228 backend tests**, zero failures/errors; installed Chromium
 passed the decision/audit workflow, zero paid days with eight actual hours and
 approved money, and both XLSX downloads. No client assets changed in this fix.
+
+
+## Daily-card attendance pencil navigation
+
+Upgrade `bambus_hr_daily_ops` to **18.0.1.87.0** and reload the client. Verify the
+pencil beside each employee name opens the native Punch Logs list for that
+employee and selected dashboard date. Split punches must all appear; other
+employees and adjacent local dates must not. An unmarked/absent date opens an
+empty list. Existing attendance access rules and Logs history remain in effect.
+
+Validation: **15 backend tests** (navigation and asset checks), **17 production
+OWL Chromium tests**, and the installed Monthly/Daily/Hourly/empty-date browser
+check passed. Backend cases include local-midnight and DST bounds and denied
+access. This navigation does not modify punches, approvals or payroll.

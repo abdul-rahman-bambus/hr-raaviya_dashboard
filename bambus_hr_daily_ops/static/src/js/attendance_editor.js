@@ -287,6 +287,19 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.logEmployee = employee;
     }
 
+    async openAttendanceEntries(employee) {
+        try {
+            const action = await this.orm.call("bambus.hr.attendance.sheet", "open_dashboard_attendance_entries", [
+                employee.id, this.state.data.date,
+            ]);
+            await this.action.doAction(action);
+        } catch (error) {
+            this.notification.add(error.cause?.message || error.message || "Unable to open attendance entries.", {
+                type: "danger",
+            });
+        }
+    }
+
     closeLogs() {
         this.state.logEmployee = null;
     }

@@ -42,6 +42,10 @@ sections. Contract wage displays, bounded review scrolling, persistent exclusion
 paid special-day counters, and separate earnings/deduction details are supported.
 See the module README for details, calculations and test commands.
 
+Daily Attendance cards include a pencil beside each employee's name to open
+their actual attendance entries for the selected local date. Upgrade
+`bambus_hr_daily_ops` to **18.0.1.87.0** and reload the client for this shortcut.
+
 ## Payroll workflow
 
 Use **Payroll > Payslip Batches > Generate Payslips**, then **Payroll Reports >

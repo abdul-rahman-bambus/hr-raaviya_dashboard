@@ -224,3 +224,17 @@ Basic 2,838.71, OT 773.75, Fine 294.55 and Net 3,317.91. **228 Odoo tests** and 
 installed dashboard/both-XLSX-download check passed. Seconds tolerance, production
 deployment and client acceptance remain separate. See
 [the upgrade/manual guide](WITHHELD_PAYABLE_DAYS.md).
+
+
+## Daily-card pencil navigation (26 October)
+
+`bambus_hr_daily_ops` **18.0.1.87.0** adds a pencil beside each employee name on
+Daily Attendance. It opens actual attendance entries filtered by employee and
+selected local check-in date under existing attendance access rules. Empty dates
+open an empty native list; Logs retains time/audit history. Upgrade/reload assets.
+
+Validation: **15 backend navigation/asset tests**, **17 production OWL Chromium
+tests**, and installed Monthly/Daily/Hourly and empty-day navigation checks passed.
+No attendance, approval or salary data is changed by opening this list. The
+separate manual dashboard punch synchronization and seconds-tolerance gaps remain.
+These checks do not establish production deployment.

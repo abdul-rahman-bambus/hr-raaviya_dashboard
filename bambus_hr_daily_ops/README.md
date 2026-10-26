@@ -21,6 +21,20 @@ The changes delivered through PRs #113–#116 include:
 - Matching Weekly Off / Public Holiday Payroll Treatment sections, persistent
   Ignore/Delete decisions, and reconciled paid-day columns in reporting.
 
+### Open an employee's actual attendance entries
+
+Each employee card on Daily Attendance has a **pencil icon beside the name**.
+Select the date, then click **Open attendance entries** to open the standard
+Punch Logs list for that employee and date. The date follows the dashboard user's
+timezone and local check-in date, including all split punches. Dates without
+punches open an empty list. Normal attendance access and editing permissions apply.
+The existing Logs button continues to show the dashboard's time/audit history.
+
+Upgrade `bambus_hr_daily_ops` to **18.0.1.87.0**, restart Odoo and reload the web
+client to load the new icon and navigation. Opening the list does not change
+attendance, approvals or payroll; corrections to punches still require the usual
+review and draft-payslip recomputation.
+
 ### Why keep Weekly Off Policy?
 
 | Control | Purpose |
@@ -181,6 +195,7 @@ python bambus_hr_daily_ops/tests/browser/verify_reviewed_day_pay.py --fine-only 
 python bambus_hr_daily_ops/tests/browser/verify_paid_special_days.py --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_paid_day_labels.py --url http://localhost:8071 --db <test_database>
 python bambus_hr_daily_ops/tests/browser/verify_paid_day_withholding.py --url http://localhost:8071 --db <test_database>
+python bambus_hr_daily_ops/tests/browser/verify_attendance_entry_navigation.py --url http://localhost:8071 --db <test_database>
 ```
 
 Browser fixtures verify actual records and the full installed asset bundle; they
