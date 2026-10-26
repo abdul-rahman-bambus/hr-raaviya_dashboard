@@ -1212,7 +1212,7 @@ class BambusHrAttendanceSheetLine(models.Model):
 
     # Leave snapshot
     leave_id = fields.Many2one("hr.leave", string="Leave", readonly=True)
-    leave_state = fields.Selection(related="leave_id.state", store=False, readonly=True)
+    leave_state = fields.Selection(related="leave_id.state", string="Leave Status", store=False, readonly=True)
     is_half_day_leave = fields.Boolean(string="Half Day Leave", readonly=True)
 
     status = fields.Selection(

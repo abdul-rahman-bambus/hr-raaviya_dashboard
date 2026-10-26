@@ -35,7 +35,7 @@
           <field name="contract_wage_label" nolabel="1"/>
           <field name="contract_wage_amount" nolabel="1"/>
         </group>
-        <div class="alert alert-info">Approve the applicable items together. Delete a fine row or select Ignore Overtime to exclude it permanently when you approve. Cancel discards these changes.</div>
+        <div class="alert alert-info" role="status">Approve the applicable items together. Delete a fine row or select Ignore Overtime to exclude it permanently when you approve. Cancel discards these changes.</div>
         <group string="Overtime" invisible="not show_overtime">
           <group>
             <field name="ignore_overtime"/>
@@ -57,7 +57,7 @@
           </group>
         </group>
         <separator string="Late, Break and Early Exit Fines"/>
-        <div class="alert alert-warning" invisible="not resplit_fines">These are new session proposals. Approving replaces the previous fine decisions and amount. Cancel retains the existing approval.</div>
+        <div class="alert alert-warning" role="alert" invisible="not resplit_fines">These are new session proposals. Approving replaces the previous fine decisions and amount. Cancel retains the existing approval.</div>
         <field name="fine_line_ids" nolabel="1">
           <list editable="bottom" create="0" delete="1">
             <field name="currency_id" column_invisible="1"/>

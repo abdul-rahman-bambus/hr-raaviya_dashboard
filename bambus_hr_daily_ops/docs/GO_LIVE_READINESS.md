@@ -254,3 +254,19 @@ passed on an isolated test database. Standard accounting/loan hooks remain in
 place; their target configuration still requires normal deployment validation.
 Production deployment/client confirmation remain separate. See
 [the bulk confirmation guide](../../custom_hr_payroll/README.md).
+
+
+## Runtime warning cleanup (26 October)
+
+See [the source fixes and seven coordinated upgrade versions](RUNTIME_WARNINGS.md).
+Deprecated company/precision/string APIs, missing-field constraints, duplicate
+labels, report/license metadata, icon/alert semantics and old payroll kanban
+names were corrected. Eager report test imports causing normal startup errors
+were removed without losing test discovery. The invalid approved-fine/raw-split
+equality diagnostic was removed; raw figures and approved amounts remain intact.
+No warning filters or salary policies were changed.
+
+Final local validation: **237 tests**, zero warnings/errors on upgrade/test logs,
+and clean fresh normal HTTP/browser logs. All four native payroll cards and both
+Excel exports passed, retaining exact decimal salary. Deployment and any warnings
+unique to the client's local installation still require that installation's check.

@@ -110,6 +110,13 @@ release checklist consistent. Record actual test counts and remaining gaps; loca
 test success does not establish deployment or client acceptance. Keep runtime
 logs, scratch scripts and screenshots in `work/`, outside commits.
 
+Keep Odoo 18 compatibility at the source: use env.company defaults, named Float
+digits directly, and `card` kanban templates. Import test packages through Odoo's
+test discovery rather than module-root initializers. Do not suppress warning
+logging to pass checks, or equate HR-approved/post-grace fines with raw split
+minutes. Preserve field names, precision names and saved payroll amounts when
+correcting labels/metadata or removing obsolete constraints.
+
 ## Restored staging reconciliation
 
 - BASIC is a salary category, not necessarily a rule code. Header aggregates

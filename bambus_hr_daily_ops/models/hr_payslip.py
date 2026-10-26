@@ -351,7 +351,7 @@ class HrPayslipAttendanceDetail(models.Model):
     display_type = fields.Char(
         string="Earning Type", compute="_compute_display_classification"
     )
-    hours = fields.Float(string="Duration", digits=(16, 6))
+    hours = fields.Float(string="Duration (Hours)", digits=(16, 6))
     duration_display = fields.Char(
         string="Duration", compute="_compute_duration_display"
     )
@@ -376,7 +376,7 @@ class HrPayslipAttendanceDetail(models.Model):
             detail.rate_unit = ('per minute' if detail.calculation_type == 'salary_minute' else
                                 'per hour' if detail.calculation_type in ('fixed_hour', 'salary_1', 'salary_1_5', 'salary_2') else
                                 'no charge' if detail.calculation_type == 'regularize' else 'amount')
-    description = fields.Char(required=True)
+    description = fields.Char(string="Source Description", required=True)
     display_description = fields.Char(
         string="Description", compute="_compute_display_classification"
     )

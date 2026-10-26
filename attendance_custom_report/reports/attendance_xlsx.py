@@ -4,13 +4,11 @@ from datetime import datetime, timedelta, time
 import math
 import pytz
 from collections import defaultdict
-import logging
-
-_logger = logging.getLogger(__name__)
 
 
 class AttendanceXlsxReport(models.AbstractModel):
     _name = "report.attendance_custom_report.attendance_xlsx"
+    _description = "Attendance XLSX Report"
     _inherit = "report.report_xlsx.abstract"
 
     # ---------------- utilities ----------------
@@ -231,14 +229,8 @@ class AttendanceXlsxReport(models.AbstractModel):
             # Absent flag: schedule exists AND not weekend/holiday
             is_absent = (not day_att) and bool(shifts) and (not is_weekend) and (not is_holiday)
 
-            # Sanity: Fine should match split (allow 1 minute rounding)
-            fine_mins = int(round((fine_hours or 0.0) * 60.0))
-            split_mins = int(late_mins or 0) + int(early_mins or 0) + int(gap_mins or 0)
-            if abs(fine_mins - split_mins) > 1 and emp.employee_type != "worker":
-                _logger.warning(
-                    "Fine split mismatch (%s %s): fine=%s mins, split=%s mins (late=%s early=%s gap=%s)",
-                    emp.name, d, fine_mins, split_mins, late_mins, early_mins, gap_mins
-                )
+            # HR-edited/post-grace fine hours and raw late/early/gap minutes
+            # describe different measures. Keep both without asserting equality.
 
             result[d] = {
                 "attendances": day_att,
