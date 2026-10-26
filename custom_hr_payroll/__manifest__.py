@@ -1,6 +1,7 @@
 {
     'name': 'HR Payroll Custom Enhancements',
-    'version': '18.0.4.17.0',
+    'version': '18.0.4.18.0',
+    'description': 'Contract wage types, payroll attendance helpers, salary revisions and reviewed bulk payslip confirmation.',
     'summary': 'Custom payroll with template-driven attendance and hourly & monthly wage logic.',
     'author': 'Bambus Technologies',
     'license': 'LGPL-3',
