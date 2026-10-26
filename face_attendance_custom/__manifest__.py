@@ -1,6 +1,6 @@
 {
     "name": "Face attendance custom",
-    "version": "18.0.0.1",
+    "version": "18.0.0.2",
     "summary": "This module has face attendance customisation",
     "author": "cube48 AG",
     "sequence": 1,
