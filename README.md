@@ -58,6 +58,12 @@ Confirmation is optional for reporting. If the month is finalized through
 payslip confirmation, select **Done** or **All Except Rejected** for later exports.
 Upgrade `hr_payslip_excel_report` to **18.0.4.15.0** for the Draft default.
 
+For bulk month-end confirmation, upgrade `custom_hr_payroll` to **18.0.4.16.0**.
+Select computed Draft/Waiting records in Employee Payslips, then **Actions >
+Confirm Payslips**. Review the count/Net total and confirm. Standard confirmation
+runs for each selection; changed salary amounts or any failure roll back all.
+See [bulk confirmation and reporting](custom_hr_payroll/README.md).
+
 The separate Prepare Draft Payroll flow has been withdrawn. Upgrade
 `hr_payslip_excel_report` to `18.0.4.11.0` to remove its installed menu/buttons;
 existing batches, payslips and salary data are retained. See the

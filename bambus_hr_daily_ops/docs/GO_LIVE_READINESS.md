@@ -238,3 +238,19 @@ tests**, and installed Monthly/Daily/Hourly and empty-day navigation checks pass
 No attendance, approval or salary data is changed by opening this list. The
 separate manual dashboard punch synchronization and seconds-tolerance gaps remain.
 These checks do not establish production deployment.
+
+
+## Bulk confirmation of reviewed payroll (26 October)
+
+`custom_hr_payroll` **18.0.4.16.0** adds Employee Payslips > Actions > Confirm
+Payslips with a count/Net/selection dialog. Standard per-slip confirmation runs;
+invalid selections, changed salary-rule amounts at currency precision, or any
+confirmation error prevent completion and roll back the selection. Done reporting
+requires Done/All Except Rejected rather than the new Draft report default.
+No existing slips are confirmed on upgrade and no salary payment is initiated.
+
+**237 Odoo tests** and installed native-list/Cancel/three-wage/Done-report checks
+passed on an isolated test database. Standard accounting/loan hooks remain in
+place; their target configuration still requires normal deployment validation.
+Production deployment/client confirmation remain separate. See
+[the bulk confirmation guide](../../custom_hr_payroll/README.md).

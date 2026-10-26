@@ -78,6 +78,14 @@ The separate Prepare Draft Payroll wizard from PR #121 was withdrawn at the
 client's request. Do not reintroduce its menu, batch shortcuts or report handoff.
 Preserve existing batches, salary lines and the Monthly/Hourly/Daily summary.
 
+Bulk list confirmation accepts computed Draft/Waiting payslips from one enabled
+company. Keep payroll-user/access checks and use standard per-slip confirmation
+so accounting/loan hooks run. Never confirm uncomputed/Done/Rejected selections
+or silently accept changed salary amounts: rollback the whole selection on any
+failure or currency-level salary-rule amount change. Cancel/open is read-only
+for payslips. Confirmation does not initiate salary bank/cash payment. Done
+reports require the matching status filter; do not change the Draft default.
+
 ## Validation and documentation
 
 Use an isolated database whose name contains `test` for browser fixture scripts.
