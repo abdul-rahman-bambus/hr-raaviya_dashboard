@@ -284,3 +284,13 @@ and fresh normal HTTP/sequential browser logs had zero warnings/errors. Family,
 loan and advance forms, list-create sequences, advance status, three Apps
 descriptions and both payroll downloads passed. Client-local modules beyond that
 registry and the deliberately excluded SaaS messages are not claimed fixed.
+
+## Attendance classification placement — Daily Ops 18.0.1.90.0
+
+Attendance Day Classification moved from Overtime to Late & Early Exit, directly
+below Day Pay. Fields, visibility conditions, stored values and calculations are
+unchanged. Upgrade Daily Ops and reload the client. Isolated test validation:
+12 targeted TestBackendAssets tests passed with zero failures/errors; installed
+Chromium check confirmed both tab placement and schedule/fixed field visibility,
+with half-day/full-day values retained. Test and runtime logs contained no
+warnings/errors. This evidence does not establish customer deployment.

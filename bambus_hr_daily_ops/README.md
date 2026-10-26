@@ -1,5 +1,12 @@
 # Bambus HR Daily Ops
 
+Attendance Day Classification is under **Late & Early Exit**, directly below
+**Day Pay** (Daily Ops **18.0.1.90.0**). Configure **Half Day Hours**, **Full Day
+Basis**, and, for a fixed basis, **Full Day Hours** there. This form layout change
+preserves saved values and attendance/payroll calculations. Upgrade the module
+and reload the client to display the new location.
+
+
 ## Current delivered flow and release readiness
 
 The original planned go-live was **Monday 19 October 2026**. The calendar-month

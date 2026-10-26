@@ -1,5 +1,12 @@
 # Configure partial attendance salary
 
+Attendance Day Classification is under **Late & Early Exit**, directly below
+**Day Pay** (Daily Ops **18.0.1.90.0**). Configure **Half Day Hours**, **Full Day
+Basis**, and, for a fixed basis, **Full Day Hours** there. This form layout change
+preserves saved values and attendance/payroll calculations. Upgrade the module
+and reload the client to display the new location.
+
+
 ## Customer setup
 
 Open **HRMS > Configuration > Automation Rules**, select the employee's effective

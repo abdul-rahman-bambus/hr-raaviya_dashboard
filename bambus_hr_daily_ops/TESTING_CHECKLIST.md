@@ -319,3 +319,13 @@ custom Apps descriptions, then check normal startup and employee/loan/advance
 forms plus both Excel downloads. Do not modify bambus_saas_client or suppress
 warning logging. Expanded 85-module validation passed **243 tests** with clean
 upgrade/test and fresh sequential normal-browser logs.
+
+## Attendance classification placement — Daily Ops 18.0.1.90.0
+
+Attendance Day Classification moved from Overtime to Late & Early Exit, directly
+below Day Pay. Fields, visibility conditions, stored values and calculations are
+unchanged. Upgrade Daily Ops and reload the client. Isolated test validation:
+12 targeted TestBackendAssets tests passed with zero failures/errors; installed
+Chromium check confirmed both tab placement and schedule/fixed field visibility,
+with half-day/full-day values retained. Test and runtime logs contained no
+warnings/errors. This evidence does not establish customer deployment.
