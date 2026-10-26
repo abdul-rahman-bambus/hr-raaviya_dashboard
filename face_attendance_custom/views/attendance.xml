@@ -11,6 +11,12 @@
                 <field name='attendance_client_id' readonly="1" />
                 <field name="checkin_address" readonly="1" />
                 <field name="checkout_address" readonly="1" />
+                <field name="track_employee" invisible="1" />
+                <field name="location_track_logs" invisible="1" readonly="1" />
+                <field name="tracking_route_url" widget="url" text="Open tracking route" string="Open tracking route" invisible="not track_employee or not tracking_route_url" readonly="1" />
+                <div invisible="not track_employee or not location_track_logs" colspan="2" class="o_attendance_route_map_wrapper">
+                    <widget name="attendance_route_map"/>
+                </div>
             </xpath>
         </field>
     </record>

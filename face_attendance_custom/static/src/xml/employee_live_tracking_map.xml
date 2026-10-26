@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="face_attendance_custom.EmployeeLiveTrackingMap">
+        <div class="o_employee_live_map_card">
+            <div class="o_employee_live_map_header">
+                <div class="o_live_status_indicator">
+                    <span class="o_live_status_dot" t-att-class="{ 'o_pulse': state.isLive }"/>
+                    <span class="fw-bold fs-7" t-esc="state.statusText"/>
+                    <small class="text-muted ms-1" t-if="state.lastUpdatedText" t-esc="'(' + state.lastUpdatedText + ')'"/>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <a t-if="state.googleMapsUrl" t-att-href="state.googleMapsUrl" target="_blank" class="btn btn-sm btn-outline-primary" title="Open in Google Maps">
+                        <i class="fa fa-map-marker me-1"/> Open in Google Maps
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" t-on-click="recenterMap" title="Center on current position">
+                        <i class="fa fa-crosshairs me-1"/> Center
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" t-on-click="reloadLogs" title="Refresh Location Logs">
+                        <i class="fa fa-refresh" t-att-class="{ 'fa-spin': state.loading }"/>
+                    </button>
+                </div>
+            </div>
+            <div t-ref="mapContainer" class="o_employee_live_map_canvas"/>
+        </div>
+    </t>
+</templates>

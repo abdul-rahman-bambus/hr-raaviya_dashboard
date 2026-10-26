@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="face_attendance_custom.AttendanceRouteMap">
+        <div class="o_attendance_route_map_card">
+            <div class="o_attendance_route_map_header">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fa fa-map-signs text-primary"/>
+                    <span class="fw-bold fs-7" t-esc="state.titleText"/>
+                    <small class="text-muted" t-if="state.pointCountText" t-esc="state.pointCountText"/>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <a t-if="state.googleMapsUrl" t-att-href="state.googleMapsUrl" target="_blank" class="btn btn-sm btn-outline-primary" title="Open full route in Google Maps">
+                        <i class="fa fa-map-marker me-1"/> Open in Google Maps
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" t-on-click="fitBounds" title="Fit route to map">
+                        <i class="fa fa-arrows-alt me-1"/> Fit Route
+                    </button>
+                </div>
+            </div>
+            <div t-ref="mapContainer" class="o_attendance_route_map_canvas"/>
+        </div>
+    </t>
+</templates>
