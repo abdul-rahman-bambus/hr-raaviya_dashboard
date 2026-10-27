@@ -353,3 +353,19 @@ manual status preservation and unchanged saved fines. Installed Chromium verifie
 Monthly/Daily/Hourly pencil navigation and refreshed values after action-stack
 return, with the selected date and approved fine amounts retained. No WARNING or
 ERROR entries in the passing test/runtime logs. Customer deployment remains pending.
+
+## Empty payroll Summary warning — report 18.0.4.18.0
+
+Payslip Summary now validates its selected company, period and filters before
+returning the download URL. An empty selection shows an Odoo warning explaining
+how to generate payslips or correct filters (Done/All for confirmed slips), without
+requesting a file or navigating to the controller's Bad Request page. Direct
+stale download URLs retain server validation. Payroll Review still permits
+missing-payslip exception reporting for matching employees; no matching employees
+also produces a warning. Existing salary/export/approval behaviour is unchanged.
+
+Validation: 59 payroll-report Odoo tests passed with zero failures/errors.
+Installed Chromium verified the warning, no download request/new page, preserved
+web client and wizard, and successful normal Payroll Review and Summary XLSX
+exports. Expected UserError warning logging remains enabled. This does not
+establish customer deployment. Upgrade hr_payslip_excel_report and restart Odoo.

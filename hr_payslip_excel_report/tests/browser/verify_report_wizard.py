@@ -45,6 +45,7 @@ def main():
         payslips = []
         contract = False
         batch = False
+        empty_wizard = False
         try:
             contract = rpc('hr.contract', 'create', [{'name': 'Browser Monthly Contract',
                 'employee_id': employee, 'company_id': company, 'date_start': '2026-09-01',
@@ -68,6 +69,28 @@ def main():
                 ['name', '=', 'menu_draft_payroll_preparation']]])
             page.goto(args.url + '/odoo?debug=assets')
             page.wait_for_selector('.o_web_client', timeout=60000)
+            empty_wizard = rpc('payslip.excel.wizard', 'create', [{
+                'report_type': 'summary', 'company_id': company, 'duration_type': 'custom',
+                'start_date': '2026-10-01', 'end_date': '2026-10-31',
+                'employee_ids': [(6, 0, [employee])], 'payslip_status': 'draft',
+            }])
+            downloads, download_requests = [], []
+            page.on('download', lambda item: downloads.append(item))
+            page.on('request', lambda item: download_requests.append(item.url)
+                    if '/my_excel/download' in item.url else None)
+            page.evaluate("""wizard => odoo.__WOWL_DEBUG__.root.env.services.action.doAction({
+                type: 'ir.actions.act_window', res_model: 'payslip.excel.wizard',
+                res_id: wizard, views: [[false, 'form']], target: 'new'})""", empty_wizard)
+            page.evaluate('window.emptyReportWebClient = document.querySelector(".o_web_client")')
+            page.get_by_role('button', name='Download Excel', exact=True).click()
+            warning = page.get_by_role('dialog').filter(has_text='Generate payslips first')
+            warning.wait_for()
+            assert 'select Done or All Except Rejected' in warning.inner_text()
+            assert page.evaluate('emptyReportWebClient.isConnected')
+            assert '/my_excel/download' not in page.url and len(context.pages) == 1
+            assert downloads == [] and download_requests == []
+            warning.locator('.modal-footer').get_by_role('button', name='Close', exact=True).click()
+            page.get_by_role('button', name='Cancel', exact=True).click()
             page.evaluate("""async batch => {
                 await odoo.__WOWL_DEBUG__.root.env.services.action.doAction({
                     type: 'ir.actions.act_window', res_model: 'hr.payslip.run',
@@ -137,8 +160,10 @@ def main():
                 assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace) is None
             assert page.evaluate('originalWebClient.isConnected')
             assert not errors, errors
-            print('Standard batch UI without withdrawn shortcuts, browser wizard, custom dates, employee filter, HRMS shortcut, duplicate resolution, detailed holiday summary, no frozen panes, both exports, and persistent web client: passed')
+            print('Empty Summary warns in Odoo without navigation/download; standard batch UI, report filters, both XLSX exports and persistent web client: passed')
         finally:
+            if empty_wizard:
+                rpc('payslip.excel.wizard', 'unlink', [[empty_wizard]])
             if payslips:
                 rpc('hr.payslip', 'unlink', [payslips])
             if batch:

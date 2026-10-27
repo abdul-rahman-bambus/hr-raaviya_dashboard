@@ -178,3 +178,21 @@ their attendance classifications, including withheld work. Saved salary and
 approved OT/fines retain their amounts. Finalized slips are not refreshed, and
 exports do not recompute payroll. See the
 [reconciliation and manual check](../bambus_hr_daily_ops/docs/WITHHELD_PAYABLE_DAYS.md).
+
+## Empty-selection warning — 18.0.4.18.0
+
+Download Excel validates Payslip Summary selection before returning the download
+URL. If no payslips match, Odoo shows a warning in the existing client: generate
+payslips from Payroll > Payslip Batches, or correct the company, period, employees,
+department and status. Confirmed payslips require Done or All Except Rejected.
+No file is requested and the wizard remains available to correct the filters.
+
+The controller still validates direct/stale download URLs. Valid exports retain
+the existing saved-salary rules and do not compute, confirm or modify payslips.
+Payroll Review intentionally supports employees without payslips so it can list
+missing-payroll exceptions. If no employees or payslips match, it also warns before
+navigation. Upgrade hr_payslip_excel_report and restart Odoo to apply this change.
+
+Validation: 59 payroll-report tests passed; installed Chromium verified the empty
+Summary warning without a download/new page and both normal workbook downloads.
+No customer deployment was performed.

@@ -1,7 +1,7 @@
 import calendar
 
 from odoo import _, api, fields, models
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 
 class PayslipReportWizard(models.TransientModel):
@@ -83,8 +83,26 @@ class PayslipReportWizard(models.TransientModel):
         self._validate_scope()
         return self.env['report.hr_payslip_excel_report.payroll_review']._generate(self)
 
+    def _report_payslips(self):
+        """Validate content before navigation, using the download's selection."""
+        slips = self._selected_payslips()
+        if self.report_type == 'summary' and not slips:
+            raise UserError(_(
+                'No payslips match the selected company, period and filters.\n\n'
+                'Generate payslips first from Payroll > Payslip Batches, then '
+                'return to download the report.\n\n'
+                'If payslips already exist, check the dates, employees, department '
+                'and status. For confirmed payslips, select Done or All Except Rejected.'
+            ))
+        if not slips and not self._scope_employees():
+            raise UserError(_(
+                'No employees match the selected company and filters. '
+                'Check the company, department and employee selection.'
+            ))
+        return slips
+
     def action_download_payslip_excel_report(self):
-        self._validate_scope()
+        self._report_payslips()
         return {
             'type': 'ir.actions.act_url', 'target': 'download',
             'url': '/my_excel/download?id=%s' % self.id,
