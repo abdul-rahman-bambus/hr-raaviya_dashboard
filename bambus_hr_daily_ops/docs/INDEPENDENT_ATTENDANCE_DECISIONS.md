@@ -35,6 +35,11 @@ form, while employee Logs retains the existing time/adjustment audit trail.
 
 ## Upgrade and preservation
 
+For a local rehearsal before merging/deploying, use the
+[new-database restore and baseline comparison script](../../scripts/README.md).
+It keeps the source config/database and SaaS client unchanged and creates a
+separate test config/filestore on a different port.
+
 Deploy these coordinated versions in one maintenance upgrade:
 
 | Module | Version |

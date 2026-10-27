@@ -5,6 +5,11 @@ records supply actual time; dashboard edits save actual punches. See the
 [coordinated migration guide](bambus_hr_daily_ops/docs/INDEPENDENT_ATTENDANCE_DECISIONS.md)
 before upgrading the four attendance/payroll-report modules.
 
+For a local restore before merging/upgrading, use the
+[test-database restore and saved-payroll comparison workflow](scripts/README.md).
+It creates a separate database/config/filestore and leaves SaaS client settings
+unchanged.
+
 
 Custom Odoo 18 modules for employee attendance, HR adjustment review, payroll,
 and attendance/payroll reporting.
