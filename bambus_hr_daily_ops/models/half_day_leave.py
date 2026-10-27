@@ -44,8 +44,8 @@ class HalfDayLeaveWizard(models.TransientModel):
         return {'type': 'ir.actions.act_window_close'}
 
 
-class HalfDayLeaveDashboard(models.Model):
-    _inherit = 'bambus.hr.attendance.sheet'
+class HalfDayLeaveDashboard(models.AbstractModel):
+    _inherit = 'bambus.attendance.dashboard'
 
     @api.model
     def prepare_half_day_leave(self, employee_id, selected_date):

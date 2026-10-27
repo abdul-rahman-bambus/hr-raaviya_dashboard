@@ -124,8 +124,8 @@ class AttendanceXlsxReport(models.AbstractModel):
         atts = self._search_attendances(emp, start_date, end_date, tzname)
         by_day = self._group_by_local_day(atts, tzname, start_date, end_date)
         reviewed_by_day = {}
-        if "bambus.hr.attendance.sheet.line" in self.env:
-            reviewed = self.env["bambus.hr.attendance.sheet.line"].sudo().search([
+        if "bambus.attendance.day.review" in self.env:
+            reviewed = self.env["bambus.attendance.day.review"].sudo().search([
                 ("employee_id", "=", emp.id),
                 ("date", ">=", start_date), ("date", "<=", end_date),
                 "|", ("overtime_state", "in", ("approved", "rejected")),

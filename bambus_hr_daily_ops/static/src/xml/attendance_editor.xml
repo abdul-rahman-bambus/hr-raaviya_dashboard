@@ -9,7 +9,6 @@
           <button class="btn btn-light" t-att-disabled="dateNavigationLocked" t-on-click="() => this.moveDate(-1)" title="Previous day"><i class="fa fa-chevron-left"/></button>
           <input class="form-control" type="date" t-att-disabled="dateNavigationLocked" t-att-value="state.selectedDate" t-on-change="(ev) => this.changeDate(ev)"/>
           <button class="btn btn-light" t-att-disabled="dateNavigationLocked" t-on-click="() => this.moveDate(1)" title="Next day"><i class="fa fa-chevron-right"/></button>
-          <button class="btn btn-outline-secondary" t-on-click="openHistory">History</button>
         </div>
       </div>
       <div t-if="state.loading &amp;&amp; state.data" class="text-muted small py-1" role="status"><i class="fa fa-spinner fa-spin"/> Updating…</div>

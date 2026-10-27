@@ -185,10 +185,9 @@ class HrEmployee(models.Model):
                     }
                 day += timedelta(days=1)
 
-        # Daily sheets are the operational source for explicit absences and
-        # manager-adjusted statuses. Overlay them so this screen agrees with
-        # the Attendance History workflow.
-        sheet_lines = self.env["bambus.hr.attendance.sheet.line"].search([
+        # Explicit HR decisions overlay status only; actual punches and current
+        # leave remain authoritative even when a review was opened previously.
+        sheet_lines = self.env["bambus.attendance.day.review"].search([
             ("employee_id", "=", employee.id),
             ("date", ">=", month_start),
             ("date", "<=", month_end),
@@ -198,12 +197,16 @@ class HrEmployee(models.Model):
             "halfday": _("Half Day"), "leave": _("Leave"),
         }
         for line in sheet_lines:
+            current = rows.get(line.date, {})
+            if not current and not line.attendance_status_manual:
+                continue
+            status = line.status if line.attendance_status_manual else current.get('status', 'not_marked')
             local_in = fields.Datetime.context_timestamp(self, line.check_in) if line.check_in else False
             local_out = fields.Datetime.context_timestamp(self, line.check_out) if line.check_out else False
             rows[line.date] = {
                 "date": fields.Date.to_string(line.date),
-                "status": line.status,
-                "status_label": status_labels.get(line.status, line.status or ""),
+                "status": status,
+                "status_label": status_labels.get(status, current.get('status_label', '')),
                 "check_in": local_in.strftime("%I:%M %p").lstrip("0") if local_in else "",
                 "check_out": local_out.strftime("%I:%M %p").lstrip("0") if local_out else "",
                 "worked_hours": line.worked_hours or 0.0,

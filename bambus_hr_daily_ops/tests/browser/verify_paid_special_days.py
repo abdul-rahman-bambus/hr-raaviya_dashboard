@@ -110,9 +110,9 @@ def main():
                   'payslips retain 300 normal pay while worked days refresh .5 -> 1 and payable days stay 1.')
         finally:
             if 'employee' in locals():
-                lines = rpc('bambus.hr.attendance.sheet.line', 'search', [[['employee_id', '=', employee]]])
+                lines = rpc('bambus.attendance.day.review', 'search', [[['employee_id', '=', employee]]])
                 if lines:
-                    rpc('bambus.hr.attendance.sheet.line', 'unlink', [lines])
+                    rpc('bambus.attendance.day.review', 'unlink', [lines])
             for model, record in reversed(created):
                 rpc(model, 'unlink', [[record]])
             browser.close()

@@ -1,5 +1,11 @@
 # Payroll reports: standard batch workflow
 
+As of **18.0.4.19.0**, adjustments come from independent attendance review records,
+with no Attendance History model dependency. Workbook layout, saved-salary rules
+and empty-selection warnings are unchanged. Deploy the coordinated
+[attendance migration](../bambus_hr_daily_ops/docs/INDEPENDENT_ATTENDANCE_DECISIONS.md).
+
+
 **18.0.4.16.0** removes eager test imports from normal startup; Odoo still discovers
 the report tests in test mode. The Draft default and report behavior remain.
 See [runtime cleanup and upgrade versions](../bambus_hr_daily_ops/docs/RUNTIME_WARNINGS.md).
@@ -26,8 +32,8 @@ separate option for detailed attendance/approval checks and review exceptions.
 
 Generating a batch does not confirm payslips or record cash payment. Keep the
 actual Excel used for cash payment as the payment-period record. Only approved
-adjustments are payable under effective templates. The separate manual-dashboard
-punch/detection gap remains documented in the attendance module.
+adjustments are payable under effective templates. Dashboard time corrections write actual punches; review affected adjustments
+and recompute draft payroll before exporting.
 
 Confirmation is not required to export computed Draft payslips. After reviewing
 the final month totals, payroll staff may confirm payslips through the normal

@@ -1,5 +1,11 @@
 # Raaviya HR attendance and payroll add-ons
 
+Attendance History has been replaced by independent HR decisions. Current punch
+records supply actual time; dashboard edits save actual punches. See the
+[coordinated migration guide](bambus_hr_daily_ops/docs/INDEPENDENT_ATTENDANCE_DECISIONS.md)
+before upgrading the four attendance/payroll-report modules.
+
+
 Custom Odoo 18 modules for employee attendance, HR adjustment review, payroll,
 and attendance/payroll reporting.
 

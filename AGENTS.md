@@ -5,16 +5,20 @@ Read the root README and the affected module documentation before changing behav
 
 ## Attendance and payroll invariants
 
-- `hr.attendance` contains actual punch records used by automatic detection.
-  `bambus.hr.attendance.sheet.line` holds HR daily snapshots and saved approvals.
-  An HR audit log is not itself a punch record.
-- On dashboard reads, current actual punches take precedence over saved sheet
-  punch times/worked hours when punches exist. Keep manual-only snapshot fallback,
-  explicit statuses and saved approvals separate; do not rewrite HR money on reads.
-- The dashboard's `update_dashboard_attendance` currently saves the sheet snapshot
-  and time audit only. It does not create/update `hr.attendance` or invoke detection.
-  This is a known go-live gap; do not document manual dashboard entry as a complete
-  punch-to-fine/payroll workflow until it is fixed and tested.
+- `hr.attendance` is the only source of actual punch times/worked hours.
+  `bambus.attendance.dashboard` is a stateless service; its roster follows the
+  active company. Do not reintroduce the removed History models, menu or cron.
+- `bambus.attendance.day.review` stores independent employee/date/company HR
+  decisions. Current times/hours, contract and leave are non-stored computations.
+  There is no parent sheet. Opening a dashboard must not create review records.
+- Dashboard time edits write real punches and invoke normal detection hooks.
+  Preserve intermediate split sessions/lunch gaps; use the pencil list to remove
+  punches. Status/time edits must not approve money or erase saved adjustments.
+- Migration preserves legacy review IDs, approvals/exclusions/coverage and saved
+  salaries; raw legacy tables are archive evidence only, never runtime inputs.
+  Duplicate/incomplete/company-mismatched decisions and audited manual-only times
+  block upgrade rather than silently changing data. Revoke status without deleting
+  financial decisions. Unchanged proposal refresh must not invalidate open reviews.
 - Resolve templates per attendance date: effective employee template, effective
   company template, then legacy fallback. Respect company and contract boundaries.
 - Paid Weekly Offs and Paid Public Holidays give normal paid-day credit to Monthly

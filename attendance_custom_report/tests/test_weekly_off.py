@@ -129,9 +129,9 @@ class TestWeeklyOffReport(TransactionCase):
             "check_out": datetime.combine(self.day, time(15)),
         })
         self.env["hr.attendance.overtime"].bambus_recompute_range(self.employee.ids, self.day, self.day)
-        sheet = self.env["bambus.hr.attendance.sheet"].create({"date": self.day, "company_id": self.employee.company_id.id})
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id, "employee_id": self.employee.id, "contract_id": self.contract.id,
+        review_values = {"date": self.day, "company_id": self.employee.company_id.id}
+        line = self.env["bambus.attendance.day.review"].create({
+            **review_values, "employee_id": self.employee.id, "contract_id": self.contract.id,
             "overtime_state": "approved", "overtime_hours": 5, "overtime_amount": 500,
             "fine_state": "approved", "fine_hours": 0.25, "fine_amount": 10,
         })
@@ -226,3 +226,13 @@ class TestWeeklyOffReport(TransactionCase):
             column = headers.index('Paid Public Holiday Days') + 1
             staff = next(row for row in sheet.iter_rows() if any(cell.value == self.employee.name for cell in row))
             self.assertEqual(sheet.cell(staff[0].row, column).value, int(enabled))
+
+
+class TestAttendanceReportAccess(TransactionCase):
+    def test_wizard_is_available_to_internal_users_not_portal_users(self):
+        from odoo.tests.common import new_test_user
+        internal = new_test_user(self.env, login='attendance_report_internal', groups='base.group_user')
+        portal = new_test_user(self.env, login='attendance_report_portal', groups='base.group_portal')
+        model = self.env['attendance.report.wizard']
+        self.assertTrue(model.with_user(internal).has_access('create'))
+        self.assertFalse(model.with_user(portal).has_access('create'))

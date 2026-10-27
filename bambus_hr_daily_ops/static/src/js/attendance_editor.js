@@ -35,7 +35,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         form.saving = true;
         this.state.savingIds[form.employee.id] = true;
         try {
-            const data = await this.orm.call("bambus.hr.attendance.sheet", "set_dashboard_paid_day", [
+            const data = await this.orm.call("bambus.attendance.dashboard", "set_dashboard_paid_day", [
                 form.employee.id, form.date, form.employee.paid_day_kind, form.action, form.reason.trim(),
             ]);
             const updated = data.daily_attendance.find(item => item.id === form.employee.id);
@@ -165,7 +165,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         const date = this.state.data.date;
         this.state.savingIds[employee.id] = true;
         try {
-            const action = await this.orm.call("bambus.hr.attendance.sheet", "create_half_day_leave", [employee.id, date]);
+            const action = await this.orm.call("bambus.attendance.dashboard", "create_half_day_leave", [employee.id, date]);
             if (date !== this.state.selectedDate) return;
             await this.action.doAction(action, { onClose: () => this.syncEmployee(employee, date) });
         } catch (error) {
@@ -198,7 +198,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.savingIds[employee.id] = true;
         try {
             await this.orm.call(
-                "bambus.hr.attendance.sheet",
+                "bambus.attendance.dashboard",
                 "revoke_dashboard_status",
                 [employee.id, this.state.data.date, status]
             );
@@ -248,7 +248,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         const sequence = this.loadSequence;
         try {
             const data = await this.orm.call(
-                "bambus.hr.attendance.sheet",
+                "bambus.attendance.dashboard",
                 "get_attendance_dashboard",
                 [],
                 { selected_date: date }
@@ -289,7 +289,7 @@ export class AttendanceEditor extends AttendanceDashboard {
 
     async openAttendanceEntries(employee) {
         try {
-            const action = await this.orm.call("bambus.hr.attendance.sheet", "open_dashboard_attendance_entries", [
+            const action = await this.orm.call("bambus.attendance.dashboard", "open_dashboard_attendance_entries", [
                 employee.id, this.state.data.date,
             ]);
             await this.action.doAction(action);
@@ -311,7 +311,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         }
         try {
             const data = await this.orm.call(
-                "bambus.hr.attendance.sheet",
+                "bambus.attendance.dashboard",
                 adjustment === "hourly_pay" ? "get_dashboard_adjustment" : "get_dashboard_review",
                 adjustment === "hourly_pay" ? [employee.id, this.state.data.date, adjustment] :
                     reviewSessions ? [employee.id, this.state.data.date, true] : [employee.id, this.state.data.date]
@@ -403,11 +403,11 @@ export class AttendanceEditor extends AttendanceDashboard {
         adjustment.saving = true;
         try {
             if (adjustment.adjustment === "review") {
-                await this.orm.call("bambus.hr.attendance.sheet", "save_dashboard_review",
+                await this.orm.call("bambus.attendance.dashboard", "save_dashboard_review",
                     [adjustment.wizard_id, adjustment.items]);
             } else {
                 await this.orm.call(
-                    "bambus.hr.attendance.sheet",
+                    "bambus.attendance.dashboard",
                     "save_dashboard_adjustment",
                     [adjustment.wizard_id, adjustment.adjustment, {
                         hours: adjustment.hours,
@@ -437,7 +437,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.savingIds[employee.id] = true;
         try {
             const result = await this.orm.call(
-                "bambus.hr.attendance.sheet",
+                "bambus.attendance.dashboard",
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
                     status: ["paid_weekly_off", "paid_public_holiday", "unpaid_weekly_off", "unpaid_public_holiday"].includes(employee.status) ? "not_marked" : employee.status,

@@ -10,3 +10,5 @@ from . import test_paid_day_withholding
 
 from . import test_partial_salary_treatment
 from . import test_attendance_entry_navigation
+
+from . import test_independent_attendance

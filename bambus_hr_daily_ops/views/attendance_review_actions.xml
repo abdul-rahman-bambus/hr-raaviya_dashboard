@@ -1,0 +1,202 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<odoo>
+  <data>
+
+    <!-- Existing review wizard/action IDs remain stable after History removal. -->
+
+   <record id="view_bambus_hr_attendance_multi_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.attendance.multi.wizard.form</field>
+      <field name="model">bambus.hr.attendance.multi.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Punches">
+          <group>
+            <field name="line_id" invisible="1"/>
+            <field name="employee_id" readonly="1"/>
+            <field name="date" readonly="1"/>
+            <field name="delete_removed"/>
+          </group>
+
+     <!--      <group>
+            <field name="timeline_html" widget="html" readonly="1" nolabel="1"/>
+          </group> -->
+
+          <separator string="Punch Records"/>
+
+          <field name="line_ids" mode="list,form" create="0" delete="0">
+            <list>
+                <field name="attendance_id" invisible="1" force_save="1"/>
+                <field name="recognized_face_checkin" widget="image"/>
+                <field name="check_in"/>
+                <field name="recognized_face_checkout" widget="image"/>
+                <field name="check_out"/>
+            </list>
+
+            <form>
+                <group>
+                    <field name="attendance_id" invisible="1" force_save="1"/>
+                    <group string="Punch In">
+                        <field name="recognized_face_checkin" widget="image"/>
+                        <field name="check_in"/>
+                    </group>
+                    <group string="Punch Out">
+                        <field name="recognized_face_checkout" widget="image"/>
+                        <field name="check_out"/>
+                    </group>
+                </group>
+            </form>
+        </field>
+
+
+
+          <footer>
+            <button name="action_apply" type="object" class="btn-primary" string="Apply"/>
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+
+
+
+    <record id="view_bambus_hr_overtime_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.overtime.wizard.form</field>
+      <field name="model">bambus.hr.overtime.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Update Overtime">
+          <group>
+            <field name="employee_id" readonly="1"/>
+            <field name="date" readonly="1"/>
+            <field name="detected_overtime_hours" widget="float_time"/>
+            <field name="overtime_hours" widget="float_time" string="Final OT Hours"/>
+            <field name="calculation_type"/>
+            <field name="automation_template_id"/>
+            <field name="is_public_holiday" invisible="1"/>
+            <field name="salary_basis_amount" widget="monetary" options="{'currency_field':'currency_id'}" invisible="not overtime_slab_id"/>
+            <field name="overtime_slab_id"/>
+            <field name="rate_resolution_warning" class="text-warning" invisible="not rate_resolution_warning"/>
+            <field name="rate" widget="monetary" options="{'currency_field':'currency_id'}" invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
+            <field name="resolved_rate" widget="monetary" options="{'currency_field':'currency_id'}" invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
+            <field name="overtime_amount" string="Calculated Amount" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
+            <field name="note"/>
+            <field name="line_id" invisible="1"/>
+            <field name="currency_id" invisible="1"/>
+
+          </group>
+          <footer>
+            <button name="action_save" type="object" class="btn-primary" string="Save Changes"/>
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+    <record id="view_bambus_hr_fine_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.fine.wizard.form</field>
+      <field name="model">bambus.hr.fine.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Update Late / Fine">
+          <group>
+            <field name="employee_id" readonly="1"/>
+            <field name="date" readonly="1"/>
+            <field name="detected_fine_hours" widget="float_time"/>
+            <field name="fine_hours" widget="float_time" string="Final Fine Hours"/>
+            <field name="calculation_type"/>
+            <field name="rate" widget="monetary" options="{'currency_field':'currency_id'}" invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
+            <field name="salary_per_minute" widget="monetary" options="{'currency_field':'currency_id'}" invisible="calculation_type != 'salary_minute'" readonly="1"/>
+            <field name="fine_amount" string="Calculated Deduction" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
+            <field name="reason"/>
+            <field name="line_id" invisible="1"/>
+            <field name="currency_id" invisible="1"/>
+
+          </group>
+          <footer>
+            <button name="action_save" type="object" class="btn-primary" string="Save Changes"/>
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+    <record id="view_bambus_hr_hourly_pay_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.hourly.pay.wizard.form</field>
+      <field name="model">bambus.hr.hourly.pay.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Update Hourly Pay">
+          <group>
+            <field name="employee_id" readonly="1"/>
+            <field name="date" readonly="1"/>
+            <field name="detected_hourly_pay_hours" widget="float_time"/>
+            <field name="hourly_pay_hours" widget="float_time"/>
+            <field name="calculation_type"/>
+            <field name="rate" widget="monetary" options="{'currency_field':'currency_id'}" invisible="calculation_type not in ('fixed', 'fixed_hour')"/>
+            <field name="hourly_pay_amount" widget="monetary" options="{'currency_field':'currency_id'}" readonly="1"/>
+            <field name="note"/>
+            <field name="line_id" invisible="1"/>
+            <field name="currency_id" invisible="1"/>
+          </group>
+          <footer>
+            <button name="action_save" type="object" class="btn-primary" string="Save Changes"/>
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+    <record id="view_bambus_hr_leave_quick_wizard" model="ir.ui.view">
+      <field name="name">bambus.hr.leave.quick.wizard.form</field>
+      <field name="model">bambus.hr.leave.quick.wizard</field>
+      <field name="arch" type="xml">
+        <form string="Quick Leave">
+          <sheet>
+            <group>
+              <group>
+                <field name="line_id" invisible="1"/>
+                <field name="leave_id" readonly="1"/>
+
+                <field name="employee_id" readonly="1"/>
+                <field name="leave_type_id" required="1"/>
+              </group>
+
+              <group>
+                <field name="request_date_from" required="1" readonly="1"/>
+                <field name="request_date_to" required="1" readonly="1"/>
+
+                <field name="leave_unit" required="1" readonly="1"/>
+                <field name="leave_period" invisible="leave_unit != 'half'"/>
+                <field name="description"/>
+              </group>
+            </group>
+          </sheet>
+
+          <footer>
+            <button name="action_apply" type="object" class="btn-primary" string="Apply Leave"/>
+
+            <!-- safer invisibility expression -->
+            <button name="action_delete" type="object" class="btn-danger" string="Delete Leave" invisible="leave_id == False"/>
+
+            <button special="cancel" class="btn-secondary" string="Cancel"/>
+          </footer>
+        </form>
+      </field>
+    </record>
+
+
+    <!-- The dashboard is the daily operational entry point. -->
+    <record id="action_bambus_hr_attendance_dashboard" model="ir.actions.client">
+      <field name="name">Attendance Dashboard</field>
+      <field name="tag">bambus_attendance_dashboard</field>
+    </record>
+
+    <record id="action_bambus_hr_attendance_editor" model="ir.actions.client">
+      <field name="name">Attendance</field>
+      <field name="tag">bambus_attendance_editor</field>
+    </record>
+
+        <!-- Menu under Payroll -->
+    <menuitem id="menu_bambus_hr_attendance_sheet" name="Attendance Dashboard" parent="hr_attendance.menu_hr_attendance_root" action="action_bambus_hr_attendance_dashboard" sequence="1"/>
+
+    <menuitem id="menu_bambus_hr_attendance_editor" name="Daily Attendance" parent="menu_bambus_hrms_attendance" action="action_bambus_hr_attendance_editor" sequence="10" groups="hr.group_hr_user"/>
+
+  <record id="view_attendance_day_review_form" model="ir.ui.view"><field name="name">bambus.attendance.day.review.form</field><field name="model">bambus.attendance.day.review</field><field name="arch" type="xml"><form string="Saved Attendance Decision" create="0" edit="0" delete="0"><sheet><group><field name="employee_id"/><field name="date"/><field name="company_id"/><field name="check_in"/><field name="check_out"/><field name="worked_hours"/><field name="attendance_status_manual"/><field name="status"/><field name="overtime_state"/><field name="overtime_hours"/><field name="overtime_amount"/><field name="fine_state"/><field name="fine_hours"/><field name="fine_amount"/><field name="hourly_pay_state"/><field name="hourly_pay_hours"/><field name="hourly_pay_amount"/></group></sheet></form></field></record></data>
+</odoo>

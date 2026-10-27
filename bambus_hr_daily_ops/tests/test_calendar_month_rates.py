@@ -77,12 +77,8 @@ class TestCalendarMonthRates(TransactionCase):
         return slip
 
     def line(self, employee, contract, day):
-        sheet = self.env['bambus.hr.attendance.sheet'].search([
-            ('date', '=', day), ('company_id', '=', employee.company_id.id)], limit=1)
-        if not sheet:
-            sheet = self.env['bambus.hr.attendance.sheet'].create({'date': day})
-        line = self.env['bambus.hr.attendance.sheet.line'].create({
-            'sheet_id': sheet.id, 'employee_id': employee.id, 'contract_id': contract.id})
+        line = self.env['bambus.attendance.day.review'].create({
+            'date': day, 'employee_id': employee.id, 'contract_id': contract.id})
         line._compute_day_data()
         return line
 

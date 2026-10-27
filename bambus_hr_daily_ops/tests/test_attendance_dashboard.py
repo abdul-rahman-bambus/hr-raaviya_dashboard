@@ -7,16 +7,8 @@ from odoo.tests.common import TransactionCase
 
 class TestAttendanceDashboard(TransactionCase):
 
-    def _sheet_for(self, day):
-        """Reuse a pre-existing daily sheet when tests run on a populated DB."""
-        sheet_model = self.env["bambus.hr.attendance.sheet"]
-        return sheet_model.search([
-            ("date", "=", day),
-            ("company_id", "=", self.env.company.id),
-        ], limit=1) or sheet_model.create({
-            "date": day,
-            "company_id": self.env.company.id,
-        })
+    def _review_values(self, day):
+        return {'date': day, 'company_id': self.env.company.id}
 
     def _unpaid_leave_type(self, employee):
         """Return an active unpaid type that is valid for the employee company."""
@@ -77,9 +69,9 @@ class TestAttendanceDashboard(TransactionCase):
 
         contract.wage = 10000
         employee.attendance_automation_template_id = template
-        sheet = self._sheet_for(fields.Date.context_today(employee))
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id,
+        sheet = self._review_values(fields.Date.context_today(employee))
+        line = self.env["bambus.attendance.day.review"].create({
+            **sheet,
             "employee_id": employee.id,
             "contract_id": contract.id,
             "overtime_hours": 2,
@@ -171,7 +163,7 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
 
-        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+        dashboard = self.env["bambus.attendance.dashboard"].get_attendance_dashboard(
             selected_date=fields.Date.to_string(fields.Date.context_today(employee)),
         )
 
@@ -191,12 +183,12 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
         today = fields.Date.context_today(employee)
-        sheet_model = self.env["bambus.hr.attendance.sheet"]
+        sheet_model = self.env["bambus.attendance.dashboard"]
 
         action = sheet_model.open_dashboard_adjustment(
             employee.id, fields.Date.to_string(today), "fine"
         )
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(
+        line = self.env["bambus.attendance.day.review"].browse(
             action["context"]["default_line_id"]
         )
         # Simulate stale values from a previously opened/incomplete review.
@@ -219,7 +211,7 @@ class TestAttendanceDashboard(TransactionCase):
                 (0, 0, {'name': 'AN', 'dayofweek': '3', 'day_period': 'afternoon',
                         'hour_from': 14.75, 'hour_to': 18.75})],
         })
-        dashboard = self.env['bambus.hr.attendance.sheet'].with_context(tz='UTC')
+        dashboard = self.env['bambus.attendance.dashboard'].with_context(tz='UTC')
         for wage_type in ('monthly', 'daily', 'hourly'):
             with self.subTest(wage_type=wage_type):
                 employee = self.env['hr.employee'].create({
@@ -238,8 +230,8 @@ class TestAttendanceDashboard(TransactionCase):
                     'employee_id': employee.id, 'check_in': '2026-10-22 09:45:00',
                     'check_out': '2026-10-22 12:00:00',
                 })
-                line = self.env['bambus.hr.attendance.sheet.line'].create({
-                    'sheet_id': self._sheet_for(day).id, 'employee_id': employee.id,
+                line = self.env['bambus.attendance.day.review'].create({
+                    **self._review_values(day), 'employee_id': employee.id,
                     'check_in': morning.check_in, 'check_out': morning.check_out,
                     'worked_hours': 2.25, 'status': 'halfday',
                     'attendance_status_manual': True,
@@ -261,7 +253,7 @@ class TestAttendanceDashboard(TransactionCase):
                 self.assertEqual(updated['status'], 'halfday')
                 self.assertEqual(updated['fine_hours'], 6)
                 self.assertEqual(line.fine_amount, 187.68)
-                self.assertEqual(line.worked_hours, 2.25, 'Reading must not rewrite the sheet')
+                self.assertEqual(line.worked_hours, 8.25, 'Decision hours must derive from actual punches')
                 # Removing the second session must also refresh the visible totals.
                 afternoon.unlink()
                 self.assertEqual(row()['worked_hours'], 4.25)
@@ -277,7 +269,7 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
         today = fields.Date.context_today(employee)
-        sheet_model = self.env["bambus.hr.attendance.sheet"]
+        sheet_model = self.env["bambus.attendance.dashboard"]
 
         result = sheet_model.update_dashboard_attendance(
             employee.id,
@@ -292,7 +284,7 @@ class TestAttendanceDashboard(TransactionCase):
 
         dashboard = sheet_model.get_attendance_dashboard(fields.Date.to_string(today))
         row = next(item for item in dashboard["daily_attendance"] if item["id"] == employee.id)
-        self.assertEqual(row["status"], "not_marked")
+        self.assertEqual(row["status"], "present")
         self.assertEqual(row["check_in_value"], "14:46")
         self.assertFalse(row["check_out_value"])
         self.assertEqual(row["fine_hours"], 0)
@@ -314,12 +306,12 @@ class TestAttendanceDashboard(TransactionCase):
             "wage_type": "hourly",
         })
 
-        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+        dashboard = self.env["bambus.attendance.dashboard"].get_attendance_dashboard(
             selected_date=fields.Date.to_string(today),
         )
         roster = {item["id"]: item for item in dashboard["daily_attendance"]}
         self.assertTrue(roster[employee.id]["is_hourly"])
-        result = self.env["bambus.hr.attendance.sheet"].update_dashboard_attendance(
+        result = self.env["bambus.attendance.dashboard"].update_dashboard_attendance(
             employee.id,
             fields.Date.to_string(today),
             {"status": "absent"},
@@ -348,11 +340,17 @@ class TestAttendanceDashboard(TransactionCase):
             "hourly_rate": 25,
             "wage": 0,
         })
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": self._sheet_for(today).id,
+        calendar = self.env['resource.calendar'].create({'name': 'Hourly live punches',
+            'tz': 'UTC', 'attendance_ids': [(5, 0, 0)]})
+        employee.resource_calendar_id = calendar
+        contract.resource_calendar_id = calendar
+        self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime.combine(today, time(0)),
+            'check_out': datetime.combine(today, time(7, 30))})
+        line = self.env["bambus.attendance.day.review"].create({
+            **self._review_values(today),
             "employee_id": employee.id,
             "contract_id": contract.id,
-            "worked_hours": 7.5,
         })
         wizard_model = self.env["bambus.hr.hourly.pay.wizard"].with_context(
             default_line_id=line.id
@@ -374,7 +372,7 @@ class TestAttendanceDashboard(TransactionCase):
     def test_half_day_action_requires_explicit_period_and_type(self):
         employee = self.env['hr.employee'].create({'name': 'Half Day Employee', 'company_id': self.env.company.id})
         today = fields.Date.context_today(employee)
-        action = self.env['bambus.hr.attendance.sheet'].create_half_day_leave(employee.id, today)
+        action = self.env['bambus.attendance.dashboard'].create_half_day_leave(employee.id, today)
         self.assertEqual(action['res_model'], 'bambus.hr.half.day.leave.wizard')
         self.assertFalse(action['context']['default_period'])
         self.assertFalse(self.env['hr.leave'].search([('employee_id', '=', employee.id)]))
@@ -385,7 +383,7 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertTrue(leave.request_unit_half)
         self.assertEqual(leave.request_date_from_period, 'pm')
         self.assertIn(leave.state, ('confirm', 'validate1', 'validate'))
-        self.assertEqual(self.env['bambus.hr.attendance.sheet'].create_half_day_leave(employee.id, today)['res_id'], leave.id)
+        self.assertEqual(self.env['bambus.attendance.dashboard'].create_half_day_leave(employee.id, today)['res_id'], leave.id)
         with self.assertRaises(UserError):
             wizard.action_confirm()
 
@@ -395,7 +393,7 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
         today = fields.Date.context_today(employee)
-        attendance_sheet = self.env["bambus.hr.attendance.sheet"]
+        attendance_sheet = self.env["bambus.attendance.dashboard"]
         result = attendance_sheet.update_dashboard_attendance(
             employee.id,
             fields.Date.to_string(today),
@@ -415,13 +413,13 @@ class TestAttendanceDashboard(TransactionCase):
         roster = {item["id"]: item for item in dashboard["daily_attendance"]}
         self.assertEqual(roster[employee.id]["status"], "not_marked")
 
-    def test_hr_can_update_overtime_and_fine_from_editor(self):
+    def test_status_editor_cannot_approve_or_invent_adjustment_hours(self):
         employee = self.env["hr.employee"].create({
             "name": "Overtime Employee",
             "company_id": self.env.company.id,
         })
         today = fields.Date.context_today(employee)
-        attendance_sheet = self.env["bambus.hr.attendance.sheet"]
+        attendance_sheet = self.env["bambus.attendance.dashboard"]
 
         attendance_sheet.update_dashboard_attendance(
             employee.id,
@@ -440,10 +438,10 @@ class TestAttendanceDashboard(TransactionCase):
             item for item in dashboard["daily_attendance"]
             if item["id"] == employee.id
         )
-        self.assertEqual(row["overtime_hours"], 1.5)
-        self.assertEqual(row["fine_hours"], 0.25)
-        self.assertGreaterEqual(dashboard["metrics"]["overtime"], 1.5)
-        self.assertGreaterEqual(dashboard["metrics"]["fine"], 0.25)
+        self.assertEqual(row["overtime_hours"], 0)
+        self.assertEqual(row["fine_hours"], 0)
+        self.assertFalse(row["overtime_review_pending"])
+        self.assertFalse(row["fine_review_pending"])
 
     def test_dashboard_counts_overtime_and_fine_waiting_for_review(self):
         today = fields.Date.context_today(self.env.user)
@@ -464,8 +462,17 @@ class TestAttendanceDashboard(TransactionCase):
             "date_start": today,
             "wage": 24000,
         })
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": self._sheet_for(today).id,
+        calendar = self.env['resource.calendar'].create({'name': 'Pending live proposals',
+            'tz': 'UTC', 'attendance_ids': [(5, 0, 0)] + [(0, 0, {
+                'name': 'Work', 'dayofweek': str(day), 'day_period': 'morning',
+                'hour_from': 9, 'hour_to': 17}) for day in range(7)]})
+        employee.resource_calendar_id = calendar
+        contract.resource_calendar_id = calendar
+        self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime.combine(today, time(9, 15)),
+            'check_out': datetime.combine(today, time(19))})
+        line = self.env["bambus.attendance.day.review"].create({
+            **self._review_values(today),
             "employee_id": employee.id,
             "contract_id": contract.id,
             "status": "present",
@@ -476,7 +483,7 @@ class TestAttendanceDashboard(TransactionCase):
             "fine_state": "submitted",
         })
 
-        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+        dashboard = self.env["bambus.attendance.dashboard"].get_attendance_dashboard(
             fields.Date.to_string(today)
         )
         row = next(
@@ -489,7 +496,7 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertGreaterEqual(dashboard["metrics"]["fine_review_count"], 1)
 
         line.write({"overtime_state": "approved", "fine_state": "rejected"})
-        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+        dashboard = self.env["bambus.attendance.dashboard"].get_attendance_dashboard(
             fields.Date.to_string(today)
         )
         row = next(
@@ -505,7 +512,7 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
         today = fields.Date.context_today(employee)
-        sheet_model = self.env["bambus.hr.attendance.sheet"]
+        sheet_model = self.env["bambus.attendance.dashboard"]
 
         sheet_model.update_dashboard_attendance(
             employee.id,
@@ -529,7 +536,7 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
         today = fields.Date.context_today(employee)
-        sheet_model = self.env["bambus.hr.attendance.sheet"]
+        sheet_model = self.env["bambus.attendance.dashboard"]
 
         overtime_action = sheet_model.open_dashboard_adjustment(
             employee.id, fields.Date.to_string(today), "overtime"
@@ -564,7 +571,7 @@ class TestAttendanceDashboard(TransactionCase):
                 "note": "Reviewed from dashboard",
             },
         )
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(line_id)
+        line = self.env["bambus.attendance.day.review"].browse(line_id)
         self.assertEqual(line.overtime_state, "approved")
         self.assertEqual(line.overtime_note, "Reviewed from dashboard")
 
@@ -587,9 +594,9 @@ class TestAttendanceDashboard(TransactionCase):
             "overtime_rate": 75,
             "is_overtime_allowed": True,
         })
-        sheet = self._sheet_for(today)
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id,
+        sheet = self._review_values(today)
+        line = self.env["bambus.attendance.day.review"].create({
+            **sheet,
             "employee_id": employee.id,
             "contract_id": contract.id,
             "overtime_hours": 2,
@@ -620,9 +627,9 @@ class TestAttendanceDashboard(TransactionCase):
             "groups_id": [(6, 0, [self.env.ref("hr.group_hr_user").id])],
         })
         today = fields.Date.context_today(employee)
-        sheet = self._sheet_for(today)
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id,
+        sheet = self._review_values(today)
+        line = self.env["bambus.attendance.day.review"].create({
+            **sheet,
             "employee_id": employee.id,
             "overtime_hours": 1,
             "overtime_state": "submitted",
@@ -646,9 +653,9 @@ class TestAttendanceDashboard(TransactionCase):
             "company_id": self.env.company.id,
         })
         today = fields.Date.context_today(employee)
-        sheet = self._sheet_for(today)
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id,
+        sheet = self._review_values(today)
+        line = self.env["bambus.attendance.day.review"].create({
+            **sheet,
             "employee_id": employee.id,
             "fine_hours": 1,
             "fine_state": "submitted",
@@ -662,7 +669,7 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertEqual(wizard.fine_amount, 0)
         wizard.action_save()
         self.assertEqual(line.fine_state, "approved")
-        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+        dashboard = self.env["bambus.attendance.dashboard"].get_attendance_dashboard(
             fields.Date.to_string(today)
         )
         row = next(
@@ -710,9 +717,9 @@ class TestAttendanceDashboard(TransactionCase):
             "wage": 12000,
             "wage_type": "monthly",
         })
-        sheet = self._sheet_for(day)
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id,
+        sheet = self._review_values(day)
+        line = self.env["bambus.attendance.day.review"].create({
+            **sheet,
             "employee_id": employee.id,
             "contract_id": contract.id,
             "fine_hours": 10 / 60,
@@ -749,7 +756,7 @@ class TestAttendanceDashboard(TransactionCase):
             "request_date_to": today,
             "name": "Full Day Leave",
         })
-        self.env["bambus.hr.attendance.sheet"].revoke_dashboard_status(
+        self.env["bambus.attendance.dashboard"].revoke_dashboard_status(
             employee.id,
             fields.Date.to_string(today),
             "leave",
@@ -778,9 +785,9 @@ class TestAttendanceDashboard(TransactionCase):
             "check_in": start + timedelta(hours=5),
             "check_out": start + timedelta(hours=9),
         })
-        sheet = self._sheet_for(today)
-        line = self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id,
+        sheet = self._review_values(today)
+        line = self.env["bambus.attendance.day.review"].create({
+            **sheet,
             "employee_id": employee.id,
             "overtime_hours": 1.5,
             "overtime_amount": 150,
@@ -828,7 +835,7 @@ class TestAttendanceDashboard(TransactionCase):
             'date_start': '2026-10-01', 'date_end': '2026-10-31',
             'wage_type': 'monthly', 'wage': 12000, 'resource_calendar_id': calendar.id,
         })
-        model = self.env['bambus.hr.attendance.sheet']
+        model = self.env['bambus.attendance.dashboard']
 
         def status(day):
             data = model.get_attendance_dashboard(day)

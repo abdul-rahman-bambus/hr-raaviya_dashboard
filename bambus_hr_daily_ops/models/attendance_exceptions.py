@@ -143,7 +143,7 @@ class ReviewedExceptionEmployee(models.Model):
             return actual
         sessions = [(start, end) for start, end in sessions if any(
             att.worked_hours > 0 and att.check_in < end and att.check_out > start for att in atts)]
-        line = self.env['bambus.hr.attendance.sheet.line'].sudo().search([
+        line = self.env['bambus.attendance.day.review'].sudo().search([
             ('employee_id', '=', self.id), ('company_id', '=', self.company_id.id),
             ('date', '=', day), ('fine_state', 'in', ['approved', 'rejected']),
         ], order='id desc', limit=1)

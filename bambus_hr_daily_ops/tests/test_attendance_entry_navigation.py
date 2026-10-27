@@ -19,7 +19,7 @@ class TestAttendanceEntryNavigation(TransactionCase):
                 'check_in': start, 'check_out': end})
             if worker == employee and start in ('2026-10-21 18:30:00', '2026-10-22 18:00:00'):
                 expected |= punch
-        action = self.env['bambus.hr.attendance.sheet'].with_user(user).open_dashboard_attendance_entries(
+        action = self.env['bambus.attendance.dashboard'].with_user(user).open_dashboard_attendance_entries(
             employee.id, '2026-10-22')
         self.assertEqual(action['res_model'], 'hr.attendance')
         self.assertEqual(action['context']['default_employee_id'], employee.id)
@@ -29,7 +29,7 @@ class TestAttendanceEntryNavigation(TransactionCase):
         user = new_test_user(self.env, login='entry_navigation_dst',
             groups='hr_attendance.group_hr_attendance_manager,hr.group_hr_user', tz='Europe/London')
         employee = self.env['hr.employee'].create({'name': 'Empty day navigation'})
-        action = self.env['bambus.hr.attendance.sheet'].with_user(user).open_dashboard_attendance_entries(
+        action = self.env['bambus.attendance.dashboard'].with_user(user).open_dashboard_attendance_entries(
             employee.id, '2026-03-29')
         bounds = {operator: value for field, operator, value in action['domain'] if field == 'check_in'}
         self.assertEqual(bounds, {'>=': '2026-03-29 00:00:00', '<': '2026-03-29 23:00:00'})
@@ -39,5 +39,5 @@ class TestAttendanceEntryNavigation(TransactionCase):
         user = new_test_user(self.env, login='entry_navigation_no_access', groups='base.group_user')
         employee = self.env['hr.employee'].create({'name': 'Protected navigation'})
         with self.assertRaises(AccessError):
-            self.env['bambus.hr.attendance.sheet'].with_user(user).open_dashboard_attendance_entries(
+            self.env['bambus.attendance.dashboard'].with_user(user).open_dashboard_attendance_entries(
                 employee.id, '2026-10-22')

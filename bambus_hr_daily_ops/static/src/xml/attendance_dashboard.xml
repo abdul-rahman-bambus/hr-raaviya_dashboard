@@ -4,7 +4,6 @@
     <div class="o_bambus_attendance_dashboard">
       <div class="o_bad_toolbar">
         <div><h2>Attendance Dashboard</h2><span t-if="state.data" t-esc="state.data.company"/></div>
-        <button class="btn btn-outline-secondary" t-if="state.data" t-on-click="openHistory">History</button>
       </div>
       <div t-if="state.loading &amp;&amp; state.data" class="text-muted small py-1" role="status"><i class="fa fa-spinner fa-spin"/> Updating…</div>
       <div t-if="state.loading &amp;&amp; !state.data" class="o_bad_loading"><i class="fa fa-spinner fa-spin"/> Loading attendance…</div>

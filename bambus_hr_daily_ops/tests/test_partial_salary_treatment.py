@@ -86,7 +86,7 @@ class TestPartialSalaryTreatment(TransactionCase):
     def test_dashboard_exposes_whole_day_fine_and_saved_review(self):
         employee, contract, line = self.person()
         def dashboard_row():
-            data = self.env['bambus.hr.attendance.sheet'].get_attendance_dashboard(str(self.day))
+            data = self.env['bambus.attendance.dashboard'].get_attendance_dashboard(str(self.day))
             return next(row for row in data['daily_attendance'] if row['id'] == employee.id)
         row = dashboard_row()
         self.assertEqual(row['fine_hours'], 6)
@@ -215,8 +215,7 @@ class TestPartialSalaryTreatment(TransactionCase):
             for start, end in [('09:45', '14:00'), ('14:45', '18:45')]:
                 self.env['hr.attendance'].create({'employee_id': employee.id,
                     'check_in': day_text + ' ' + start + ':00', 'check_out': day_text + ' ' + end + ':00'})
-            sheet = self.env['bambus.hr.attendance.sheet'].create({'date': day_text})
-            saved = self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id,
+            saved = self.env['bambus.attendance.day.review'].create({'date': day_text,
                 'employee_id': employee.id, 'contract_id': contract.id})
             if amount:
                 saved.write({'fine_state': 'approved', 'fine_hours': fine_hours, 'fine_amount': amount,
@@ -328,20 +327,18 @@ class TestPartialSalaryTreatment(TransactionCase):
             ('2026-10-27', [('09:45:00', '14:00:00'), ('14:55:00', '18:45:00')], 1 / 6, 5.21, 0, 0),
             ('2026-10-29', [('09:45:00', '12:00:00')], 0, 0, 0, 0),
         ]
-        reviews = self.env['bambus.hr.attendance.sheet.line']
+        reviews = self.env['bambus.attendance.day.review']
         for day, spans, fine_hours, fine_amount, ot_hours, ot_amount in examples:
             for start, end in spans:
                 self.env['hr.attendance'].create({'employee_id': employee.id,
                     'check_in': day + ' ' + start, 'check_out': day + ' ' + end})
-            sheet = self.env['bambus.hr.attendance.sheet'].search([('date', '=', day)], limit=1)
-            sheet = sheet or self.env['bambus.hr.attendance.sheet'].create({'date': day})
-            reviews |= self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id,
+            reviews |= self.env['bambus.attendance.day.review'].create({'date': day,
                 'employee_id': employee.id, 'contract_id': contract.id,
                 'fine_state': 'approved' if fine_amount else 'rejected',
                 'fine_hours': fine_hours, 'fine_amount': fine_amount,
                 'overtime_state': 'approved' if ot_amount else 'rejected',
                 'overtime_hours': ot_hours, 'overtime_amount': ot_amount})
-        self.env['bambus.hr.attendance.sheet'].set_dashboard_paid_day(
+        self.env['bambus.attendance.dashboard'].set_dashboard_paid_day(
             employee.id, '2026-10-18', 'weekly_off', 'withhold', 'Sunday work earning only')
         slip = self.slip(employee, contract, '2026-10-01', '2026-10-31')
         self.assertEqual((slip.total_working_days, slip.paid_weekly_off_days, slip.paid_public_holiday_days), (6, 3, 2),
@@ -369,7 +366,7 @@ class TestPartialSalaryTreatment(TransactionCase):
         saved_days = [(row.id, row.number_of_days, row.number_of_hours) for row in slip.worked_days_line_ids]
         saved_salary = [(row.id, row.total) for row in slip.line_ids]
         slip.state = 'done'
-        self.env['bambus.hr.attendance.sheet'].set_dashboard_paid_day(
+        self.env['bambus.attendance.dashboard'].set_dashboard_paid_day(
             employee.id, '2026-10-18', 'weekly_off', 'restore', 'Restore after snapshot')
         slip.action_compute_sheet()
         self.assertEqual([(row.id, row.number_of_days, row.number_of_hours) for row in slip.worked_days_line_ids], saved_days)

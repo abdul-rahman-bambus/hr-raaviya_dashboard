@@ -99,7 +99,7 @@ class DashboardUpdates(unittest.TestCase):
         self.assertEqual(buttons.count(), 25)
         buttons.nth(1).click()
         self.assertEqual(self.page.evaluate('requests[1].args'),
-                         ['bambus.hr.attendance.sheet', 'open_dashboard_attendance_entries', [2, '2026-10-07']])
+                         ['bambus.attendance.dashboard', 'open_dashboard_attendance_entries', [2, '2026-10-07']])
         self.page.evaluate("requests[1].resolve({type: 'ir.actions.act_window', res_model: 'hr.attendance', domain: [['employee_id', '=', 2]]})")
         self.tick()
         self.assertEqual(self.page.evaluate('openedActions[0].res_model'), 'hr.attendance')

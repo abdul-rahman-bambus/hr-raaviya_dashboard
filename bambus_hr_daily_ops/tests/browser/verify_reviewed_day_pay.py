@@ -92,7 +92,7 @@ def main():
                 expected = 8000 / 31 * fraction if wage_type == 'monthly' else 885 * fraction if wage_type == 'daily' else actual_hours * 53
                 assert abs(before['total_regular_pay_amount'] - expected) < .01, before
                 if wage_type != 'hourly':
-                    payload = rpc('bambus.hr.attendance.sheet', 'get_dashboard_review', [employee, '2026-10-26'])
+                    payload = rpc('bambus.attendance.dashboard', 'get_dashboard_review', [employee, '2026-10-26'])
                     labels = {'Early Exit Fine'} if args.fine_only else {'First Half: Late Entry', 'Second Half: Early Exit'}
                     assert {item['label'] for item in payload['items']} == labels, payload
                     if args.fine_only:
@@ -101,7 +101,7 @@ def main():
                     lines.append(line)
 
             if args.fine_only:
-                dashboard = rpc('bambus.hr.attendance.sheet', 'get_attendance_dashboard', [], {'selected_date': '2026-10-26'})
+                dashboard = rpc('bambus.attendance.dashboard', 'get_attendance_dashboard', [], {'selected_date': '2026-10-26'})
                 for row in dashboard['daily_attendance']:
                     if row['id'] in employees[:2]:
                         assert row['fine_hours'] == 6, {key: row.get(key) for key in ('name', 'fine_hours', 'fine_review_pending', 'fine_enabled')}
@@ -167,7 +167,7 @@ def main():
                     assert all('Reviewed Browser ' + kind in strings for kind in ('monthly', 'daily', 'hourly'))
             if not args.fine_only:
                 # Existing aggregate approval: reassessment is explicit and Cancel preserves it.
-                rpc('bambus.hr.attendance.sheet.line', 'write', [[lines[0]], {
+                rpc('bambus.attendance.day.review', 'write', [[lines[0]], {
                     'fine_state': 'approved', 'fine_hours': .5, 'fine_amount': 10,
                     'fine_calculation_type': 'fixed', 'fine_rate': 10,
                     'fine_review_data': {'late': {'state': 'approved', 'hours': .5, 'amount': 10,
@@ -181,7 +181,7 @@ def main():
                 modal.get_by_text('First Half: Late Entry', exact=True).wait_for()
                 assert 'replaces the previous fine decisions' in modal.inner_text()
                 modal.get_by_role('button', name='Cancel', exact=True).click()
-                assert read('bambus.hr.attendance.sheet.line', lines[0], ['fine_amount'])['fine_amount'] == 10
+                assert read('bambus.attendance.day.review', lines[0], ['fine_amount'])['fine_amount'] == 10
                 row.get_by_title('Review late / fine', exact=True).click()
                 modal.get_by_role('button', name='Review Session Exceptions', exact=True).click()
                 modal.get_by_text('First Half: Late Entry', exact=True).wait_for()
@@ -189,7 +189,7 @@ def main():
                 modal.get_by_role('button', name='Delete / Ignore').first.click()
                 modal.get_by_role('button', name='Approve Remaining Items').click()
                 modal.wait_for(state='hidden')
-                assert read('bambus.hr.attendance.sheet.line', lines[0], ['fine_amount'])['fine_amount'] == 0
+                assert read('bambus.attendance.day.review', lines[0], ['fine_amount'])['fine_amount'] == 0
                 audit = rpc('bambus.hr.attendance.time.audit', 'search_read', [[['employee_id', '=', employees[0]]]],
                             {'fields': ['previous_fine_review'], 'order': 'id desc', 'limit': 1})[0]
                 assert audit['previous_fine_review']['amount'] == 10
@@ -220,9 +220,9 @@ def main():
                 print('PASS: installed policy, separate session decisions, broad Late/Fine final-approval navigation and Daily Attendance button, Monthly/Daily day pay, unchanged Hourly hours, rate units, both XLSX exports, explicit legacy reassessment/Cancel/audit, PM half-leave suggestion and Cancel.')
         finally:
             if employees:
-                daily_lines = rpc('bambus.hr.attendance.sheet.line', 'search', [[['employee_id', 'in', employees]]])
+                daily_lines = rpc('bambus.attendance.day.review', 'search', [[['employee_id', 'in', employees]]])
                 if daily_lines:
-                    rpc('bambus.hr.attendance.sheet.line', 'unlink', [daily_lines])
+                    rpc('bambus.attendance.day.review', 'unlink', [daily_lines])
             for model, record in reversed(created):
                 rpc(model, 'unlink', [[record]])
             browser.close()

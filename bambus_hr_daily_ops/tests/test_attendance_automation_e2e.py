@@ -90,15 +90,8 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
 
     def _review_line(self, employee, contract, hours, day=None):
         day = day or self.test_day
-        sheet = self.env["bambus.hr.attendance.sheet"].search([
-            ("date", "=", day),
-            ("company_id", "=", self.company.id),
-        ], limit=1) or self.env["bambus.hr.attendance.sheet"].create({
+        return self.env["bambus.attendance.day.review"].create({
             "date": day,
-            "company_id": self.company.id,
-        })
-        return self.env["bambus.hr.attendance.sheet.line"].create({
-            "sheet_id": sheet.id,
             "employee_id": employee.id,
             "contract_id": contract.id,
             "overtime_hours": hours,
@@ -304,7 +297,7 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             places=4,
         )
 
-        dashboard = self.env["bambus.hr.attendance.sheet"].get_attendance_dashboard(
+        dashboard = self.env["bambus.attendance.dashboard"].get_attendance_dashboard(
             fields.Date.to_string(self.test_day)
         )
         row = next(
@@ -361,12 +354,12 @@ class TestAttendanceAutomationEndToEnd(TransactionCase):
             "Direct Dashboard Review", wage=10000
         )
         self._create_attendance(employee, (9, 10), (18, 10))
-        sheet_model = self.env["bambus.hr.attendance.sheet"]
+        sheet_model = self.env["bambus.attendance.dashboard"]
 
         overtime_action = sheet_model.open_dashboard_adjustment(
             employee.id, fields.Date.to_string(self.test_day), "overtime"
         )
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(
+        line = self.env["bambus.attendance.day.review"].browse(
             overtime_action["context"]["default_line_id"]
         )
         self.assertEqual(overtime_action["res_model"], "bambus.hr.overtime.wizard")

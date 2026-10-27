@@ -42,7 +42,7 @@ export class AttendanceDashboard extends Component {
         this.state.error = "";
         try {
             const data = await this.orm.call(
-                "bambus.hr.attendance.sheet",
+                "bambus.attendance.dashboard",
                 "get_attendance_dashboard",
                 [],
                 { selected_date: selectedDate }
@@ -285,7 +285,7 @@ export class AttendanceDashboard extends Component {
         this.state.savingIds[employee.id] = true;
         try {
             await this.orm.call(
-                "bambus.hr.attendance.sheet",
+                "bambus.attendance.dashboard",
                 "update_dashboard_attendance",
                 [employee.id, this.state.data.date, {
                     status: ["not_marked", "paid_weekly_off", "paid_public_holiday", "unpaid_weekly_off", "unpaid_public_holiday"].includes(employee.status) ? "absent" : employee.status,
@@ -338,9 +338,7 @@ export class AttendanceDashboard extends Component {
         this.load(date.toISOString().slice(0, 10));
     }
 
-    openHistory() {
-        this.action.doAction("bambus_hr_daily_ops.action_bambus_hr_attendance_sheet");
-    }
+
 }
 
 registry.category("actions").add("bambus_attendance_dashboard", AttendanceDashboard);

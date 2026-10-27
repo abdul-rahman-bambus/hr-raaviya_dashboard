@@ -144,9 +144,7 @@ def main():
             # A worked withheld Sunday keeps its hours and approved money but
             # must not add a paid day through the WEEKEND generated row.
             rpc('bambus.attendance.automation.template', 'write', [[template], {'weekly_off_overtime_policy': 'all'}])
-            sheet = rpc('bambus.hr.attendance.sheet', 'search', [[['date', '=', '2026-10-18']]], {'limit': 1})
-            sheet = sheet[0] if sheet else create('bambus.hr.attendance.sheet', {'date': '2026-10-18'})
-            create('bambus.hr.attendance.sheet.line', {'sheet_id': sheet, 'employee_id': employee,
+            create('bambus.attendance.day.review', {'date': '2026-10-18', 'employee_id': employee,
                 'overtime_state': 'approved', 'overtime_hours': 8, 'overtime_amount': 250,
                 'fine_state': 'approved', 'fine_hours': .1, 'fine_amount': 10})
             rpc('hr.payslip', 'action_compute_sheet', [[slip]])

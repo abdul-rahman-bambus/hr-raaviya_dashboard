@@ -3,25 +3,38 @@
 This checklist records the automated coverage for attendance automation and the
 remaining acceptance checks that require a running Odoo database and browser.
 
-## Current release evidence and remaining gaps
+## Current release evidence — 27 October 2026
 
-The 20 October 2026 calendar-month candidate passed **167 Odoo tests**
-(zero failures/errors), **8 OWL Chromium tests**, and installed paid-day checks
-using an October wage / 31 divisor. The new regression class covers 28/29/30/31
-full months, leap February, partial employment, periods crossing months,
-absence/paid/unpaid leave, paid weekly offs/public holidays, salary-derived
-reviews and fines, local-date boundaries, Daily/Hourly rates, fixed rates and
-preserved approved snapshots/final salary lines.
+The independent-attendance candidate passed **254 Odoo tests**, zero failures or
+errors, across daily operations, custom payroll, attendance/payroll reports,
+loans and salary advances. **17 production OWL Chromium tests** passed.
+Installed Chromium scenarios passed for punch editing/navigation, combined
+reviews, paid-day labels/credits/withholding, reviewed-exception and fine-only
+pay, empty-export warnings, both XLSX formats, bulk confirmation and payroll forms.
 
-The prior isolated flat-30 check (12,400 pay for a 12,000 contract over 31 dates)
-is historical. The client selected actual calendar days on 20 October, and all
-four full-month regressions now produce 12,000. Deployment reconciliation is
-still needed. See [release readiness](docs/GO_LIVE_READINESS.md) for remaining
-gaps; the September run below is retained as historical evidence.
+A fresh install with no legacy History tables passed all **6 independent
+attendance acceptance tests**. These cover Monthly/Daily/Hourly real punch edits,
+punch deletion, payroll and exports, retained approvals/exclusions, unchanged
+review refreshes and active-company isolation. Dashboard reads create no reviews.
 
-The known manual dashboard-entry gap is not covered as a working punch-creation
-flow by the existing suites. A passing suite must not be read as proof that a
-manually entered dashboard time triggers automatic fines or reaches payroll.
+An isolated old-source fixture was upgraded and compared before/after: review
+IDs, saved amounts/methods/states, exclusions/coverage, hourly corrections and
+all finalized salary lines/states were preserved. Manual-only audited times
+blocked migration with rollback; entering verified actual punches allowed it to
+complete. Additional duplicate/incomplete/conflicting-table guards and an
+already-migrated no-op passed. The old History models and menus are absent.
+
+Dashboard manual time entry now writes actual punches and invokes detection;
+the earlier manual-entry blocker is resolved in this candidate. Historical runs
+below describe older releases. The upgrade requires all four coordinated modules
+and backup/staging validation: see [migration guide](docs/INDEPENDENT_ATTENDANCE_DECISIONS.md)
+and [release readiness](docs/GO_LIVE_READINESS.md). Customer deployment and
+acceptance remain unverified. Seconds/tolerance policy is unchanged.
+
+The full final backend test log had no WARNING/ERROR entries. Installed browser
+runs included handled concurrent-transaction retries and the expected empty-report
+UserError warning; all final assertions passed. This is functional validation,
+not a production concurrency/load-test result.
 
 ## Automated scenarios
 
@@ -33,7 +46,7 @@ Run the module with Odoo's test runner and the `bambus_hr_daily_ops` test tag:
 ```
 
 The end-to-end test fixture creates its own UTC work calendar, employees,
-contracts, automation templates, attendance punches, attendance-sheet lines,
+contracts, automation templates, attendance punches, independent attendance decisions,
 and attendance update wizards. It does not depend on production employee data.
 
 ### Historical verified run (28 September 2026)

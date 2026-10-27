@@ -1,4 +1,5 @@
-from . import hr_attendance_sheet
+from . import attendance_dashboard
+from . import attendance_day_review
 from . import hr_sheet_wizards
 from . import res_users
 from . import hr_employee
