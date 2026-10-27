@@ -339,7 +339,7 @@ class PayrollReviewReport(models.AbstractModel):
     def _daily_data(self, slip, base, daily, issue):
         employee = slip.employee_id
         tzname = self.env['report.attendance_custom_report.attendance_xlsx']._get_emp_tzname(employee, slip.contract_id)
-        reviews = self.env['bambus.hr.attendance.sheet.line'].search([
+        reviews = self.env['bambus.attendance.day.review'].search([
             ('employee_id', '=', employee.id), ('company_id', '=', slip.company_id.id),
             ('date', '>=', slip.date_from), ('date', '<=', slip.date_to)])
         reviews = {review.date: review for review in reviews}

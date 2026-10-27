@@ -34,7 +34,7 @@ class TestPaidDayWithholding(TransactionCase):
             'name': 'Withholding holiday', 'calendar_id': cls.calendar.id,
             'date_from': '2026-10-19 00:00:00', 'date_to': '2026-10-19 23:59:59',
         })
-        cls.sheet_model = cls.env['bambus.hr.attendance.sheet']
+        cls.sheet_model = cls.env['bambus.attendance.dashboard']
         cls.officer = new_test_user(cls.env, login='paid_day_hr', groups='hr.group_hr_user,hr_contract.group_hr_contract_manager')
         cls.basic_user = new_test_user(cls.env, login='paid_day_basic', groups='base.group_user')
 
@@ -92,11 +92,8 @@ class TestPaidDayWithholding(TransactionCase):
             'employee_id': self.employee.id, 'check_in': datetime(2026, 10, 18, 9),
             'check_out': datetime(2026, 10, 18, 17),
         })
-        sheet = self.sheet_model.search([('date', '=', '2026-10-18'),
-                                        ('company_id', '=', self.env.company.id)], limit=1)
-        sheet = sheet or self.sheet_model.create({'date': '2026-10-18'})
-        line = self.env['bambus.hr.attendance.sheet.line'].create({
-            'sheet_id': sheet.id, 'employee_id': self.employee.id, 'contract_id': self.contract.id,
+        line = self.env['bambus.attendance.day.review'].create({
+            'date': '2026-10-18', 'employee_id': self.employee.id, 'contract_id': self.contract.id,
             'overtime_state': 'approved', 'overtime_hours': 8, 'overtime_amount': 250,
             'fine_state': 'approved', 'fine_hours': 0.1, 'fine_amount': 10,
         })

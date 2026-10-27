@@ -351,8 +351,8 @@ class HrPayslip(models.Model):
             # technical state value "approved" is retained for upgrade safety;
             # functionally it means that HR saved the attendance correction.
             approved_lines_by_day = {}
-            if "bambus.hr.attendance.sheet.line" in self.env:
-                approved_lines = self.env["bambus.hr.attendance.sheet.line"].sudo().search([
+            if "bambus.attendance.day.review" in self.env:
+                approved_lines = self.env["bambus.attendance.day.review"].sudo().search([
                     ("employee_id", "=", emp.id),
                     ("date", ">=", slip.date_from),
                     ("date", "<=", slip.date_to),

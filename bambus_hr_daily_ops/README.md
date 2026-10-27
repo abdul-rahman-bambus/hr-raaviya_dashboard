@@ -1,5 +1,13 @@
 # Bambus HR Daily Ops
 
+Current attendance flow: **no Attendance History dependency**. Current punches
+supply times/hours; independent employee/date/company review records retain HR
+decisions. History models/menu/cron are removed after a transactional preservation
+migration. Dashboard time edits now write actual punches. See
+[independent attendance decisions](docs/INDEPENDENT_ATTENDANCE_DECISIONS.md)
+for coordinated upgrade versions, migration guards and testing scope.
+
+
 Attendance Day Classification is under **Late & Early Exit**, directly below
 **Day Pay** (Daily Ops **18.0.1.90.0**). Configure **Half Day Hours**, **Full Day
 Basis**, and, for a fixed basis, **Full Day Hours** there. This form layout change
@@ -12,7 +20,7 @@ and reload the client to display the new location.
 The original planned go-live was **Monday 19 October 2026**. The calendar-month
 salary rule was selected on **20 October 2026**. Read the
 [release readiness review](docs/GO_LIVE_READINESS.md) before rollout; automated
-checks do not resolve the documented dashboard manual-entry gap.
+checks do not establish production deployment or client acceptance.
 
 The changes delivered through PRs #113–#116 include:
 

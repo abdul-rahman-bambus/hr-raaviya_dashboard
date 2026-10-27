@@ -59,11 +59,6 @@ def main():
                             'hour_from': 9.75, 'hour_to': 14}),
                     (0, 0, {'name': 'AN', 'dayofweek': '3', 'day_period': 'afternoon',
                             'hour_from': 14.75, 'hour_to': 18.75})]})
-            sheet_ids = rpc('bambus.hr.attendance.sheet', 'search', [[
-                ['date', '=', '2026-10-22'],
-                ['company_id', '=', session['user_companies']['current_company']]]])
-            sheet = sheet_ids[0] if sheet_ids else create('bambus.hr.attendance.sheet', {
-                'date': '2026-10-22', 'company_id': session['user_companies']['current_company']})
             workers = []
             for basis in ('monthly', 'daily', 'hourly'):
                 name = 'Pencil Browser ' + basis
@@ -79,7 +74,7 @@ def main():
                         'check_in': utc(day + ' ' + start), 'check_out': utc(day + ' ' + end)})
                     if day == '2026-10-22':
                         punches.append(punch)
-                create('bambus.hr.attendance.sheet.line', {'sheet_id': sheet,
+                create('bambus.attendance.day.review', {'date': '2026-10-22', 'company_id': session['user_companies']['current_company'],
                     'employee_id': employee, 'check_in': utc('2026-10-22 09:45'),
                     'check_out': utc('2026-10-22 12:00'), 'worked_hours': 2.25,
                     'fine_state': 'approved', 'fine_hours': 6, 'fine_amount': 187.68})
@@ -101,7 +96,7 @@ def main():
                 assert all(name in row.inner_text() for row in rows.all())
                 visible = [record['id'] for record in loaded.value.json()['result']['records']]
                 assert sorted(visible) == sorted(punches)
-                action = rpc('bambus.hr.attendance.sheet', 'open_dashboard_attendance_entries',
+                action = rpc('bambus.attendance.dashboard', 'open_dashboard_attendance_entries',
                     [employee, '2026-10-22'])
                 assert sorted(rpc('hr.attendance', 'search', [action['domain']])) == sorted(punches)
                 # Native ORM edit while away from the dashboard; return through
@@ -113,8 +108,8 @@ def main():
                 search.fill(name)
                 expect(page.locator('.o_bae_employee').filter(has_text=name)).to_contain_text('7h 15m')
                 assert page.locator('input[type="date"]').input_value() == '2026-10-22'
-                saved = rpc('bambus.hr.attendance.sheet.line', 'search_read', [[
-                    ['sheet_id', '=', sheet], ['employee_id', '=', employee]]],
+                saved = rpc('bambus.attendance.day.review', 'search_read', [[
+                    ['date', '=', '2026-10-22'], ['employee_id', '=', employee]]],
                     {'fields': ['fine_hours', 'fine_amount']})[0]
                 assert saved['fine_hours'] == 6 and saved['fine_amount'] == 187.68
 

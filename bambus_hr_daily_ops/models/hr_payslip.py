@@ -56,7 +56,7 @@ class HrPayslip(models.Model):
         """Snapshot date-wise OT earnings and fine deductions on draft payslips."""
         detail_model = self.env["bambus.hr.payslip.attendance.detail"].sudo()
         attendance_model = self.env["hr.attendance"].sudo()
-        sheet_line_model = self.env["bambus.hr.attendance.sheet.line"].sudo()
+        sheet_line_model = self.env["bambus.attendance.day.review"].sudo()
 
         for payslip in self:
             payslip.attendance_detail_ids.sudo().unlink()
@@ -274,7 +274,7 @@ class HrPayslip(models.Model):
         )
         date_from = fields.Date.to_date(date_from)
         date_to = fields.Date.to_date(date_to)
-        approved = self.env["bambus.hr.attendance.sheet.line"].sudo().search([
+        approved = self.env["bambus.attendance.day.review"].sudo().search([
             ("employee_id", "=", employee.id),
             ("date", ">=", date_from),
             ("date", "<=", date_to),
@@ -386,7 +386,7 @@ class HrPayslipAttendanceDetail(models.Model):
         ("approved", "HR Approved"),
     ], required=True, default="detected")
     source_line_id = fields.Many2one(
-        "bambus.hr.attendance.sheet.line", string="Attendance Review", readonly=True
+        "bambus.attendance.day.review", string="Attendance Review", readonly=True
     )
     reviewed_by_id = fields.Many2one("res.users", string="Reviewed By", readonly=True)
     reviewed_on = fields.Datetime(string="Reviewed On", readonly=True)

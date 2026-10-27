@@ -1,7 +1,7 @@
 # Attendance and payroll go-live readiness
 
 Original target: **Monday 19 October 2026**, client timezone Asia/Kolkata.
-Latest review: **22 October 2026**. Production deployment and client sign-off are
+Latest review: **27 October 2026**. Production deployment and client sign-off are
 not established by the local test results recorded here.
 
 ## Status
@@ -14,22 +14,24 @@ unworked dates show an unpaid status, while worked dates retain attendance and a
 withheld indicator. Recompute draft payroll; finalized salary lines remain saved. Weekly Off Policy is still required to
 control additional work earnings independently of normal paid-day credit.
 
-**Do not consider the complete dashboard-to-payroll flow ready for live use yet.**
-The manual-time-entry gap below remains open. No production settings or payroll
-records were changed as part of this readiness review.
+The dashboard manual-entry gap is resolved in the independent-attendance release
+below. Local validation passed; production rollout still requires a backed-up
+staging upgrade and customer configuration/acceptance checks. No production
+settings or payroll records were changed by this work.
 
 ## Remaining items and resolved salary decision
 
 | Priority | Item | Evidence / required acceptance |
 | --- | --- | --- |
-| Blocker for dashboard-only entry | Manual check-in/check-out does not feed actual punch detection | `update_dashboard_attendance` writes the daily sheet/audit, not `hr.attendance`, and does not call recomputation. This matches the reported Present=1, Punched In/Out=0 and zero fine after editing times. Implement and test punch synchronization, or explicitly use and validate the existing actual-punch management workflow instead. |
+| Resolved locally; deployment pending | Dashboard time edits feed actual punches | Daily Ops 18.0.1.92.0 creates/updates `hr.attendance`, preserves split sessions and invokes detection. All three wage types, payroll and exports were tested without History models. See the coordinated migration below. |
 | Implemented; deployment acceptance pending | Calendar-month salary basis | Client selected actual calendar days on 20 October. Monthly rates now divide wage by the attendance month's 28/29/30/31 days through a shared contract helper. Full eligible months produce the contract wage; partial and cross-month periods use each date's full calendar-month divisor. The former July 12,400 result on a 12,000 contract is historical evidence of the replaced flat-30 basis, not current behavior. Validate the deployed release and recompute draft payslips. |
 | Client verification | NET rounding | The supplied screenshot shows Gross 3,862.29 and Fine 8.08, whose difference is 3,854.21, but displayed NET is 3,854.00. Inspect the deployed NET rule and currency rounding; repository default NET is BASIC + ALW + DED and does not explain an explicit whole-unit rounding rule. |
 | Client configuration | Meaning of special-day multipliers | Normal paid-day credit plus additional 2x pay produces 3x total for a full day. If the client means double total pay, use additional 1x with normal credit. Confirm weekly-off and public-holiday settings separately. |
 | Client acceptance | Actual employee setup | Confirm in-scope employee contracts, wage types, calendar timezone/work periods, effective employee/company templates, selected weekly offs, public-holiday dates and salary structure BASIC/OT/PH/fine rules. Screenshots included employees without schedules/contracts; identify whether these are test or in-scope records. |
 
-The dashboard gap can also affect payroll attendance hours and day classification,
-not just late fines. A UI time or HR audit log alone is not evidence of a real punch.
+Legacy manual-only snapshots can affect payroll attendance and day classification.
+The migration blocks audited manual times without actual punches for review.
+A UI time or HR audit log alone is not evidence of a real punch.
 Pending and ignored adjustments must not silently become salary amounts.
 
 ## Delivered behavior to verify with client examples
@@ -52,7 +54,33 @@ Check both base/payable days and earnings. Do not sum full paid-day credit and
 worked-day fractions twice. Hour fields in the dashboard use HH:MM; worked-day
 input tables may display decimal hours.
 
-## Validation evidence
+## Independent attendance decisions — 27 October 2026
+
+Deploy Daily Ops **18.0.1.92.0**, Attendance OT/Fine **18.0.3.34.0**,
+Attendance Report **18.0.1.12.0** and Payslip Excel Report **18.0.4.19.0**
+together. [Migration instructions](INDEPENDENT_ATTENDANCE_DECISIONS.md) describe
+backup, transactional guards and preserved raw archives. History models, actions,
+menus, dashboard buttons and creation cron are removed. Current punches/Time Off
+and independent employee/date/company HR decisions feed dashboard/payroll/reports.
+
+Validation passed: **254 Odoo tests**, **17 production OWL Chromium tests**,
+all installed attendance/payroll/report browser scenarios, and **6 independent
+acceptance tests on a fresh database with no History tables**. Migration retained
+fixture decision IDs, approvals/exclusions/coverage, hourly corrections and all
+finalized salary amounts/states. Manual-only snapshots stopped the upgrade and
+rolled back; verified real punches then allowed the upgrade. Duplicate,
+incomplete and conflicting-table guards plus idempotent retry checks passed.
+
+The final backend suite had no WARNING/ERROR entries. Browser runs included
+handled concurrent-transaction retries and expected empty-report warnings; all
+assertions passed. Production load/concurrency and the customer's migration data
+still require staging validation. Attendance report wizard access is explicitly
+internal-user only; portal denial and internal creation were tested.
+
+Seconds/tolerance behavior and salary policies are unchanged. The evidence below
+records earlier releases; their manual-only snapshot fallback is superseded.
+
+## Historical validation evidence
 
 - Calendar-month candidate, 20 October: **173 Odoo tests passed**
   with zero failures/errors, covering custom payroll, daily operations,

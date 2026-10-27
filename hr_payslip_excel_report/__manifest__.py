@@ -1,7 +1,7 @@
 
 {
     "name": "HR Payslip Excel Report",
-    "version": "18.0.4.18.0",
+    "version": "18.0.4.19.0",
     'description': 'Payroll Review and Payslip Summary Excel reports from saved payslips and current attendance reviews.',
     "summary": "HR Payslip Excel Report",
     "author": "Bambus Technologies LLP",

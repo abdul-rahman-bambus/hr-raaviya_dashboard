@@ -53,10 +53,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
                 'check_in': datetime.combine(day, datetime.min.time()).replace(hour=9),
                 'check_out': datetime.combine(day, datetime.min.time()).replace(hour=17)})
         self.env['hr.attendance.overtime'].bambus_recompute_range(employee.ids, day, day)
-        sheet = self.env['bambus.hr.attendance.sheet'].search([('date', '=', day)], limit=1)
-        if not sheet:
-            sheet = self.env['bambus.hr.attendance.sheet'].create({'date': day})
-        line = self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id,
+        line = self.env['bambus.attendance.day.review'].create({'date': day,
             'employee_id': employee.id, 'contract_id': contract.id})
         line._compute_day_data()
         return employee, contract, line
@@ -175,7 +172,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
         wizard.source_write_date = fields.Datetime.to_datetime('2000-01-01')
         with self.assertRaises(UserError):
             wizard.action_save()
-        dashboard = self.env['bambus.hr.attendance.sheet']
+        dashboard = self.env['bambus.attendance.dashboard']
         payload = dashboard.get_dashboard_review(employee.id, self.day)
         for invalid in (-1, float('nan'), float('inf')):
             with self.assertRaises(UserError):
@@ -183,7 +180,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
 
     def test_dashboard_delete_all_items_remains_excluded_after_recompute(self):
         employee, contract, line = self.worker('monthly')
-        dashboard = self.env['bambus.hr.attendance.sheet']
+        dashboard = self.env['bambus.attendance.dashboard']
         payload = dashboard.get_dashboard_review(employee.id, self.day)
         self.assertEqual([item['id'] for item in payload['items']], ['overtime'])
         dashboard.save_dashboard_review(payload['wizard_id'], [])
@@ -274,7 +271,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
                 contract[field] = value
                 wizard = self.wizard(line)
                 self.assertEqual((wizard.contract_wage_label, wizard.contract_wage_amount), (label, value))
-                payload = self.env['bambus.hr.attendance.sheet'].get_dashboard_review(employee.id, self.day)
+                payload = self.env['bambus.attendance.dashboard'].get_dashboard_review(employee.id, self.day)
                 self.assertEqual((payload['contract_wage_label'], payload['contract_wage_amount']), (label, value))
 
     def test_disabling_unworked_credit_preserves_worked_base_and_approved_ot(self):
@@ -288,7 +285,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
     def test_hourly_pay_review_displays_contract_hourly_rate(self):
         self.template.hourly_pay_enabled = True
         employee, contract, line = self.worker('hourly')
-        payload = self.env['bambus.hr.attendance.sheet'].get_dashboard_adjustment(employee.id, self.day, 'hourly_pay')
+        payload = self.env['bambus.attendance.dashboard'].get_dashboard_adjustment(employee.id, self.day, 'hourly_pay')
         self.assertEqual((payload['contract_wage_label'], payload['contract_wage_amount']), ('Hourly Rate', 12.5))
 
     def test_special_day_worked_fraction_refreshes_above_schedule_without_manual_recompute(self):
@@ -486,7 +483,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
                                   ([('14:00', '18:00')], 'am'),
                                   ([('09:00', '13:00'), ('14:00', '18:00')], False), ([], False)]:
             employee, contract, line = self.regular_worker(punches=punches)
-            action = self.env['bambus.hr.attendance.sheet'].create_half_day_leave(employee.id, line.date)
+            action = self.env['bambus.attendance.dashboard'].create_half_day_leave(employee.id, line.date)
             self.assertEqual(action['context']['default_period'], expected)
             self.assertFalse(self.env['hr.leave'].search([('employee_id', '=', employee.id)]))
 
@@ -510,7 +507,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
                     leave_type = self.env['hr.leave.type'].create({'name': 'Half Paid' if paid else 'Half Unpaid',
                         'request_unit': 'half_day', 'requires_allocation': 'no', 'unpaid': not paid,
                         'leave_validation_type': 'hr'})
-                    action = self.env['bambus.hr.attendance.sheet'].prepare_half_day_leave(employee.id, line.date)
+                    action = self.env['bambus.attendance.dashboard'].prepare_half_day_leave(employee.id, line.date)
                     wizard = self.env[action['res_model']].with_context(**action['context']).create({'leave_type_id': leave_type.id})
                     wizard.action_confirm()
                     leave = self.env['hr.leave'].search([('employee_id', '=', employee.id)])
@@ -605,7 +602,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
         morning.hour_to = 11
         self.calendar.attendance_ids = [(0, 0, {'name': 'Later Morning', 'dayofweek': '0',
             'day_period': 'morning', 'hour_from': 11, 'hour_to': 13})]
-        action = self.env['bambus.hr.attendance.sheet'].prepare_half_day_leave(employee.id, line.date)
+        action = self.env['bambus.attendance.dashboard'].prepare_half_day_leave(employee.id, line.date)
         self.assertEqual(action['context']['default_period'], 'pm')
 
     def test_legacy_session_reassessment_requires_new_approval_and_keeps_previous_audit(self):
@@ -615,7 +612,7 @@ class TestUnifiedAttendanceReview(TransactionCase):
                     'fine_calculation_type': 'fixed', 'fine_rate': 10,
                     'fine_review_data': {'late': {'state': 'approved', 'hours': .5,
                         'amount': 10, 'calculation_type': 'fixed', 'rate': 10}}})
-        dashboard = self.env['bambus.hr.attendance.sheet']
+        dashboard = self.env['bambus.attendance.dashboard']
         current = dashboard.get_dashboard_review(employee.id, line.date)
         self.assertTrue(current['can_review_sessions'])
         payload = dashboard.get_dashboard_review(employee.id, line.date, True)

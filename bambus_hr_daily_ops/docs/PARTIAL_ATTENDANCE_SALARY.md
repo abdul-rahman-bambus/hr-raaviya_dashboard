@@ -1,5 +1,10 @@
 # Configure partial attendance salary
 
+Current attendance sources and migration: [Independent attendance decisions](INDEPENDENT_ATTENDANCE_DECISIONS.md).
+History snapshots and the older manual-time fallback are superseded by real punches
+and independent HR review decisions in Daily Ops 18.0.1.92.0.
+
+
 Attendance Day Classification is under **Late & Early Exit**, directly below
 **Day Pay** (Daily Ops **18.0.1.90.0**). Configure **Half Day Hours**, **Full Day
 Basis**, and, for a fixed basis, **Full Day Hours** there. This form layout change

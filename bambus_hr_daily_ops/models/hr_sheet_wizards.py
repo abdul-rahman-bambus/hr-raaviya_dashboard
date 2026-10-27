@@ -48,7 +48,7 @@ class BambusHrAttendanceMultiWizard(models.TransientModel):
     _name = "bambus.hr.attendance.multi.wizard"
     _description = "Edit Daily Punches"
 
-    line_id = fields.Many2one("bambus.hr.attendance.sheet.line", required=True)
+    line_id = fields.Many2one("bambus.attendance.day.review", required=True)
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
@@ -233,7 +233,7 @@ class BambusHrAttendanceMultiWizard(models.TransientModel):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(self.env.context.get("default_line_id"))
+        line = self.env["bambus.attendance.day.review"].browse(self.env.context.get("default_line_id"))
         if not line or not line.exists():
             return res
 
@@ -343,7 +343,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
     _name = "bambus.hr.overtime.wizard"
     _description = "Edit Overtime"
 
-    line_id = fields.Many2one("bambus.hr.attendance.sheet.line", required=True, ondelete="cascade")
+    line_id = fields.Many2one("bambus.attendance.day.review", required=True, ondelete="cascade")
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
@@ -439,7 +439,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(self.env.context.get("default_line_id"))
+        line = self.env["bambus.attendance.day.review"].browse(self.env.context.get("default_line_id"))
         if line and line.exists():
             template = (
                 line.overtime_template_id
@@ -562,7 +562,7 @@ class BambusHrHourlyPayWizard(models.TransientModel):
     _description = "Review Hourly Pay"
 
     line_id = fields.Many2one(
-        "bambus.hr.attendance.sheet.line", required=True, ondelete="cascade"
+        "bambus.attendance.day.review", required=True, ondelete="cascade"
     )
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
@@ -609,7 +609,7 @@ class BambusHrHourlyPayWizard(models.TransientModel):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(
+        line = self.env["bambus.attendance.day.review"].browse(
             self.env.context.get("default_line_id")
         ).exists()
         if line:
@@ -674,7 +674,7 @@ class BambusHrFineWizard(models.TransientModel):
     _name = "bambus.hr.fine.wizard"
     _description = "Fine"
 
-    line_id = fields.Many2one("bambus.hr.attendance.sheet.line", required=True, ondelete="cascade")
+    line_id = fields.Many2one("bambus.attendance.day.review", required=True, ondelete="cascade")
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
@@ -742,7 +742,7 @@ class BambusHrFineWizard(models.TransientModel):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(self.env.context.get("default_line_id"))
+        line = self.env["bambus.attendance.day.review"].browse(self.env.context.get("default_line_id"))
         if line and line.exists():
             template = line.employee_id._get_attendance_automation_template(line.date)
             res.update({
@@ -805,7 +805,7 @@ class BambusHrLeaveQuickWizard(models.TransientModel):
     _name = "bambus.hr.leave.quick.wizard"
     _description = "Quick Leave"
 
-    line_id = fields.Many2one("bambus.hr.attendance.sheet.line", required=True, ondelete="cascade")
+    line_id = fields.Many2one("bambus.attendance.day.review", required=True, ondelete="cascade")
     employee_id = fields.Many2one(related="line_id.employee_id", readonly=True)
     date = fields.Date(related="line_id.date", readonly=True)
 
@@ -822,7 +822,7 @@ class BambusHrLeaveQuickWizard(models.TransientModel):
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
-        line = self.env["bambus.hr.attendance.sheet.line"].browse(self.env.context.get("default_line_id"))
+        line = self.env["bambus.attendance.day.review"].browse(self.env.context.get("default_line_id"))
         if not line or not line.exists():
             return res
 

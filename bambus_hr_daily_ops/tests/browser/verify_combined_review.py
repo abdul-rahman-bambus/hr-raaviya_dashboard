@@ -40,11 +40,10 @@ def main():
             contract = create('hr.contract',{'name':'Unified Browser Contract','employee_id':employee,'date_start':'2026-09-01','wage_type':'monthly','wage':3000,'resource_calendar_id':cal})
             for ci,co in [('10:00:00','11:00:00'),('14:00:00','15:00:00')]:
                 create('hr.attendance',{'employee_id':employee,'check_in':'2026-09-28 '+ci,'check_out':'2026-09-28 '+co})
-            payload = rpc('bambus.hr.attendance.sheet','get_dashboard_review',[employee,'2026-09-28'])
+            payload = rpc('bambus.attendance.dashboard','get_dashboard_review',[employee,'2026-09-28'])
             wizard = payload['wizard_id']
             record = rpc('bambus.hr.attendance.review.wizard','read',[[wizard]],{'fields':['line_id']})[0]
             line = record['line_id'][0]
-            rpc('bambus.hr.attendance.sheet.line','write',[[line],{'overtime_hours':1,'overtime_state':'submitted'}])
             wizard = rpc('bambus.hr.attendance.review.wizard','create',[{}],{'context':{'default_line_id':line}})
             view = rpc('ir.model.data','search_read',[[['module','=','bambus_hr_daily_ops'],['name','=','view_attendance_review_wizard']]],{'fields':['res_id']})[0]['res_id']
             action = create('ir.actions.act_window',{'name':'Unified Review Browser Test','res_model':'bambus.hr.attendance.review.wizard','res_id':wizard,'view_mode':'form','view_id':view,'target':'new'})
@@ -87,6 +86,12 @@ def main():
                 assert modal.get_by_text('Early Exit Fine', exact=True).is_visible()
             modal.get_by_role('button', name='Cancel', exact=True).click()
             page.set_viewport_size({'width': 1366, 'height': 768})
+            # Use a fresh review after adding actual overtime, preserving the
+            # earlier viewport check's late/break/early components.
+            create('hr.attendance', {'employee_id': employee,
+                'check_in': '2026-09-28 17:00:00', 'check_out': '2026-09-28 18:00:00'})
+            refreshed = rpc('bambus.attendance.dashboard', 'get_dashboard_review', [employee, '2026-09-28'])
+            rpc('ir.actions.act_window', 'write', [[action], {'res_id': refreshed['wizard_id']}])
             page.goto(f'{url}/odoo/action-{action}')
             page.get_by_role('button',name='Approve Remaining Items',exact=True).wait_for(timeout=20000)
             assert page.get_by_text('Late Fine',exact=True).count() > 0
@@ -97,15 +102,15 @@ def main():
             row.locator('.o_list_record_remove button, .o_list_record_remove').first.click()
             page.get_by_role('button',name='Approve Remaining Items',exact=True).click()
             page.get_by_role('dialog').wait_for(state='hidden')
-            record=rpc('bambus.hr.attendance.sheet.line','read',[[line]],{'fields':['overtime_state','fine_state','fine_review_data']})[0]
+            record=rpc('bambus.attendance.day.review','read',[[line]],{'fields':['overtime_state','fine_state','fine_review_data']})[0]
             assert record['overtime_state']=='approved', record
             assert record['fine_review_data']['break']['state']=='ignored',record
             assert not errors, errors
             print('PASS: installed dashboard scrolls at five viewport sizes with visible approval controls and contract wage; actual Odoo combined form renders OT and separate fines, native trash ignores break, one approval saves all remaining items.')
         finally:
             # The disposable DB is dedicated to tests; remove the day line before its employee.
-            lines=rpc('bambus.hr.attendance.sheet.line','search',[[['employee_id','=',employee]]]) if 'employee' in locals() else []
-            if lines: rpc('bambus.hr.attendance.sheet.line','unlink',[lines])
+            lines=rpc('bambus.attendance.day.review','search',[[['employee_id','=',employee]]]) if 'employee' in locals() else []
+            if lines: rpc('bambus.attendance.day.review','unlink',[lines])
             for model,rec in reversed(created):
                 rpc(model,'unlink',[[rec]])
             browser.close()

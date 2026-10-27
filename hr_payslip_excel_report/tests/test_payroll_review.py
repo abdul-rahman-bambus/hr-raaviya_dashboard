@@ -209,8 +209,8 @@ class TestPayrollReview(TransactionCase):
     def test_pending_and_approved_reviews_do_not_recalculate_salary(self):
         slip = self.slip(date_from='2026-09-07', date_to='2026-09-07')
         self.finance(slip)
-        sheet = self.env['bambus.hr.attendance.sheet'].create({'date': '2026-09-07', 'company_id': self.company.id})
-        line = self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id, 'employee_id': self.employee.id,
+        review_values = {'date': '2026-09-07', 'company_id': self.company.id}
+        line = self.env['bambus.attendance.day.review'].create({**review_values, 'employee_id': self.employee.id,
             'overtime_state': 'submitted', 'overtime_detected_hours': 2,
             'fine_state': 'approved', 'fine_hours': 1, 'fine_amount': 125})
         data = self.report._data(self.wizard())
@@ -234,8 +234,8 @@ class TestPayrollReview(TransactionCase):
         self.template.hourly_pay_use_template_limit = False
         self.env['hr.attendance'].create({'employee_id': self.employee.id,
             'check_in': datetime(2026, 9, 7, 3, 30), 'check_out': datetime(2026, 9, 7, 11, 30)})
-        sheet = self.env['bambus.hr.attendance.sheet'].create({'date': '2026-09-07', 'company_id': self.company.id})
-        self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id, 'employee_id': self.employee.id,
+        review_values = {'date': '2026-09-07', 'company_id': self.company.id}
+        self.env['bambus.attendance.day.review'].create({**review_values, 'employee_id': self.employee.id,
             'hourly_pay_state': 'approved', 'hourly_pay_hours': 7, 'hourly_pay_amount': 700})
         self.finance(self.slip(date_from='2026-09-07', date_to='2026-09-07'))
         data = self.report._data(self.wizard())
@@ -371,10 +371,10 @@ class TestPayrollReview(TransactionCase):
             self.env['hr.attendance'].create({'employee_id': self.employee.id,
                 'check_in': day + ' 03:30:00', 'check_out': day + ' 11:30:00'})
             slip = self.slip(date_from=day, date_to=day)
-            info = self.env['bambus.hr.attendance.sheet']._paid_day_info(
+            info = self.env['bambus.attendance.dashboard']._paid_day_info(
                 self.employee, slip.date_from, self.contract)
             self.assertEqual((info['kind'], info['eligible']), (kind, True), (day, info))
-            self.env['bambus.hr.attendance.sheet'].set_dashboard_paid_day(
+            self.env['bambus.attendance.dashboard'].set_dashboard_paid_day(
                 self.employee.id, day, kind, 'withhold', 'Pay only separately approved earnings')
             slip.action_compute_sheet()
             self.assertEqual(self.report._payable_days(slip), 0)
@@ -418,8 +418,8 @@ class TestPayrollReview(TransactionCase):
     def test_detailed_summary_headers_and_decimal_hours(self):
         self.env['hr.attendance'].create({'employee_id': self.employee.id,
             'check_in': datetime(2026, 9, 7, 3, 45), 'check_out': datetime(2026, 9, 7, 13, 15)})
-        sheet = self.env['bambus.hr.attendance.sheet'].create({'date': '2026-09-07', 'company_id': self.company.id})
-        self.env['bambus.hr.attendance.sheet.line'].create({'sheet_id': sheet.id, 'employee_id': self.employee.id,
+        review_values = {'date': '2026-09-07', 'company_id': self.company.id}
+        self.env['bambus.attendance.day.review'].create({**review_values, 'employee_id': self.employee.id,
             'overtime_state': 'approved', 'overtime_hours': 1.75, 'overtime_amount': 300,
             'fine_state': 'approved', 'fine_hours': .25, 'fine_amount': 100})
         slip = self.slip()

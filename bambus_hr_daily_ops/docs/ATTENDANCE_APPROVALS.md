@@ -1,5 +1,11 @@
 # Attendance approvals and weekly-off pay
 
+Current release: approvals use **bambus.attendance.day.review**, independent of
+Attendance History. History models/menu/cron are removed; time corrections write
+actual punches. Legacy approvals and exclusions are preserved with their IDs.
+See [migration and sources of truth](INDEPENDENT_ATTENDANCE_DECISIONS.md).
+
+
 Attendance Day Classification is under **Late & Early Exit**, directly below
 **Day Pay** (Daily Ops **18.0.1.90.0**). Configure **Half Day Hours**, **Full Day
 Basis**, and, for a fixed basis, **Full Day Hours** there. This form layout change
@@ -14,7 +20,7 @@ existing review; hourly contracts do not receive additional OT.
 
 Adjust hours, calculation and notes, then choose **Approve Remaining Items**.
 **Delete / Ignore** removes an item from this review. Approval saves its exclusion;
-Cancel discards unsaved changes. In the native daily-sheet popup, remove a fine
+Cancel discards unsaved changes. In the native review popup, remove a fine
 with the list trash icon or select Ignore Overtime, then approve. Ignored items
 remain excluded on attendance refresh, recalculation and reopening. Punches are
 retained. Existing aggregate fine approvals are retained as one previously
@@ -22,7 +28,7 @@ combined fine instead of being split into guessed amounts.
 
 Only approved attendance adjustments enter template-driven payroll. Detection
 remains available for review but does not pay OT or deduct fines automatically.
-Previously approved snapshots and ignored items survive daily-sheet refresh.
+Previously approved snapshots and ignored items survive detection refresh.
 Stale reviews must be reopened before saving; only HR users in the selected
 company can approve them.
 

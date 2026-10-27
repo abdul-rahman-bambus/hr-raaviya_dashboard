@@ -16,7 +16,7 @@ class HrAttendance(models.Model):
     _inherit = "hr.attendance"
 
     bambus_review_line_id = fields.Many2one(
-        "bambus.hr.attendance.sheet.line",
+        "bambus.attendance.day.review",
         string="HR Review",
         compute="_compute_bambus_review_values",
         compute_sudo=True,
@@ -109,7 +109,7 @@ class HrAttendance(models.Model):
             if key in requested_keys:
                 records_by_key[key] |= attendance
 
-        lines = self.env["bambus.hr.attendance.sheet.line"].sudo().search([
+        lines = self.env["bambus.attendance.day.review"].sudo().search([
             ("employee_id", "in", candidates.employee_id.ids),
             ("date", ">=", min(days)),
             ("date", "<=", max(days)),

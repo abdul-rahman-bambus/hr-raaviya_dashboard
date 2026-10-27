@@ -5,66 +5,9 @@ from datetime import datetime, time, timedelta
 import pytz
 
 
-class BambusHrAttendanceSheet(models.Model):
-    _name = "bambus.hr.attendance.sheet"
-    _description = "Daily Attendance Sheet"
-    _order = "date desc, id desc"
-
-    name = fields.Char(compute="_compute_name", store=True)
-    date = fields.Date(required=True, default=fields.Date.context_today, index=True)
-    company_id = fields.Many2one("res.company", default=lambda self: self.env.company, required=True)
-    department_id = fields.Many2one("hr.department", string="Department (optional)")
-
-    line_ids = fields.One2many("bambus.hr.attendance.sheet.line", "sheet_id", string="Employees")
-
-    # KPI fields (top summary)
-    total_staff = fields.Integer(compute="_compute_kpis", store=False)
-    present_count = fields.Integer(compute="_compute_kpis", store=False)
-    absent_count = fields.Integer(compute="_compute_kpis", store=False)
-    halfday_count = fields.Integer(compute="_compute_kpis", store=False)
-    leave_count = fields.Integer(compute="_compute_kpis", store=False)
-    punched_in_count = fields.Integer(compute="_compute_kpis", store=False)
-    punched_out_count = fields.Integer(compute="_compute_kpis", store=False)
-    overtime_hours_total = fields.Float(compute="_compute_kpis", store=False)
-    fine_hours_total = fields.Float(compute="_compute_kpis", store=False)
-    employee_search = fields.Char(string="Search Employee")
-    kpi_filter = fields.Selection([
-        ("all", "All"),
-        ("present", "Present"),
-        ("absent", "Absent"),
-        ("halfday", "Half Day"),
-        ("leave", "Leave"),
-        ("punched_in", "Punched In"),
-        ("punched_out", "Punched Out"),
-        ("ot", "Overtime"),
-        ("fine", "Fine"),
-        ], default="all", string="Quick Filter")
-    line_ids_view = fields.Many2many(
-        "bambus.hr.attendance.sheet.line",
-        compute="_compute_line_ids_view",
-        store=False,
-        string="Staff (Filtered)"
-    )
-
-    # -----------------
-    # Approval workflow
-    # -----------------
-    state = fields.Selection([
-        ("draft", "Draft"),
-        ("submitted", "Submitted"),
-        ("approved", "Approved"),
-    ], default="draft", required=True, index=True)
-
-    submitted_by_id = fields.Many2one("res.users", readonly=True)
-    submitted_on = fields.Datetime(readonly=True)
-    approved_by_id = fields.Many2one("res.users", readonly=True)
-    approved_on = fields.Datetime(readonly=True)
-
-    _sql_constraints = [
-    ('uniq_sheet_date_company',
-     'unique(company_id, date)',
-     'Attendance sheet already exists for this date (per company).')
-]
+class AttendanceDashboard(models.AbstractModel):
+    _name = 'bambus.attendance.dashboard'
+    _description = 'Daily Attendance Service'
 
     @api.model
     def _paid_day_info(self, employee, day, contract):
@@ -133,7 +76,7 @@ class BambusHrAttendanceSheet(models.Model):
         day = fields.Date.to_date(selected_date)
         if not day:
             raise ValidationError(_("Select an attendance date."))
-        timezone = pytz.timezone(self.env.user.tz or 'UTC')
+        timezone = pytz.timezone(self.env.context.get('tz') or self.env.user.tz or 'UTC')
         start = timezone.localize(datetime.combine(day, time.min))
         end = timezone.localize(datetime.combine(day + timedelta(days=1), time.min))
         return {
@@ -157,7 +100,7 @@ class BambusHrAttendanceSheet(models.Model):
         # record rules already limit this query to companies the HR user may
         # access; attendance punches must never determine roster membership.
         employee_model = self.env["hr.employee"].with_context(active_test=False)
-        all_employees = employee_model.search([])
+        all_employees = employee_model.search([('company_id', '=', company.id)])
         employees = all_employees.filtered("active")
 
         def employee_department(employee):
@@ -171,7 +114,7 @@ class BambusHrAttendanceSheet(models.Model):
             """
             return employee.sudo().department_id
 
-        timezone = pytz.timezone(self.env.user.tz or "UTC")
+        timezone = pytz.timezone(self.env.context.get("tz") or self.env.user.tz or "UTC")
         local_start = timezone.localize(datetime.combine(day, time.min))
         local_end = timezone.localize(datetime.combine(day + timedelta(days=1), time.min))
         utc_start = local_start.astimezone(pytz.UTC).replace(tzinfo=None)
@@ -226,16 +169,15 @@ class BambusHrAttendanceSheet(models.Model):
             - leave_employee_ids - halfday_employee_ids
         )
         absent_employee_ids = set()
-        sheet = self.search([
-            ("date", "=", day),
-            ("company_id", "=", company.id),
-        ], limit=1)
-        sheet_lines = sheet.line_ids.filtered(lambda line: line.employee_id in employees)
-        line_by_employee = {line.employee_id.id: line for line in sheet_lines}
+        day_reviews = self.env['bambus.attendance.day.review'].search([
+            ('date', '=', day), ('company_id', '=', company.id),
+            ('employee_id', 'in', employees.ids),
+        ])
+        review_by_employee = {line.employee_id.id: line for line in day_reviews}
         # Only an explicit manager status takes precedence. Merely opening an
-        # OT/Fine dialog creates a sheet line and must not turn an employee
+        # OT/Fine dialog creates a review and must not turn an employee
         # with no punches into Absent/Present.
-        for line in sheet_lines:
+        for line in day_reviews:
             if not line.attendance_status_manual:
                 continue
             employee_id = line.employee_id.id
@@ -264,17 +206,14 @@ class BambusHrAttendanceSheet(models.Model):
                     lambda attendance: attendance.bambus_fine_hours > 0
                 ).employee_id.ids
             )
-        for line in sheet_lines:
-            overtime_employee_ids.discard(line.employee_id.id)
-            fine_employee_ids.discard(line.employee_id.id)
+        for line in day_reviews:
             has_attendance_basis = (
-                line.employee_id.id in attendance_employee_ids
-                or line.attendance_status_manual
-            )
-            if has_attendance_basis and line.overtime_hours > 0:
-                overtime_employee_ids.add(line.employee_id.id)
-            if has_attendance_basis and line.fine_hours > 0:
-                fine_employee_ids.add(line.employee_id.id)
+                line.employee_id.id in attendance_employee_ids or line.attendance_status_manual)
+            for kind, selected in [('overtime', overtime_employee_ids), ('fine', fine_employee_ids)]:
+                if line[kind + '_state'] in ('approved', 'rejected'):
+                    selected.discard(line.employee_id.id)
+                    if has_attendance_basis and line[kind + '_state'] == 'approved' and line[kind + '_hours'] > 0:
+                        selected.add(line.employee_id.id)
         contracts = self.env["hr.contract"].search([
             ("employee_id", "in", employees.ids),
             ("state", "!=", "cancel"),
@@ -381,7 +320,7 @@ class BambusHrAttendanceSheet(models.Model):
         daily_attendance = []
         for employee in employees.sorted(key=lambda item: (item.name or "").lower()):
             employee_attendances = attendances_by_employee.get(employee.id, [])
-            override = line_by_employee.get(employee.id)
+            override = review_by_employee.get(employee.id)
             day_leave = (
                 override.leave_id
                 if override and override.leave_id
@@ -429,17 +368,9 @@ class BambusHrAttendanceSheet(models.Model):
                 employee_fine_hours = sum(
                     item['hours'] for item in employee._attendance_exception_components(day).values()
                 )
-            # Sheet rows are saved HR snapshots and can predate punch corrections.
-            # Current punches own visible times/hours; retain manual-only entry
-            # fallback and keep explicit statuses and approved money independent.
-            if employee_attendances:
-                display_check_in = min(check_ins) if check_ins else False
-                display_check_out = max(check_outs) if check_outs else False
-                display_worked_hours = sum(a.worked_hours for a in employee_attendances)
-            else:
-                display_check_in = override.check_in if override else False
-                display_check_out = override.check_out if override else False
-                display_worked_hours = override.worked_hours if override else 0.0
+            display_check_in = min(check_ins) if check_ins else False
+            display_check_out = max(check_outs) if check_outs else False
+            display_worked_hours = sum(a.worked_hours for a in employee_attendances)
             attendance_logs = []
             for attendance in sorted(employee_attendances, key=lambda item: item.check_in):
                 local_in = fields.Datetime.context_timestamp(self, attendance.check_in)
@@ -552,13 +483,13 @@ class BambusHrAttendanceSheet(models.Model):
             fine_reviewed = bool(
                 override and override.fine_state in ("approved", "rejected")
             )
-            if override and override.overtime_state in ("submitted", "approved"):
+            if override and override.overtime_state == "approved":
                 employee_overtime_hours = override.overtime_hours
             elif override and override.overtime_state == "rejected":
                 employee_overtime_hours = 0.0
             else:
                 employee_overtime_hours = raw_overtime_hours
-            if override and override.fine_state in ("submitted", "approved"):
+            if override and override.fine_state == "approved":
                 employee_fine_hours = override.fine_hours
             elif override and override.fine_state == "rejected":
                 employee_fine_hours = 0.0
@@ -670,87 +601,79 @@ class BambusHrAttendanceSheet(models.Model):
         }
 
     @api.model
+    def _day_review(self, employee, day, create=False):
+        employee.check_access('read')
+        if employee.company_id != self.env.company:
+            raise UserError(_('Select the employee company before updating attendance.'))
+        model = self.env['bambus.attendance.day.review']
+        review = model.search([('employee_id', '=', employee.id),
+            ('company_id', '=', employee.company_id.id), ('date', '=', day)], limit=1)
+        if create and not review:
+            review = model.create({'employee_id': employee.id,
+                'company_id': employee.company_id.id, 'date': day})
+        return review
+
+    @api.model
     def update_dashboard_attendance(self, employee_id, selected_date, values):
-        """Create or update the editable daily snapshot used by HR."""
-        if not self.env.user.has_group("hr.group_hr_user"):
-            raise UserError(_("Only HR officers can update employee attendance."))
+        """Persist time edits as real punches and status decisions independently."""
+        if not self.env.user.has_group('hr.group_hr_user'):
+            raise UserError(_('Only HR officers can update employee attendance.'))
+        employee = self.env['hr.employee'].browse(employee_id).exists()
         day = fields.Date.to_date(selected_date)
-        employee = self.env["hr.employee"].browse(employee_id).exists()
-        if not employee:
-            raise UserError(_("The employee is not available."))
-        contract = self.env["hr.contract"].search([
-            ("employee_id", "=", employee.id),
-            ("state", "!=", "cancel"),
-            ("date_start", "<=", day),
-            "|",
-            ("date_end", "=", False),
-            ("date_end", ">=", day),
-        ], order="date_start desc, id desc", limit=1)
-        sheet = self.search([("date", "=", day), ("company_id", "=", self.env.company.id)], limit=1)
-        if not sheet:
-            sheet = self.create({"date": day, "company_id": self.env.company.id})
-        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
-        if not line:
-            line = self.env["bambus.hr.attendance.sheet.line"].create({
-                "sheet_id": sheet.id,
-                "employee_id": employee.id,
-            })
-
-        requested_status = values.get("status", "not_marked")
-        status_manual = bool(values.get("status_manual", "status" in values))
-        if requested_status not in {"present", "absent", "halfday", "leave", "not_marked"}:
-            raise UserError(_("Select a valid attendance status."))
-        status = requested_status if requested_status != "not_marked" else "absent"
-        timezone = pytz.timezone(self.env.user.tz or "UTC")
-
-        def parse_time(value):
-            if not value:
-                return False
-            try:
-                local_value = timezone.localize(datetime.combine(day, datetime.strptime(value, "%H:%M").time()))
-            except (TypeError, ValueError):
-                raise UserError(_("Enter time in HH:MM format."))
-            return local_value.astimezone(pytz.UTC).replace(tzinfo=None)
-
-        check_in = parse_time(values.get("check_in"))
-        check_out = parse_time(values.get("check_out"))
-        if check_in and check_out and check_out < check_in:
-            check_out += timedelta(days=1)
-        overtime_hours = float(values.get("overtime_hours", line.overtime_hours) or 0.0)
-        fine_hours = float(values.get("fine_hours", line.fine_hours) or 0.0)
-        if overtime_hours < 0 or fine_hours < 0:
-            raise UserError(_("Overtime and late/fine hours cannot be negative."))
-        previous_check_in = line.check_in
-        previous_check_out = line.check_out
-        line.write({
-            "status": status,
-            "attendance_status_manual": status_manual,
-            "check_in": check_in,
-            "check_out": check_out,
-            "worked_hours": max((check_out - check_in).total_seconds() / 3600, 0.0) if check_in and check_out else 0.0,
-            "overtime_hours": overtime_hours,
-            "overtime_detected_hours": overtime_hours,
-            "overtime_state": "submitted" if overtime_hours else "draft",
-            "fine_hours": fine_hours,
-            "fine_detected_hours": fine_hours,
-            "fine_state": "submitted" if fine_hours else "draft",
-        })
-        if check_in or check_out:
-            self.env["bambus.hr.attendance.time.audit"].create({
-                "employee_id": employee.id,
-                "date": day,
-                "adjustment_type": "attendance",
-                "previous_check_in": previous_check_in,
-                "previous_check_out": previous_check_out,
-                "check_in": check_in,
-                "check_out": check_out,
-                "updated_by_id": self.env.user.id,
-            })
-        return {
-            "line_id": line.id,
-            "status": line.status if line.attendance_status_manual else "not_marked",
-            "worked_hours": line.worked_hours,
-        }
+        if not employee or not day:
+            raise UserError(_('Select an employee and attendance date.'))
+        line = self._day_review(employee, day, create=True)
+        line._check_review_access()
+        status = values.get('status', 'not_marked')
+        if status not in {'present', 'absent', 'halfday', 'leave', 'not_marked'}:
+            raise UserError(_('Select a valid attendance status.'))
+        status_manual = bool(values.get('status_manual', 'status' in values))
+        if 'status' in values or 'status_manual' in values:
+            line.write({'status': status if status != 'not_marked' else 'absent',
+                'attendance_status_manual': status_manual})
+        previous_check_in, previous_check_out = line.check_in, line.check_out
+        if 'check_in' in values or 'check_out' in values:
+            tz = pytz.timezone(self.env.context.get('tz') or self.env.user.tz or 'UTC')
+            def parse(value):
+                if not value:
+                    return False
+                try:
+                    local = tz.localize(datetime.combine(day, datetime.strptime(value, '%H:%M').time()))
+                except (ValueError, TypeError):
+                    raise UserError(_('Enter time in HH:MM format.'))
+                return local.astimezone(pytz.UTC).replace(tzinfo=None)
+            check_in = parse(values['check_in']) if 'check_in' in values else previous_check_in
+            check_out = parse(values['check_out']) if 'check_out' in values else previous_check_out
+            if check_out and not check_in:
+                raise UserError(_('Enter a check-in before setting checkout.'))
+            if check_in and check_out and check_out < check_in:
+                check_out += timedelta(days=1)
+            punches = line._review_attendances()
+            if punches:
+                first = punches[0]
+                last = max(punches, key=lambda att: att.check_out or att.check_in)
+                if not check_in:
+                    raise UserError(_('Use the pencil attendance list to remove punch records.'))
+                if first == last:
+                    first.write({'check_in': check_in, 'check_out': check_out})
+                else:
+                    # Keep lunch/session gaps and all intermediate punches intact.
+                    if 'check_in' in values:
+                        first.write({'check_in': check_in})
+                    if 'check_out' in values:
+                        last.write({'check_out': check_out})
+            elif check_in:
+                self.env['hr.attendance'].create({'employee_id': employee.id,
+                    'check_in': check_in, 'check_out': check_out})
+            self.env['bambus.hr.attendance.time.audit'].create({
+                'employee_id': employee.id, 'date': day, 'adjustment_type': 'attendance',
+                'previous_check_in': previous_check_in, 'previous_check_out': previous_check_out,
+                'check_in': check_in, 'check_out': check_out, 'updated_by_id': self.env.uid})
+        # Money and final adjustment hours are saved only by their review
+        # wizards, never incidentally by a status/time change.
+        line._compute_day_data()
+        return {'line_id': line.id, 'status': line.status if line.attendance_status_manual else 'not_marked',
+            'worked_hours': line.worked_hours}
 
     @api.model
     def open_dashboard_adjustment(self, employee_id, selected_date, adjustment):
@@ -772,23 +695,9 @@ class BambusHrAttendanceSheet(models.Model):
         ], order="date_start desc, id desc", limit=1)
         template = employee._get_attendance_automation_template(day)
 
-        sheet = self.search([
-            ("date", "=", day),
-            ("company_id", "=", employee.company_id.id),
-        ], limit=1)
-        if not sheet:
-            sheet = self.create({
-                "date": day,
-                "company_id": employee.company_id.id,
-            })
-
-        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1]
-        if not line:
-            line = self.env["bambus.hr.attendance.sheet.line"].create({
-                "sheet_id": sheet.id,
-                "employee_id": employee.id,
-            })
-            line._compute_day_data()
+        line = self._day_review(employee, day, create=True)
+        self.env['hr.attendance.overtime'].sudo().bambus_recompute_range(employee.ids, day, day)
+        line._compute_day_data()
 
         if adjustment == "overtime":
             return line.action_edit_overtime()
@@ -919,11 +828,6 @@ class BambusHrAttendanceSheet(models.Model):
         employee = self.env["hr.employee"].browse(employee_id).exists()
         if not employee:
             raise UserError(_("The employee is not available."))
-        sheet = self.search([
-            ("date", "=", day),
-            ("company_id", "=", employee.company_id.id),
-        ], limit=1)
-
         leave = self.env["hr.leave"].sudo().search([
             ("employee_id", "=", employee.id),
             ("state", "not in", ["refuse", "cancel"]),
@@ -944,720 +848,7 @@ class BambusHrAttendanceSheet(models.Model):
                 # the refusal above already removes its calendar allocation.
                 leave.with_context(mail_notrack=True).write({"state": "cancel"})
 
-        line = sheet.line_ids.filtered(lambda item: item.employee_id == employee)[:1] if sheet else False
+        line = self._day_review(employee, day)
         if line:
-            line.sudo().unlink()
+            line.write({'attendance_status_manual': False})
         return True
-
-
-    def _filtered_lines(self):
-        self.ensure_one()
-        lines = self.line_ids
-
-        f = self.kpi_filter or "all"
-        if f == "present":
-            lines = lines.filtered(lambda l: l.status == "present")
-        elif f == "absent":
-            lines = lines.filtered(lambda l: l.status == "absent")
-        elif f == "halfday":
-            lines = lines.filtered(lambda l: l.status == "halfday")
-        elif f == "leave":
-            lines = lines.filtered(lambda l: l.status in ("leave", "halfday"))
-        elif f == "punched_in":
-            lines = lines.filtered(lambda l: bool(l.check_in))
-        elif f == "punched_out":
-            lines = lines.filtered(lambda l: bool(l.check_out))
-        elif f == "ot":
-            lines = lines.filtered(lambda l: (l.overtime_hours or 0) > 0)
-        elif f == "fine":
-            lines = lines.filtered(lambda l: (l.fine_hours or 0) > 0)
-
-        s = (self.employee_search or "").strip().lower()
-        if s:
-            lines = lines.filtered(lambda l: s in ((l.employee_id.name or "").lower()))
-
-        return lines
-
-    @api.depends(
-        "kpi_filter", "employee_search",
-        "line_ids.status", "line_ids.check_in", "line_ids.check_out",
-        "line_ids.overtime_hours", "line_ids.fine_hours",
-        "line_ids.employee_id",
-    )
-    def _compute_line_ids_view(self):
-        for sheet in self:
-            sheet.line_ids_view = sheet._filtered_lines()
-
-    @api.onchange("kpi_filter", "employee_search")
-    def _onchange_filters(self):
-        for sheet in self:
-            sheet.line_ids_view = sheet._filtered_lines()
-
-    def action_clear_employee_search(self):
-        self.ensure_one()
-        self.employee_search = False
-        return {"type": "ir.actions.client", "tag": "reload"}
-
-    def action_set_kpi_filter(self):
-        self.ensure_one()
-        self.kpi_filter = self.env.context.get("kpi") or "all"
-        return {"type": "ir.actions.client", "tag": "reload"}
-
-    def action_clear_kpi_filter(self):
-        self.ensure_one()
-        self.kpi_filter = "all"
-        return {"type": "ir.actions.client", "tag": "reload"}
-
-    def action_submit(self):
-        for sheet in self:
-            if sheet.state != "draft":
-                continue
-            sheet.write({
-                "state": "submitted",
-                "submitted_by_id": self.env.user.id,
-                "submitted_on": fields.Datetime.now(),
-            })
-        return True
-
-    def action_approve(self):
-        # keep strict: only HR Manager can approve
-        if not self.env.user.has_group("hr.group_hr_manager"):
-            raise UserError(_("Only HR Manager can approve the sheet."))
-        for sheet in self:
-            if sheet.state != "submitted":
-                continue
-            sheet.write({
-                "state": "approved",
-                "approved_by_id": self.env.user.id,
-                "approved_on": fields.Datetime.now(),
-            })
-        return True
-
-    def _bambus_check_sheet_locked(self, vals=None):
-        """Legacy compatibility hook; daily attendance remains editable by HR."""
-        return True
-
-    def write(self, vals):
-        self._bambus_check_sheet_locked(vals)
-        return super().write(vals)
-
-    def unlink(self):
-        return super().unlink()
-
-
-    @api.depends("date", "department_id")
-    def _compute_name(self):
-        for rec in self:
-            rec.name = f"Attendance Sheet - {rec.date}"
-
-    def _day_bounds_utc(self, day):
-        # Simple UTC day bounds (ok for internal usage; if you want timezone-perfect, we’ll adjust)
-        start_dt = datetime.combine(day, time.min)
-        end_dt = start_dt + timedelta(days=1)
-        return start_dt, end_dt
-
-    def action_generate_lines(self):
-        """Create/refresh lines for employees for that date."""
-        for sheet in self:
-            if not sheet.date:
-                raise UserError(_("Select a date."))
-
-            domain = [("active", "=", True)]
-            # company filter (multi-company)
-            domain += [("company_id", "=", sheet.company_id.id)]
-            if sheet.department_id:
-                domain += [("department_id", "=", sheet.department_id.id)]
-
-            employees = self.env["hr.employee"].search(domain, order="name asc")
-            if not employees:
-                raise UserError(_("No employees found for this company/department."))
-
-            # keep existing lines if already created
-            existing = {l.employee_id.id: l for l in sheet.line_ids}
-            vals_list = []
-            for emp in employees:
-                if emp.id in existing:
-                    continue
-                vals_list.append({
-                    "sheet_id": sheet.id,
-                    "employee_id": emp.id,
-                    "date": sheet.date,
-                })
-            if vals_list:
-                self.env["bambus.hr.attendance.sheet.line"].create(vals_list)
-
-            # refresh computed values on lines (attendance/leave status)
-            sheet.line_ids._compute_day_data()
-        return True
-
-    @api.depends("line_ids.status", "line_ids.punched_in", "line_ids.punched_out",
-                 "line_ids.overtime_hours", "line_ids.fine_hours",
-                 "line_ids.leave_state")
-    def _compute_kpis(self):
-        for sheet in self:
-            lines = sheet.line_ids
-            sheet.total_staff = len(lines)
-            sheet.present_count = len(lines.filtered(lambda l: l.status == "present"))
-            sheet.absent_count = len(lines.filtered(lambda l: l.status == "absent"))
-            sheet.halfday_count = len(lines.filtered(lambda l: l.status == "halfday"))
-            sheet.leave_count = len(lines.filtered(lambda l: l.status in ("leave", "halfday")))
-            sheet.punched_in_count = len(lines.filtered(lambda l: l.punched_in))
-            sheet.punched_out_count = len(lines.filtered(lambda l: l.punched_out))
-            sheet.overtime_hours_total = sum(lines.mapped("overtime_hours"))
-            sheet.fine_hours_total = sum(lines.mapped("fine_hours"))
-
-
-    def action_open_sheet_lines(self):
-        self.ensure_one()
-        kpi = self.env.context.get("kpi")
-
-        domain = [("sheet_id", "=", self.id)]
-        title = _("Staff")
-
-        if kpi == "total":
-            title = _("Total Staff")
-        elif kpi == "present":
-            domain += [("status", "=", "present")]
-            title = _("Present")
-        elif kpi == "absent":
-            domain += [("status", "=", "absent")]
-            title = _("Absent")
-        elif kpi == "halfday":
-            domain += [("status", "=", "halfday")]
-            title = _("Half Day")
-        elif kpi == "leave":
-            domain += [("status", "in", ("leave", "halfday"))]
-            title = _("Leave")
-        elif kpi == "punched_in":
-            domain += [("check_in", "!=", False)]
-            title = _("Punched In")
-        elif kpi == "punched_out":
-            domain += [("check_out", "!=", False)]
-            title = _("Punched Out")
-        elif kpi == "ot":
-            domain += [("overtime_hours", ">", 0)]
-            title = _("Overtime")
-        elif kpi == "fine":
-            domain += [("fine_hours", ">", 0)]
-            title = _("Fine")
-
-        list_view = self.env.ref(
-            "bambus_hr_daily_ops.view_bambus_hr_attendance_sheet_line_list",
-            raise_if_not_found=False
-        )
-        form_view = self.env.ref(
-            "bambus_hr_daily_ops.view_bambus_hr_attendance_sheet_line_form",
-            raise_if_not_found=False
-        )
-
-        views = []
-        if list_view:
-            views.append((list_view.id, "list"))
-        if form_view:
-            views.append((form_view.id, "form"))
-
-        ctx = dict(self.env.context or {})
-        ctx.update({"default_sheet_id": self.id})
-
-        return {
-            "type": "ir.actions.act_window",
-            "name": title,
-            "res_model": "bambus.hr.attendance.sheet.line",
-            "view_mode": "list,form",          # ✅ Odoo 18
-            "views": views or False,           # ✅ Force our views
-            "domain": domain,
-            "context": ctx,
-            "target": "current",
-    }
-
-    @api.model
-    def cron_create_today_sheet_if_missing(self):
-        """Run at start of day: create today's sheet if not exists."""
-        today = fields.Date.context_today(self)
-
-        # If multi-company, create one per company
-        companies = self.env.companies if "company_id" in self._fields else [False]
-
-        for company in companies:
-            domain = [("date", "=", today)]
-            if company and "company_id" in self._fields:
-                domain.append(("company_id", "=", company.id))
-
-            if self.search_count(domain):
-                continue
-
-            vals = {"date": today}
-
-            if company and "company_id" in self._fields:
-                vals["company_id"] = company.id
-
-            # Optional (only if your model has name and it’s required/used)
-            if "name" in self._fields and not vals.get("name"):
-                vals["name"] = f"Attendance Sheet - {today}"
-
-            self.create(vals)
-
-
-class BambusHrAttendanceSheetLine(models.Model):
-    _name = "bambus.hr.attendance.sheet.line"
-    _description = "Attendance Sheet Line"
-    _order = "employee_id"
-
-    sheet_id = fields.Many2one("bambus.hr.attendance.sheet", required=True, ondelete="cascade")
-    company_id = fields.Many2one(related="sheet_id.company_id", store=True, readonly=True)
-    date = fields.Date(related="sheet_id.date", store=True, readonly=True)
-
-    employee_id = fields.Many2one("hr.employee", required=True, index=True)
-    department_id = fields.Many2one(related="employee_id.department_id", store=True, readonly=True)
-
-    # Attendance snapshot
-    attendance_id = fields.Many2one("hr.attendance", string="Attendance (First)", readonly=True)
-    check_in = fields.Datetime(string="Punch In", readonly=True)
-    check_out = fields.Datetime(string="Punch Out", readonly=True)
-    worked_hours = fields.Float(string="Worked Hours", readonly=True)
-
-    punched_in = fields.Boolean(compute="_compute_flags", store=False)
-    punched_out = fields.Boolean(compute="_compute_flags", store=False)
-
-    # Leave snapshot
-    leave_id = fields.Many2one("hr.leave", string="Leave", readonly=True)
-    leave_state = fields.Selection(related="leave_id.state", string="Leave Status", store=False, readonly=True)
-    is_half_day_leave = fields.Boolean(string="Half Day Leave", readonly=True)
-
-    status = fields.Selection(
-        [("present", "Present"), ("absent", "Absent"), ("leave", "Leave"), ("halfday", "Half Day")],
-        default="absent",
-        required=True,
-        index=True,
-    )
-    attendance_status_manual = fields.Boolean(
-        string="Attendance Status Set by HR",
-        help="Distinguishes an explicit HR status from a line created only to review OT/Fine.",
-    )
-
-    # OT / Fine detected values and HR-saved final values.
-    overtime_hours = fields.Float(string="OT Hours", digits=(16, 6))
-    overtime_detected_hours = fields.Float(string="System OT Hours", digits=(16, 6), readonly=True)
-    overtime_amount = fields.Monetary(string="OT Amount")
-    overtime_state = fields.Selection(
-        [("draft", "No Exception"), ("submitted", "Needs Review"), ("approved", "Updated"), ("rejected", "Excluded")],
-        default="draft",
-    )
-    overtime_calculation_type = fields.Selection([
-        ("fixed", "Fixed Amount"),
-        ("fixed_hour", "Fixed Amount per Hour"),
-        ("half_day", "Half Day"),
-        ("full_day", "Full Day"),
-        ("regularize", "Regularize"),
-        ("salary_1", "1x Salary"),
-        ("salary_1_5", "1.5x Salary"),
-        ("salary_2", "2x Salary"),
-    ], string="OT Calculation")
-    overtime_rate = fields.Monetary(string="Applied OT Rate")
-    overtime_resolved_rate = fields.Monetary(string="Resolved OT Rate", readonly=True)
-    overtime_rate_override_reason = fields.Char(string="OT Rate Override Reason", readonly=True)
-    overtime_template_id = fields.Many2one(
-        "bambus.attendance.automation.template", string="OT Automation Template", readonly=True
-    )
-    overtime_salary_basis_amount = fields.Monetary(
-        string="OT Salary Basis", readonly=True
-    )
-    overtime_slab_id = fields.Many2one(
-        "bambus.attendance.overtime.rate.slab", string="OT Salary Slab", readonly=True
-    )
-    overtime_note = fields.Char()
-    overtime_updated_by_id = fields.Many2one("res.users", readonly=True)
-    overtime_updated_on = fields.Datetime(readonly=True)
-
-    hourly_pay_detected_hours = fields.Float(string="Detected Payable Hours", digits=(16, 6))
-    hourly_pay_hours = fields.Float(string="Payable Hours", digits=(16, 6))
-    hourly_pay_amount = fields.Monetary(string="Hourly Pay Amount")
-    hourly_pay_calculation_type = fields.Selection([
-        ("fixed", "Fixed Amount"), ("fixed_hour", "Fixed Amount per Hour"),
-        ("half_day", "Half Day"), ("full_day", "Full Day"),
-        ("regularize", "Regularize"), ("salary_1", "1x Salary"),
-        ("salary_1_5", "1.5x Salary"), ("salary_2", "2x Salary"),
-    ], string="Hourly Pay Calculation")
-    hourly_pay_rate = fields.Monetary(string="Hourly Pay Rate")
-    hourly_pay_state = fields.Selection([
-        ("draft", "Not Reviewed"), ("approved", "Updated"),
-    ], default="draft")
-    hourly_pay_note = fields.Char()
-    hourly_pay_updated_by_id = fields.Many2one("res.users", readonly=True)
-    hourly_pay_updated_on = fields.Datetime(readonly=True)
-
-    fine_hours = fields.Float(string="Fine Hours", digits=(16, 6))
-    fine_detected_hours = fields.Float(string="System Fine Hours", digits=(16, 6), readonly=True)
-    fine_amount = fields.Monetary(string="Fine Amount")
-    fine_state = fields.Selection(
-        [("draft", "No Exception"), ("submitted", "Needs Review"), ("approved", "Updated"), ("rejected", "Excluded")],
-        default="draft",
-    )
-    fine_calculation_type = fields.Selection([
-        ("fixed", "Fixed Amount"),
-        ("fixed_hour", "Fixed Amount per Hour"),
-        ("half_day", "Half Day"),
-        ("full_day", "Full Day"),
-        ("regularize", "Regularize"),
-        ("salary_minute", "Per Minute from Daily Salary"),
-        ("salary_1", "1x Salary"),
-        ("salary_1_5", "1.5x Salary"),
-        ("salary_2", "2x Salary"),
-    ], string="Fine Calculation")
-    fine_rate = fields.Float(string="Applied Fine Rate", digits=(16, 6))
-    fine_note = fields.Char()
-    fine_updated_by_id = fields.Many2one("res.users", readonly=True)
-    fine_updated_on = fields.Datetime(readonly=True)
-
-    currency_id = fields.Many2one("res.currency", related="company_id.currency_id", store=False)
-
-    # Contract / wage type (for Hourly/Monthly grouping)
-    contract_id = fields.Many2one("hr.contract", string="Contract", readonly=True)
-    # ---- Wage Type (from Contract) for grouping Hourly/Monthly ----
-    wage_type_display = fields.Char(string="Wage Type", compute="_compute_wage_type", store=True, index=True)
-
-    # ---- Screenshot-like chips ----
-    status_short = fields.Char(compute="_compute_ui_chips", store=False)
-    punch_in_display = fields.Char(compute="_compute_ui_chips", store=False)
-    punch_out_display = fields.Char(compute="_compute_ui_chips", store=False)
-    ot_display = fields.Char(compute="_compute_ui_chips", store=False)
-    fine_display = fields.Char(compute="_compute_ui_chips", store=False)
-
-    @api.depends("employee_id", "date")
-    def _compute_wage_type(self):
-        """Reads wage type from employee's current/open contract (Cybrosys payroll community style)."""
-        Contract = self.env["hr.contract"].sudo()
-        for rec in self:
-            rec.wage_type_display = ""
-            emp = rec.employee_id
-            if not emp:
-                continue
-
-            # Try current contract first (if present), else find latest open contract
-            contract = getattr(emp, "contract_id", False)
-            if not contract:
-                contract = Contract.search(
-                    [("employee_id", "=", emp.id), ("state", "in", ["open", "draft"])],
-                    order="date_start desc, id desc",
-                    limit=1
-                )
-
-            if not contract:
-                continue
-
-            # Cybrosys payroll community usually has wage type in contract
-            if "wage_type" in contract._fields:
-                code = contract.wage_type
-                label = dict(contract._fields["wage_type"].selection).get(code) if code else ""
-                rec.wage_type_display = label or (code or "")
-            else:
-                # fallback
-                rec.wage_type_display = _("Monthly")
-
-
-    def _bambus_check_line_locked(self, vals=None):
-        return True
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        return super().create(vals_list)
-
-    def write(self, vals):
-        # Preserve the legacy hook while allowing HR attendance maintenance
-        self._bambus_check_line_locked(vals)
-        return super().write(vals)
-
-    def unlink(self):
-        self._bambus_check_line_locked()
-        return super().unlink()
-
-
-    def _fmt_time_user(self, dt):
-        """Convert UTC dt -> user TZ and format like 9:58 AM."""
-        if not dt:
-            return ""
-        local = fields.Datetime.context_timestamp(self, dt)
-        return local.strftime("%I:%M %p").lstrip("0")
-
-    def _hours_to_hm(self, hours_float):
-        mins = int(round((hours_float or 0.0) * 60))
-        hh, mm = divmod(mins, 60)
-        return f"{hh:d}:{mm:02d}"
-
-    @api.depends("status", "check_in", "check_out", "overtime_hours", "fine_hours")
-    def _compute_ui_chips(self):
-        for rec in self:
-            rec.status_short = {"present": "P", "absent": "A", "leave": "L", "halfday": "HD"}.get(rec.status, "")
-
-            rec.punch_in_display = ""
-            rec.punch_out_display = ""
-            if rec.check_in:
-                rec.punch_in_display = f"PI | {rec._fmt_time_user(rec.check_in)}"
-            if rec.check_out:
-                rec.punch_out_display = f"PO | {rec._fmt_time_user(rec.check_out)}"
-
-            rec.ot_display = ""
-            if (rec.overtime_hours or 0.0) > 0:
-                rec.ot_display = f"OT | +{rec._hours_to_hm(rec.overtime_hours)} Hrs"
-
-            rec.fine_display = ""
-            if (rec.fine_hours or 0.0) > 0:
-                rec.fine_display = f"F | {rec._hours_to_hm(rec.fine_hours)} Hrs"
-
-
-
-    @api.depends("check_in", "check_out")
-    def _compute_flags(self):
-        for rec in self:
-            rec.punched_in = bool(rec.check_in)
-            rec.punched_out = bool(rec.check_out)
-
-    def _day_bounds_utc(self, day):
-        start_dt = datetime.combine(day, time.min)
-        end_dt = start_dt + timedelta(days=1)
-        return start_dt, end_dt
-
-    def _compute_day_data(self):
-        """Refresh attendance/leave snapshot and status + OT/Fine snapshot."""
-        Attendance = self.env["hr.attendance"].sudo()
-        Leave = self.env["hr.leave"].sudo()
-
-        # safety checks (module may not be installed in some DBs)
-        has_fine_fields = ("bambus_fine_hours" in Attendance._fields and "bambus_fine_amount" in Attendance._fields)
-        has_overtime_amount_field = ("bambus_overtime_amount" in Attendance._fields)
-
-        for rec in self:
-            rec.attendance_id = False
-            rec.check_in = False
-            rec.check_out = False
-            rec.worked_hours = 0.0
-            rec.leave_id = False
-            rec.is_half_day_leave = False
-
-            saved_review = {name: rec[name] for name in (
-                "overtime_hours", "overtime_amount", "fine_hours", "fine_amount"
-            )}
-            # Refresh detection without erasing final HR decisions.
-            rec.overtime_hours = 0.0
-            rec.overtime_amount = 0.0
-            rec.fine_hours = 0.0
-            rec.fine_amount = 0.0
-
-            if not rec.employee_id or not rec.date:
-                continue
-
-            start_dt, end_dt = rec._day_bounds_utc(rec.date)
-
-            atts = Attendance.search([
-                ("employee_id", "=", rec.employee_id.id),
-                ("check_in", "<", fields.Datetime.to_string(end_dt)),
-                "|",
-                    ("check_out", "=", False),
-                    ("check_out", ">", fields.Datetime.to_string(start_dt)),
-            ], order="check_in asc")
-
-            if atts:
-                rec.attendance_id = atts[0]
-                rec.check_in = atts[0].check_in
-
-                total_hours = 0.0
-                last_out = False
-
-                # NEW: totals
-                overtime_hours_total = 0.0
-                overtime_amount_total = 0.0
-
-                # pick LAST attendance of the day (where fine is stored)
-                last_att = atts.sorted(key=lambda a: ((a.check_out or a.check_in), a.id))[-1]
-
-                for a in atts:
-                    total_hours += a.worked_hours or 0.0
-                    if a.check_out:
-                        last_out = a.check_out
-
-                    # OT total (sum per punch OT allocation)
-                    overtime_hours_total += (a.overtime_hours or 0.0)
-
-                    # OT amount total (from attendance field)
-                    if has_overtime_amount_field:
-                        overtime_amount_total += (a.bambus_overtime_amount or 0.0)
-
-                rec.check_out = last_out
-                rec.worked_hours = total_hours
-
-                # set OT totals
-                rec.overtime_hours = overtime_hours_total
-                rec.overtime_amount = overtime_amount_total
-
-                # set Fine only from LAST attendance record
-                if has_fine_fields and last_att:
-                    rec.fine_hours = last_att.bambus_fine_hours or 0.0
-                    rec.fine_amount = last_att.bambus_fine_amount or 0.0
-
-            for kind in ("overtime", "fine"):
-                rec[kind + "_detected_hours"] = rec[kind + "_hours"]
-                if rec[kind + "_state"] in ("approved", "rejected"):
-                    for suffix in ("hours", "amount"):
-                        name = kind + "_" + suffix
-                        rec[name] = saved_review[name] if rec[kind + "_state"] == "approved" else 0.0
-
-            # Leave: find any leave covering this date
-            leave = Leave.search([
-                ("employee_id", "=", rec.employee_id.id),
-                ("state", "!=", "refuse"),
-                ("request_date_from", "<=", rec.date),
-                ("request_date_to", ">=", rec.date),
-            ], order="id desc", limit=1)
-
-            if leave:
-                rec.leave_id = leave
-                if "request_unit_half" in leave._fields and leave.request_unit_half:
-                    rec.is_half_day_leave = True
-
-            # Decide status
-            if rec.leave_id and rec.is_half_day_leave:
-                rec.status = "halfday"
-            elif rec.leave_id:
-                rec.status = "leave"
-            elif rec.attendance_id:
-                rec.status = "present"
-            else:
-                rec.status = "absent"
-
-            # Contract + Wage Type (Hourly/Monthly grouping)
-            Contract = self.env["hr.contract"].sudo()
-            contract = Contract.search([
-                ("employee_id", "=", rec.employee_id.id),
-                ("state", "in", ("draft", "open")),
-                ("date_start", "<=", rec.date),
-                "|", ("date_end", "=", False), ("date_end", ">=", rec.date),
-            ], order="date_start desc", limit=1)
-
-            rec.contract_id = contract
-            rec.wage_type_display = _("No Contract")
-
-            if contract:
-                if "wage_type" in contract._fields:
-                    val = contract.wage_type or ""
-                    sel = contract._fields["wage_type"].selection
-                    label = dict(sel).get(val) if isinstance(sel, (list, tuple)) else None
-                    rec.wage_type_display = label or (val.replace("_", " ").title() if val else _("Wage Type"))
-                elif "wage_type_id" in contract._fields and contract.wage_type_id:
-                    rec.wage_type_display = contract.wage_type_id.display_name
-                elif "schedule_pay" in contract._fields:
-                    val = contract.schedule_pay or ""
-                    sel = contract._fields["schedule_pay"].selection
-                    label = dict(sel).get(val) if isinstance(sel, (list, tuple)) else None
-                    rec.wage_type_display = label or (val.replace("_", " ").title() if val else _("Schedule"))
-                else:
-                    rec.wage_type_display = _("Contract")
-
-
-
-    def action_refresh(self):
-        self._compute_day_data()
-        return True
-
-    # --- Buttons (open popup wizards) ---
-    def action_edit_attendance(self):
-        self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Punches"),
-            "res_model": "bambus.hr.attendance.multi.wizard",
-            "view_mode": "form",
-            "target": "new",
-            "context": {"default_line_id": self.id},
-        }
-
-
-
-    def action_edit_overtime(self):
-        self.ensure_one()
-        form_view = self.env.ref(
-            "bambus_hr_daily_ops.view_bambus_hr_overtime_wizard"
-        )
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Edit Overtime"),
-            "res_model": "bambus.hr.overtime.wizard",
-            "view_mode": "form",
-            "views": [(form_view.id, "form")],
-            "target": "new",
-            "context": {"default_line_id": self.id},
-        }
-
-    def action_edit_fine(self):
-        self.ensure_one()
-        form_view = self.env.ref(
-            "bambus_hr_daily_ops.view_bambus_hr_fine_wizard"
-        )
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Fine"),
-            "res_model": "bambus.hr.fine.wizard",
-            "view_mode": "form",
-            "views": [(form_view.id, "form")],
-            "target": "new",
-            "context": {"default_line_id": self.id},
-        }
-
-    def action_edit_hourly_pay(self):
-        self.ensure_one()
-        form_view = self.env.ref("bambus_hr_daily_ops.view_bambus_hr_hourly_pay_wizard")
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Hourly Pay"),
-            "res_model": "bambus.hr.hourly.pay.wizard",
-            "view_mode": "form",
-            "views": [(form_view.id, "form")],
-            "target": "new",
-            "context": {"default_line_id": self.id},
-        }
-
-    def action_mark_halfday_leave(self):
-        self.ensure_one()
-        return self.env['bambus.hr.attendance.sheet'].prepare_half_day_leave(self.employee_id.id, self.date)
-
-    def action_mark_full_leave(self):
-        self.ensure_one()
-        return {
-            "type": "ir.actions.act_window",
-            "name": _("Mark Leave"),
-            "res_model": "bambus.hr.leave.quick.wizard",
-            "view_mode": "form",
-            "target": "new",
-            "context": {"default_line_id": self.id, "default_leave_unit": "full"},
-        }
-
-    def action_force_absent(self):
-        self.ensure_one()
-        self.status = "absent"
-        return True
-
-
-class BambusHrAttendanceTimeAudit(models.Model):
-    _name = "bambus.hr.attendance.time.audit"
-    _description = "HR Attendance Time Update"
-    _order = "create_date desc, id desc"
-
-    employee_id = fields.Many2one("hr.employee", required=True, index=True, ondelete="cascade")
-    company_id = fields.Many2one(related="employee_id.company_id", store=True, index=True)
-    date = fields.Date(required=True, index=True)
-    adjustment_type = fields.Selection([
-        ("attendance", "Attendance time adjusted"),
-        ("overtime", "Overtime adjusted"),
-        ("fine", "Late / Fine adjusted"),
-        ("hourly_pay", "Hourly pay adjusted"),
-    ], required=True, default="attendance", index=True)
-    adjusted_hours = fields.Float(digits=(16, 6))
-    exception_decisions = fields.Json(readonly=True, copy=False)
-    previous_fine_review = fields.Json(readonly=True, copy=False)
-    previous_hours = fields.Float(digits=(16, 6))
-    previous_check_in = fields.Datetime(string="Previous Check In")
-    previous_check_out = fields.Datetime(string="Previous Check Out")
-    check_in = fields.Datetime(string="Adjusted Check In")
-    check_out = fields.Datetime(string="Adjusted Check Out")
-    updated_by_id = fields.Many2one(
-        "res.users", required=True, default=lambda self: self.env.user, readonly=True
-    )

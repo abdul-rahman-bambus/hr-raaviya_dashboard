@@ -1,8 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_bambus_hr_att_sheet_user,bambus.hr.attendance.sheet user,model_bambus_hr_attendance_sheet,hr.group_hr_user,1,1,1,0
-access_bambus_hr_att_sheet_manager,bambus.hr.attendance.sheet manager,model_bambus_hr_attendance_sheet,hr.group_hr_manager,1,1,1,1
-access_bambus_hr_att_sheet_line_user,bambus.hr.attendance.sheet.line user,model_bambus_hr_attendance_sheet_line,hr.group_hr_user,1,1,1,0
-access_bambus_hr_att_sheet_line_manager,bambus.hr.attendance.sheet.line manager,model_bambus_hr_attendance_sheet_line,hr.group_hr_manager,1,1,1,1
+access_bambus_hr_att_sheet_line_user,bambus.attendance.day.review user,model_bambus_attendance_day_review,hr.group_hr_user,1,1,1,0
+access_bambus_hr_att_sheet_line_manager,bambus.attendance.day.review manager,model_bambus_attendance_day_review,hr.group_hr_manager,1,1,1,1
 access_bambus_hr_attendance_time_audit_user,bambus.hr.attendance.time.audit user,model_bambus_hr_attendance_time_audit,hr.group_hr_user,1,1,1,0
 access_bambus_hr_attendance_time_audit_manager,bambus.hr.attendance.time.audit manager,model_bambus_hr_attendance_time_audit,hr.group_hr_manager,1,1,1,1
 access_bambus_hr_ot_wiz,bambus.hr.overtime.wizard,model_bambus_hr_overtime_wizard,hr.group_hr_user,1,1,1,0

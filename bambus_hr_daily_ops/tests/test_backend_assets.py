@@ -88,7 +88,7 @@ class TestBackendAssets(TransactionCase):
         self.assertIsNotNone(employee_menu)
         self.assertEqual(employee_menu.get("parent"), "menu_bambus_hrms_root")
 
-        attendance_tree = ElementTree.parse(module_root / "views/hr_attendance_sheet_views.xml")
+        attendance_tree = ElementTree.parse(module_root / "views/attendance_review_actions.xml")
         attendance_menu = attendance_tree.find(
             ".//menuitem[@id='menu_bambus_hr_attendance_editor']"
         )
@@ -149,7 +149,6 @@ class TestBackendAssets(TransactionCase):
         self.assertEqual(view_mode.text, "calendar,list,form")
 
         for menu_id in {
-            "menu_bambus_hrms_attendance_history",
             "menu_bambus_hrms_punch_logs",
         }:
             menu = navigation_tree.find(f".//menuitem[@id='{menu_id}']")
@@ -159,7 +158,7 @@ class TestBackendAssets(TransactionCase):
     def test_attendance_log_fields_are_optional(self):
         module_root = Path(__file__).parents[1]
         for relative_path in {
-            "models/hr_attendance_sheet.py",
+            "models/attendance_dashboard.py",
             "models/hr_employee.py",
         }:
             source = (module_root / relative_path).read_text(encoding="utf-8")
@@ -187,7 +186,7 @@ class TestBackendAssets(TransactionCase):
         self.assertNotIn("await this.load(this.state.data.date);", editor_source)
 
         attendance_sheet_source = (
-            module_root / "models/hr_attendance_sheet.py"
+            module_root / "models/attendance_dashboard.py"
         ).read_text(encoding="utf-8")
         self.assertNotIn("leave.action_draft()", attendance_sheet_source)
         self.assertNotIn('write({"state": "draft"})', attendance_sheet_source)

@@ -46,7 +46,7 @@ class AttendanceReviewWizard(models.TransientModel):
     @api.model
     def default_get(self, names):
         values = super().default_get(names)
-        line = self.env['bambus.hr.attendance.sheet.line'].browse(values.get('line_id')).exists()
+        line = self.env['bambus.attendance.day.review'].browse(values.get('line_id')).exists()
         if not line:
             return values
         line._check_review_access()
@@ -229,7 +229,7 @@ class AttendanceReviewFine(models.TransientModel):
 
 
 class AttendanceReviewLine(models.Model):
-    _inherit = 'bambus.hr.attendance.sheet.line'
+    _inherit = 'bambus.attendance.day.review'
 
     fine_review_data = fields.Json(copy=False, default=dict)
 
@@ -281,13 +281,13 @@ class AttendanceReviewLine(models.Model):
         }
 
 
-class AttendanceReviewDashboard(models.Model):
-    _inherit = 'bambus.hr.attendance.sheet'
+class AttendanceReviewDashboard(models.AbstractModel):
+    _inherit = 'bambus.attendance.dashboard'
 
     @api.model
     def get_dashboard_review(self, employee_id, selected_date, review_sessions=False):
         action = self.open_dashboard_adjustment(employee_id, selected_date, 'fine')
-        line = self.env['bambus.hr.attendance.sheet.line'].browse(action['context']['default_line_id'])
+        line = self.env['bambus.attendance.day.review'].browse(action['context']['default_line_id'])
         wizard = self.env['bambus.hr.attendance.review.wizard'].with_context(
             default_line_id=line.id, review_session_fines=bool(review_sessions)).create({})
         daily_rate, hourly_rate = wizard._contract_rates(line)
