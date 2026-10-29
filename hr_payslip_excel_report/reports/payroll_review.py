@@ -227,6 +227,28 @@ class PayrollReviewReport(models.AbstractModel):
         sheet.write_string(3, 0, 'One row per employee and salary type. Exact duplicate payslips are resolved; overlapping periods need review.')
         sheet.write_string(4, 0, f"All salary types. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")
 
+        # Keep the source cells/formulas available, but simplify the default view.
+        # Unknown values are not zeros: leave those columns visible for review.
+        essential = {'number', 'name', 'salary_type', 'rate', 'earnings', 'payable_days', 'basic', 'net'}
+        for column, (key, label, kind) in enumerate(columns):
+            if key not in essential and rows and all(row.get(key) == 0 for row in rows):
+                sheet.set_column(column, column, 18, None, {'hidden': True})
+            if 'hours' in key:
+                sheet.write_comment(5, column, 'Hours are decimal hours: 0.5 means 30 minutes. Blank means unavailable.')
+            elif any(row.get(key) is None for row in rows):
+                sheet.write_comment(5, column, 'Blank means unavailable, not zero. Check Payroll Review.')
+        for row_number in (2, 3, 4):
+            sheet.set_row(row_number, None, None, {'hidden': True})
+        warnings = []
+        if data['excluded_count']:
+            warnings.append(f"Duplicate payslips excluded: {data['excluded_count']}")
+        warnings.extend(sorted({flag for row in rows for flag in (row.get('issues') or '').split('; ') if flag}))
+        if warnings:
+            warning_format = workbook.add_format({'bg_color': '#FFF2CC', 'text_wrap': True})
+            sheet.set_row(2, 32)
+            sheet.merge_range(2, 0, 2, len(columns) - 1,
+                              'Review required: ' + '; '.join(warnings) + '. See Payroll Review.', warning_format)
+
     def _data(self, wizard):
         slips, excluded = self._resolve_duplicate_periods(wizard._report_payslips())
         employees = wizard._scope_employees() | slips.employee_id

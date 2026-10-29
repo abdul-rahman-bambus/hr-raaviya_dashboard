@@ -1,5 +1,17 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.21.0** simplifies Payslip Summary: explanatory rows 3–5 are hidden,
+and optional columns are hidden when every exported employee row is exactly
+zero. Any nonzero value (including negative refunds) keeps a column visible.
+Unavailable values remain visible; identity, salary/rate, Basic, Gross, Net and
+Payable Days stay visible even at zero. Values and filter-aware formulas are
+retained and can be unhidden in Excel. Real review issues/duplicate exclusions
+show a warning above the table; Payroll Review keeps its detailed layout.
+Upgrade this report module and export again. No salary recomputation is needed.
+Validation: 62 Odoo report tests and the installed Chromium wizard/download
+check passed, including hidden zero columns, nonzero cancelling values, unknown
+values, real warnings and preserved formulas.
+
 **18.0.4.20.0** combines Monthly, Hourly and Daily employees in one **Payslip
 Summary** sheet. Salary Type identifies each row; Contract Salary / Rate is a
 monthly salary, hourly rate or daily wage respectively. Mixed salary/rate units

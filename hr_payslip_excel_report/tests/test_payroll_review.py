@@ -1,6 +1,8 @@
 from datetime import datetime
 import io
 import zipfile
+
+import xlsxwriter
 from xml.etree import ElementTree as ET
 
 from odoo import Command
@@ -629,6 +631,71 @@ class TestPayrollReview(TransactionCase):
             self.assertEqual(float(value.text), 500)
             strings = archive.read('xl/sharedStrings.xml')
             self.assertIn(b'Other Allowances', strings)
+
+    def _compact_summary_sheet(self, data):
+        output = io.BytesIO()
+        with xlsxwriter.Workbook(output, {'in_memory': True}) as workbook:
+            self.report._write_salary_summary(workbook, data, self.wizard(report_type='summary'))
+        with zipfile.ZipFile(io.BytesIO(output.getvalue())) as archive:
+            ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
+            sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
+            shared = ET.fromstring(archive.read('xl/sharedStrings.xml'))
+            strings = [''.join(item.itertext()) for item in shared]
+        headers = [strings[int(cell.find('s:v', ns).text)]
+                   for cell in sheet.findall("s:sheetData/s:row[@r='6']/s:c", ns)]
+        def hidden(label):
+            index = headers.index(label) + 1
+            return any(int(col.get('min')) <= index <= int(col.get('max')) and col.get('hidden') == '1'
+                       for col in sheet.findall('s:cols/s:col', ns))
+        return sheet, strings, ns, hidden
+
+    def test_compact_summary_hides_only_zero_optional_columns_and_notes(self):
+        self.finance(self.slip())
+        data = self.report._data(self.wizard(report_type='summary'))
+        row = data['register'][0]
+        row.update(issues='', holidays=0, holiday_worked=0, public_holiday_pay=0, fine=0,
+                   basic=0, earnings=0, net=0, payable_days=0, worked_hours=0)
+        sheet, strings, ns, hidden = self._compact_summary_sheet(data)
+        for label in ('Public Holiday Days', 'Public Holiday Worked Days', 'Public Holiday Pay',
+                      'System Fine', 'Total Work Hours'):
+            self.assertTrue(hidden(label), label)
+        for label in ('Staff Name', 'Salary Type', 'Contract Salary / Rate', 'Basic',
+                      'Gross Salary', 'Net Pay Amount', 'Payable Days'):
+            self.assertFalse(hidden(label), label)
+        for index in (3, 4, 5):
+            self.assertEqual(sheet.find(f"s:sheetData/s:row[@r='{index}']", ns).get('hidden'), '1')
+        # Zero-value cells and filter-aware totals are preserved, not deleted.
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='U7']/s:v", ns).text, '0')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='U9']/s:f", ns).text, 'SUBTOTAL(109,U7:U7)')
+
+    def test_compact_summary_keeps_negative_cancelling_and_unknown_columns_visible(self):
+        self.finance(self.slip())
+        data = self.report._data(self.wizard(report_type='summary'))
+        row = data['register'][0]
+        row.update(issues='', fine=10, holidays=0, public_holiday_pay=0, worked_hours=0)
+        second = dict(row, employee_id=row['employee_id'] + 100000, name='Second employee',
+                      fine=-10, holidays=None, public_holiday_pay=25)
+        data['register'].append(second)
+        sheet, strings, ns, hidden = self._compact_summary_sheet(data)
+        self.assertFalse(hidden('System Fine'), 'A zero total must not hide nonzero employee values')
+        self.assertFalse(hidden('Public Holiday Days'), 'Unknown is not zero')
+        self.assertFalse(hidden('Public Holiday Pay'), 'One nonzero employee keeps the column visible')
+        self.assertTrue(hidden('Total Work Hours'))
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='U10']/s:v", ns).text, '0.0')
+
+    def test_compact_summary_shows_real_review_warnings_without_routine_notes(self):
+        self.finance(self.slip())
+        data = self.report._data(self.wizard(report_type='summary'))
+        data['excluded_count'] = 1
+        data['register'][0]['issues'] = 'Pending attendance reviews; Overlapping periods'
+        sheet, strings, ns, hidden = self._compact_summary_sheet(data)
+        self.assertNotEqual(sheet.find("s:sheetData/s:row[@r='3']", ns).get('hidden'), '1')
+        cell = sheet.find("s:sheetData/s:row/s:c[@r='A3']/s:v", ns)
+        warning = strings[int(cell.text)]
+        self.assertIn('Duplicate payslips excluded: 1', warning)
+        self.assertIn('Pending attendance reviews', warning)
+        self.assertIn('Overlapping periods', warning)
+        self.assertEqual(sheet.find("s:sheetData/s:row[@r='4']", ns).get('hidden'), '1')
 
 
 @tagged('post_install', '-at_install')
