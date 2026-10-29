@@ -1,5 +1,13 @@
 # Bambus HR Daily Ops
 
+Daily Ops **18.0.1.95.0** displays a 56px employee avatar on the right of each
+card’s employee details. It uses Odoo’s 128px avatar endpoint with lazy loading
+and asynchronous decoding; no image binary is added to the dashboard RPC. Only
+current-page cards contain image elements. Odoo supplies an avatar when no photo
+is set. Initial image requests add network work, but cards do not wait for photos;
+actual latency depends on the server, connection and selected page size.
+Upgrade this module and reload the browser.
+
 Daily Ops **18.0.1.94.0** adds labelled wage-type badges to the flat attendance
 list. Upgrade this module and reload the browser; no payroll recomputation is
 needed for this display change.
