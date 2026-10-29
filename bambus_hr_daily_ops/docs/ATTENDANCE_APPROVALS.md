@@ -328,3 +328,10 @@ client. Verify flat Daily Attendance pagination and filters, hidden payslip
 Payables summary with detail tabs available, and one Payslip Summary sheet
 containing Monthly/Daily/Hourly rows and matching saved payroll totals.
 No salary recomputation or SaaS changes are required for these layout changes.
+
+Daily Attendance wage badges identify Monthly (blue), Daily (amber) and Hourly
+(purple) contracts without grouping cards. Missing wage type uses a neutral
+label. Badges read the date-specific contract wage type supplied by the dashboard;
+attendance status colours and saved payroll/approval values are unchanged.
+
+Upgrade Daily Ops **18.0.1.94.0** and reload for the wage badges.

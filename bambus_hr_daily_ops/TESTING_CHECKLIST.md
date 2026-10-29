@@ -397,3 +397,12 @@ the strengthened mixed-department pagination case. Installed Chromium report
 wizard/download and reviewed-day-pay flows passed, including the hidden Payables
 summary with Salary Computation/Attendance Details/Deductions still available.
 These checks do not establish customer deployment.
+
+Daily Attendance wage badges identify Monthly (blue), Daily (amber) and Hourly
+(purple) contracts without grouping cards. Missing wage type uses a neutral
+label. Badges read the date-specific contract wage type supplied by the dashboard;
+attendance status colours and saved payroll/approval values are unchanged.
+
+Wage badge validation (18.0.1.94.0): all 19 production OWL Chromium tests passed,
+including rendered Monthly/Daily/Hourly/unknown labels and distinct CSS colours,
+flat pagination, search, attendance edits and review navigation.
