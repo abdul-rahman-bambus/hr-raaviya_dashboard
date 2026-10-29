@@ -1,5 +1,10 @@
 # Bambus HR Daily Ops
 
+Daily Ops **18.0.1.96.0** enlarges employee thumbnails from 56px to 126px on
+mouse hover or keyboard focus without shifting cards. It reuses the same image
+and adds no image requests. Reduced-motion preferences disable the transition.
+Upgrade the module and reload the browser.
+
 Daily Ops **18.0.1.95.0** displays a 56px employee avatar on the right of each
 card’s employee details. It uses Odoo’s 128px avatar endpoint with lazy loading
 and asynchronous decoding; no image binary is added to the dashboard RPC. Only

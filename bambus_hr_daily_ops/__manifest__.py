@@ -3,7 +3,7 @@
     "name": "Bambus HR Daily Ops",
     'description': 'Daily attendance dashboard, time-off decisions, HR adjustment reviews and payroll attendance details.',
     "summary": "Single Kanban/Form to manage attendance corrections, time off, overtime and fines.",
-    "version": "18.0.1.95.0",
+    "version": "18.0.1.96.0",
     "category": "Human Resources",
     "author": "Bambus Technologies LLP",
     "license": "LGPL-3",
