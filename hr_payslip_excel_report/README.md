@@ -1,5 +1,14 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.24.0** always displays **Overtime Hours**, **Fine Hours**,
+**OT Allowance Amount** and **Fine Deductions Amount** in Payslip Summary,
+including zero values. The amount labels replace System Overtime and System Fine.
+Other optional columns retain conditional visibility. The detailed Payroll Review
+layout, stored hours, salary amounts and approval behavior are unchanged. Upgrade
+this module and download again; no recomputation is needed for this layout change.
+Validation: 48 targeted report tests passed. Installed Chromium verified both
+XLSX downloads, the amount labels and all four columns visible with zero values.
+
 **18.0.4.23.0** keeps **Overtime Hours** and
 **System Overtime** visible in Payslip Summary even when every employee has zero
 OT. Other optional zero columns retain their existing conditional visibility.

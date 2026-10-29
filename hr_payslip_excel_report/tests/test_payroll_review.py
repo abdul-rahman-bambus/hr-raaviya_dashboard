@@ -436,8 +436,8 @@ class TestPayrollReview(TransactionCase):
                        for cell in sheet.findall("s:sheetData/s:row[@r='6']/s:c", ns)]
             for label in ('Salary Type', 'Contract Salary / Rate', 'Gross Salary', 'Payable Days', 'Present Days',
                           'Paid Weekly-off Days', 'Absent Days', 'Public Holiday Days',
-                          'Public Holiday Worked Days', 'System Overtime', 'Public Holiday Pay',
-                          'Total Earnings', 'System Fine', 'Net Pay Amount'):
+                          'Public Holiday Worked Days', 'OT Allowance Amount', 'Public Holiday Pay',
+                          'Total Earnings', 'Fine Deductions Amount', 'Net Pay Amount'):
                 self.assertIn(label, headers)
             values = {cell.attrib['r']: float(cell.find('s:v', ns).text)
                       for cell in sheet.findall("s:sheetData/s:row[@r='7']/s:c", ns)
@@ -655,13 +655,14 @@ class TestPayrollReview(TransactionCase):
         row = data['register'][0]
         row.update(issues='', holidays=0, holiday_worked=0, public_holiday_pay=0, fine=0,
                    basic=0, earnings=0, net=0, payable_days=0, worked_hours=0,
-                   ot_hours=0, overtime=0)
+                   ot_hours=0, overtime=0, fine_hours=0)
         sheet, strings, ns, hidden = self._compact_summary_sheet(data)
         for label in ('Public Holiday Days', 'Public Holiday Worked Days', 'Public Holiday Pay',
-                      'System Fine', 'Total Work Hours'):
+                      'Total Work Hours'):
             self.assertTrue(hidden(label), label)
         for label in ('Staff Name', 'Salary Type', 'Contract Salary / Rate', 'Basic',
-                      'Gross Salary', 'Net Pay Amount', 'Payable Days', 'Overtime Hours', 'System Overtime'):
+                      'Gross Salary', 'Net Pay Amount', 'Payable Days', 'Overtime Hours', 'OT Allowance Amount',
+                      'Fine Hours', 'Fine Deductions Amount'):
             self.assertFalse(hidden(label), label)
         for index in (3, 4, 5):
             self.assertEqual(sheet.find(f"s:sheetData/s:row[@r='{index}']", ns).get('hidden'), '1')
@@ -673,16 +674,16 @@ class TestPayrollReview(TransactionCase):
         self.finance(self.slip())
         data = self.report._data(self.wizard(report_type='summary'))
         row = data['register'][0]
-        row.update(issues='', fine=10, holidays=0, public_holiday_pay=0, worked_hours=0)
+        row.update(issues='', allowances=10, holidays=0, public_holiday_pay=0, worked_hours=0)
         second = dict(row, employee_id=row['employee_id'] + 100000, name='Second employee',
-                      fine=-10, holidays=None, public_holiday_pay=25)
+                      allowances=-10, holidays=None, public_holiday_pay=25)
         data['register'].append(second)
         sheet, strings, ns, hidden = self._compact_summary_sheet(data)
-        self.assertFalse(hidden('System Fine'), 'A zero total must not hide nonzero employee values')
+        self.assertFalse(hidden('Other Allowances'), 'A zero total must not hide nonzero employee values')
         self.assertFalse(hidden('Public Holiday Days'), 'Unknown is not zero')
         self.assertFalse(hidden('Public Holiday Pay'), 'One nonzero employee keeps the column visible')
         self.assertTrue(hidden('Total Work Hours'))
-        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='U10']/s:v", ns).text, '0.0')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='T10']/s:v", ns).text, '0.0')
 
     def test_compact_summary_shows_real_review_warnings_without_routine_notes(self):
         self.finance(self.slip())

@@ -64,9 +64,9 @@ LEGACY = [('number', 'S.No', 'number'), ('name', 'Staff Name', 'text'),
           ('weekly_off_worked', 'Week-off Worked Days', 'number'),
           ('worked_hours', 'Total Work Hours', 'number'), ('ot_hours', 'Overtime Hours', 'number'),
           ('fine_hours', 'Fine Hours', 'number'), ('basic', 'Basic', 'money'),
-          ('overtime', 'System Overtime', 'money'), ('public_holiday_pay', 'Public Holiday Pay', 'money'),
+          ('overtime', 'OT Allowance Amount', 'money'), ('public_holiday_pay', 'Public Holiday Pay', 'money'),
           ('earnings', 'Total Earnings', 'money'), ('allowances', 'Other Allowances', 'money'),
-          ('fine', 'System Fine', 'money'), ('deductions', 'Total Deductions', 'money'),
+          ('fine', 'Fine Deductions Amount', 'money'), ('deductions', 'Total Deductions', 'money'),
           ('net', 'Net Pay Amount', 'money'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number'),
           ('regularized_hours', 'Reviewed Exception Hours', 'number')]
 
@@ -230,7 +230,7 @@ class PayrollReviewReport(models.AbstractModel):
         # Keep the source cells/formulas available, but simplify the default view.
         # Unknown values are not zeros: leave those columns visible for review.
         essential = {'number', 'name', 'salary_type', 'rate', 'earnings', 'payable_days', 'basic', 'net',
-                     'ot_hours', 'overtime'}
+                     'ot_hours', 'overtime', 'fine_hours', 'fine'}
         for column, (key, label, kind) in enumerate(columns):
             if key not in essential and rows and all(row.get(key) == 0 for row in rows):
                 sheet.set_column(column, column, 18, None, {'hidden': True})
