@@ -104,8 +104,8 @@ export class AttendanceDashboard extends Component {
         const query = this.state.query.trim().toLowerCase();
         return (this.state.data?.daily_attendance || []).filter((employee) => {
             const matchesStatus = this.state.statusFilter === "all" ||
-                (this.state.statusFilter === "overtime" && employee.overtime_hours > 0) ||
-                (this.state.statusFilter === "fine" && employee.fine_hours > 0) ||
+                (this.state.statusFilter === "overtime" && (employee.overtime_hours > 0 || employee.overtime_review_pending)) ||
+                (this.state.statusFilter === "fine" && (employee.fine_hours > 0 || employee.fine_review_pending)) ||
                 (this.state.statusFilter === "overtime_review" && employee.overtime_review_pending) ||
                 (this.state.statusFilter === "fine_review" && employee.fine_review_pending) ||
                 employee.status === this.state.statusFilter;

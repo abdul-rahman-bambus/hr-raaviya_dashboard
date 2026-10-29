@@ -14,6 +14,9 @@ class AttendanceReviewWizard(models.TransientModel):
     _inherit = 'bambus.hr.overtime.wizard'
     _description = 'Review Attendance Adjustments'
 
+    fine_re_review_required = fields.Boolean(related='line_id.fine_re_review_required')
+    overtime_re_review_required = fields.Boolean(related='line_id.overtime_re_review_required')
+
     contract_wage_label = fields.Char(compute="_compute_contract_wage")
     contract_wage_amount = fields.Monetary(compute="_compute_contract_wage", currency_field="currency_id")
 
@@ -90,6 +93,10 @@ class AttendanceReviewWizard(models.TransientModel):
                 components = {kind: hours * detected / total for kind, hours in components.items()}
             if session_components is None and not total and detected:
                 components = {'fine': detected}
+        if line.fine_re_review_required and not any(components.values()):
+            components = {'fine': 0}
+            fine_default = self.env['bambus.hr.fine.wizard'].new({
+                'line_id': line.id, 'fine_hours': 0, 'calculation_type': 'fixed', 'rate': 0})
         fixed_allocations = {}
         if fine_default.calculation_type in ('fixed', 'half_day', 'full_day'):
             active = [(kind, hours) for kind, hours in components.items() if hours > 0]
@@ -106,7 +113,7 @@ class AttendanceReviewWizard(models.TransientModel):
             if saved.get('state') == 'ignored':
                 continue
             hours = saved.get('hours', components.get(kind, 0))
-            if not hours and not saved.get('amount'):
+            if not hours and not saved.get('amount') and not (line.fine_re_review_required and kind == 'fine'):
                 continue
             row = {
                 'kind': kind, 'hours': hours,
@@ -126,9 +133,9 @@ class AttendanceReviewWizard(models.TransientModel):
             'source_attendance_signature': line._review_source_signature(),
             'resplit_fines': resplit,
             'can_review_sessions': can_review_sessions and not resplit,
-            'show_overtime': bool(not resplit and line.contract_id.wage_type in ('daily', 'monthly')
+            'show_overtime': bool(not resplit and (line.contract_id.wage_type in ('daily', 'monthly') or line.overtime_re_review_required)
                                   and line.overtime_state != 'rejected'
-                                  and (line.overtime_hours or line.overtime_detected_hours)),
+                                  and (line.overtime_hours or line.overtime_detected_hours or line.overtime_re_review_required)),
             'ignore_overtime': line.overtime_state == 'rejected',
         })
         return values
@@ -314,6 +321,7 @@ class AttendanceReviewDashboard(models.AbstractModel):
             'date': fields.Date.to_string(line.date), 'items': items,
             'can_review_sessions': wizard.can_review_sessions,
             'resplit_fines': wizard.resplit_fines, 'previous_fine_amount': line.fine_amount,
+            're_review_required': bool(line.fine_re_review_required or line.overtime_re_review_required),
             'contract_wage_label': wage_label, 'contract_wage_amount': wage_amount,
             'daily_rate': daily_rate, 'hourly_rate': hourly_rate, 'salary_per_minute': fine.salary_per_minute,
             'currency': {'symbol': currency.symbol or '', 'position': currency.position or 'before',

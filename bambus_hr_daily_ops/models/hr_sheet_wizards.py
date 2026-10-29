@@ -501,6 +501,8 @@ class BambusHrOvertimeWizard(models.TransientModel):
                 "rate_resolution_warning": warning,
                 "note": line.overtime_note,
             })
+        if line and line.overtime_re_review_required and not line.overtime_hours:
+            res.update(calculation_type='fixed', rate=0)
         return res
 
     def action_apply(self):
@@ -526,6 +528,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
                 else self.automation_template_id.overtime_rate_policy
             ) == "salary_slab"
             and not self.overtime_slab_id
+            and not (self.line_id.overtime_re_review_required and not self.overtime_amount)
             and self.calculation_type != "regularize"
         ):
             raise UserError(_("Configure a matching overtime salary slab before saving."))

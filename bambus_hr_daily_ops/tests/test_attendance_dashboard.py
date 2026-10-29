@@ -200,7 +200,7 @@ class TestAttendanceDashboard(TransactionCase):
         self.assertFalse(row["has_attendance"])
         self.assertEqual(row["fine_hours"], 0)
 
-    def test_current_punches_replace_stale_dashboard_times_without_changing_reviews(self):
+    def test_current_punches_replace_stale_times_and_flag_affected_reviews(self):
         """Punch corrections refresh all wage types without repricing HR decisions."""
         day = fields.Date.to_date('2026-10-22')
         calendar = self.env['resource.calendar'].create({
@@ -251,8 +251,15 @@ class TestAttendanceDashboard(TransactionCase):
                 self.assertEqual(updated['check_out_value'], '18:45')
                 self.assertEqual(updated['hourly_pay_hours'], 8.25)
                 self.assertEqual(updated['status'], 'halfday')
-                self.assertEqual(updated['fine_hours'], 6)
-                self.assertEqual(line.fine_amount, 187.68)
+                if wage_type in ('monthly', 'daily'):
+                    self.assertTrue(line.fine_re_review_required)
+                    self.assertTrue(updated['fine_review_pending'])
+                    self.assertEqual(line.fine_amount, 0)
+                    audit = self.env['bambus.hr.attendance.time.audit'].search([
+                        ('employee_id', '=', employee.id), ('previous_review', '!=', False)], limit=1)
+                    self.assertEqual(audit.previous_review['amount'], 187.68)
+                else:
+                    self.assertEqual(line.fine_amount, 187.68)
                 self.assertEqual(line.worked_hours, 8.25, 'Decision hours must derive from actual punches')
                 # Removing the second session must also refresh the visible totals.
                 afternoon.unlink()

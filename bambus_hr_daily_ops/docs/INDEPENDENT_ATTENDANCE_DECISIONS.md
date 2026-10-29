@@ -85,3 +85,11 @@ Hourly caps, saved report reconciliation and bulk confirmation.
 
 Seconds/tolerance policy is intentionally unchanged. Automated success does not
 establish production deployment or replace checking the customer's configuration.
+
+## Punch corrections after approval (18.0.1.97.0)
+
+The migration preservation rules still apply. After deployment, actual punch
+changes that alter a calculated Fine/OT proposal supersede its approval/exclusion
+into Needs Review, preserving the old decision in append-only audit evidence.
+Unchanged decisions and finalized salary lines remain saved. See
+[correction, re-review and payroll workflow](PUNCH_CORRECTIONS_RE_REVIEW.md).

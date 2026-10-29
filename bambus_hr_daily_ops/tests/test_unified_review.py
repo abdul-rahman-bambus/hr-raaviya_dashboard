@@ -344,6 +344,8 @@ class TestUnifiedAttendanceReview(TransactionCase):
                 self.assertEqual(sum(slip.worked_days_line_ids.mapped('number_of_days')), 1)
                 # Removing punches restores a paid day without inventing leave records.
                 att.unlink()
+                self.assertTrue(line.overtime_re_review_required)
+                self.wizard(line).action_save()
                 slip.action_compute_sheet()
                 self.assertEqual((slip[field], slip.total_regular_pay_amount), (1, 100))
                 self.assertFalse(self.env['hr.leave'].search([('employee_id', '=', employee.id)]))
@@ -453,7 +455,8 @@ class TestUnifiedAttendanceReview(TransactionCase):
         self.assertEqual(self.slip(employee, contract, line.date).total_working_days, .5)
         # Saved coverage cannot expand after a new earlier checkout.
         line._review_attendances().check_out = '2026-09-28 12:00:00'
-        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 2.75), 3)
+        self.assertTrue(line.fine_re_review_required)
+        self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 2.75), 2.75)
         line._review_attendances().unlink()
         self.assertEqual(employee._get_attendance_day_pay_hours(line.date, 0), 0)
         self.env['hr.attendance'].create({'employee_id': employee.id,

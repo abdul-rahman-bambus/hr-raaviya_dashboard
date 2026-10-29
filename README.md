@@ -2,7 +2,7 @@
 
 ## Customer layout update (29 October 2026)
 
-Upgrade `bambus_hr_daily_ops` to **18.0.1.96.0** and
+Upgrade `bambus_hr_daily_ops` to **18.0.1.97.0** and
 `hr_payslip_excel_report` to **18.0.4.20.0**, then reload the browser.
 Daily Attendance opens as a flat paginated list. Payslip Summary exports all wage
 types in one sheet with a Salary Type column. Payslip Payables summary groups are
@@ -196,3 +196,6 @@ Daily Attendance wage badges identify Monthly (blue), Daily (amber) and Hourly
 (purple) contracts without grouping cards. Missing wage type uses a neutral
 label. Badges read the date-specific contract wage type supplied by the dashboard;
 attendance status colours and saved payroll/approval values are unchanged.
+
+Attendance corrections after approval now require re-review of affected Fine/OT
+with retained audit evidence. See [punch correction workflow](bambus_hr_daily_ops/docs/PUNCH_CORRECTIONS_RE_REVIEW.md).
