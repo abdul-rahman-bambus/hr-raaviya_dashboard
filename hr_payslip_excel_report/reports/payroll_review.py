@@ -229,7 +229,8 @@ class PayrollReviewReport(models.AbstractModel):
 
         # Keep the source cells/formulas available, but simplify the default view.
         # Unknown values are not zeros: leave those columns visible for review.
-        essential = {'number', 'name', 'salary_type', 'rate', 'earnings', 'payable_days', 'basic', 'net'}
+        essential = {'number', 'name', 'salary_type', 'rate', 'earnings', 'payable_days', 'basic', 'net',
+                     'ot_hours', 'overtime'}
         for column, (key, label, kind) in enumerate(columns):
             if key not in essential and rows and all(row.get(key) == 0 for row in rows):
                 sheet.set_column(column, column, 18, None, {'hidden': True})

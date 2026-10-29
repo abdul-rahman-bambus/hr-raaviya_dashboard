@@ -167,7 +167,8 @@ def main():
                 def hidden(column):
                     return any(int(item.get('min')) <= column <= int(item.get('max')) and item.get('hidden') == '1'
                                for item in sheet.findall('s:cols/s:col', namespace))
-                assert hidden(14), 'All-zero OT hours should be hidden'
+                assert not hidden(14), 'OT hours must remain visible even when zero'
+                assert not hidden(17), 'OT amount must remain visible even when zero'
                 assert not hidden(5), 'Gross Salary must remain visible'
             assert page.evaluate('originalWebClient.isConnected')
             assert not errors, errors

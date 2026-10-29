@@ -1,5 +1,13 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.23.0** keeps **Overtime Hours** and
+**System Overtime** visible in Payslip Summary even when every employee has zero
+OT. Other optional zero columns retain their existing conditional visibility.
+Saved hours, salary amounts and approval rules are unchanged. Upgrade this module
+and download again; no salary recomputation is needed for column visibility.
+Validation: 48 targeted report tests passed; installed Chromium verified both
+exports and that zero OT hours/amount columns remain visible.
+
 **18.0.4.22.0** removes the Department filter and explanatory banner from the
 Payroll Reports form. Report Type, Company, Period/custom dates, Employees,
 Payslip Status and Download Excel remain. The backend Department field is kept

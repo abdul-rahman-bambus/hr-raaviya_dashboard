@@ -654,13 +654,14 @@ class TestPayrollReview(TransactionCase):
         data = self.report._data(self.wizard(report_type='summary'))
         row = data['register'][0]
         row.update(issues='', holidays=0, holiday_worked=0, public_holiday_pay=0, fine=0,
-                   basic=0, earnings=0, net=0, payable_days=0, worked_hours=0)
+                   basic=0, earnings=0, net=0, payable_days=0, worked_hours=0,
+                   ot_hours=0, overtime=0)
         sheet, strings, ns, hidden = self._compact_summary_sheet(data)
         for label in ('Public Holiday Days', 'Public Holiday Worked Days', 'Public Holiday Pay',
                       'System Fine', 'Total Work Hours'):
             self.assertTrue(hidden(label), label)
         for label in ('Staff Name', 'Salary Type', 'Contract Salary / Rate', 'Basic',
-                      'Gross Salary', 'Net Pay Amount', 'Payable Days'):
+                      'Gross Salary', 'Net Pay Amount', 'Payable Days', 'Overtime Hours', 'System Overtime'):
             self.assertFalse(hidden(label), label)
         for index in (3, 4, 5):
             self.assertEqual(sheet.find(f"s:sheetData/s:row[@r='{index}']", ns).get('hidden'), '1')
