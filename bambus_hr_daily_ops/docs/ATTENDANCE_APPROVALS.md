@@ -339,3 +339,6 @@ Upgrade Daily Ops **18.0.1.94.0** and reload for the wage badges.
 Daily Ops **18.0.1.95.0** adds lazy-loaded employee thumbnails beside card
 details. This is a display-only change; no approval or salary recomputation is
 required. Reload the client after upgrading.
+
+Daily Ops **18.0.1.96.0** adds a hover/keyboard-focus photo preview without
+changing attendance, approvals or salaries. No second image is downloaded.

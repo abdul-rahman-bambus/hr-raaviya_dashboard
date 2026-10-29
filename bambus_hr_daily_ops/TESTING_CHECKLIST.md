@@ -416,3 +416,8 @@ All 20 production OWL Chromium tests passed, including deliberately pending
 image requests, current-page-only image elements, fixed dimensions and search.
 An installed isolated Odoo browser check loaded the avatar endpoint and rendered
 the card successfully. No customer-server timing benchmark was performed.
+
+Employee photo preview (18.0.1.96.0): all 20 production OWL browser tests passed.
+The photo test verifies 56px normal size, 126px hover size, keyboard Tab focus,
+unchanged card bounds and usable search while images are pending. The preview
+reuses the existing avatar source; upgrade Daily Ops and reload the browser.

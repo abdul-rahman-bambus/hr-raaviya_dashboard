@@ -57,3 +57,13 @@
 /* Reserve thumbnail space so photo loading does not move employee details. */
 .o_bae_employee_info { position:relative; padding-right:72px; min-height:56px; }
 .o_bae_employee_photo { box-sizing:border-box; position:absolute; top:0; right:0; width:56px; height:56px; object-fit:cover; border-radius:8px; background:#f1f3f5; border:1px solid #e4e9ef; }
+
+/* Reuse the thumbnail for a 126px preview; no second image request. */
+.o_bae_employee_photo { transform-origin:top right; transition:transform .12s ease; }
+.o_bae_employee_photo:focus-visible { transform:scale(2.25); z-index:5; outline:2px solid #567de6; outline-offset:2px; box-shadow:0 4px 16px rgba(28,44,64,.2); }
+@media (hover:hover) {
+    .o_bae_employee_photo:hover { transform:scale(2.25); z-index:5; box-shadow:0 4px 16px rgba(28,44,64,.2); }
+}
+@media (prefers-reduced-motion:reduce) {
+    .o_bae_employee_photo { transition:none; }
+}
