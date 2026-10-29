@@ -9,6 +9,7 @@ export class AttendanceEditor extends AttendanceDashboard {
 
     setup() {
         super.setup();
+        this.state.pageSize = 50;
         this.notification = useService("notification");
         this.state.savingIds = {};
         this.state.logEmployee = null;

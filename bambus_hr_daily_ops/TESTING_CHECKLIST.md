@@ -438,3 +438,7 @@ Validation: **239 Odoo tests passed**, **21 production OWL Chromium tests passed
 and the installed correction -> Logs -> zero reapproval -> payroll -> XLSX flow
 passed on an isolated test database. No live deployment or SaaS changes.
 See [workflow and installed test command](docs/PUNCH_CORRECTIONS_RE_REVIEW.md).
+
+Daily Attendance default pagination (18.0.1.98.0): all 21 production OWL browser
+tests passed. The dropdown starts at 50, remains switchable to 10/25, and flat
+pagination, search, pending review navigation and thumbnails retain their behavior.

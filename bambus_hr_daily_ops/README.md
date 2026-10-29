@@ -1,5 +1,9 @@
 # Bambus HR Daily Ops
 
+**18.0.1.98.0** opens Daily Attendance with **50 rows per page**. Users can
+still select 10 or 25; filters and page navigation retain their existing behavior.
+Upgrade Daily Ops and reload. No payroll recomputation is needed.
+
 **18.0.1.97.0** flags affected approved/excluded Fine and OT decisions for
 re-review after punch corrections, with old/new audit evidence and explicit
 review of zero proposals. Draft computation/confirmation waits for this review;
