@@ -157,6 +157,16 @@ def main():
                 sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
                 assert sheet.find("s:sheetData/s:row/s:c[@r='B8']", namespace) is None
                 assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace) is None
+                for row_number in (4, 5):
+                    assert sheet.find(f"s:sheetData/s:row[@r='{row_number}']", namespace).get('hidden') == '1'
+                # This fixture has a real duplicate/uncomputed salary warning.
+                assert sheet.find("s:sheetData/s:row[@r='3']", namespace).get('hidden') != '1'
+                assert b'Review required:' in text
+                def hidden(column):
+                    return any(int(item.get('min')) <= column <= int(item.get('max')) and item.get('hidden') == '1'
+                               for item in sheet.findall('s:cols/s:col', namespace))
+                assert hidden(14), 'All-zero OT hours should be hidden'
+                assert not hidden(5), 'Gross Salary must remain visible'
             assert page.evaluate('originalWebClient.isConnected')
             assert not errors, errors
             print('Empty Summary warns in Odoo without navigation/download; standard batch UI, report filters, both XLSX exports and persistent web client: passed')
