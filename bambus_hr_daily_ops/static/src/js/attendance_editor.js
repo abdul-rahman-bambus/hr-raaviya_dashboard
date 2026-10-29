@@ -57,16 +57,18 @@ export class AttendanceEditor extends AttendanceDashboard {
         return this.pageCount;
     }
 
+    // A flat roster: split employees into pages without department boundaries.
     get filteredDailyGroups() {
-        const groups = new Map();
-        for (const employee of this.filteredDailyEmployees) {
-            const name = employee.department || "No Department";
-            if (!groups.has(name)) {
-                groups.set(name, { id: name, name, employees: [] });
-            }
-            groups.get(name).employees.push(employee);
+        return [{id: "all", name: "", employees: this.filteredDailyEmployees}];
+    }
+
+    get dailyGroupPages() {
+        const employees = this.filteredDailyEmployees;
+        const pages = [];
+        for (let start = 0; start < employees.length; start += this.state.pageSize) {
+            pages.push([{id: "all", name: "", employees: employees.slice(start, start + this.state.pageSize)}]);
         }
-        return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
+        return pages;
     }
 
     async updateEmployeeField(employee, field, event) {

@@ -42,7 +42,7 @@ class TestStandardPayrollFlow(TransactionCase):
             root = ET.fromstring(workbook.read('xl/workbook.xml'))
             ns = {'m': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
             names = [sheet.attrib['name'] for sheet in root.findall('m:sheets/m:sheet', ns)]
-            self.assertEqual(names, ['Monthly', 'Hourly', 'Daily', 'Final Summary'])
+            self.assertEqual(names, ['Payslip Summary'])
         self.assertEqual([(line.id, line.total) for line in slip.line_ids], saved)
         self.assertEqual((slip.state, slip.paid), ('draft', False))
 

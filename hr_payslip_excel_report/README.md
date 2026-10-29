@@ -1,5 +1,13 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.20.0** combines Monthly, Hourly and Daily employees in one **Payslip
+Summary** sheet. Salary Type identifies each row; Contract Salary / Rate is a
+monthly salary, hourly rate or daily wage respectively. Mixed salary/rate units
+are not totalled. Other totals follow Excel filters. Employees with multiple wage
+types retain a row per type; saved salary amounts, refunds and duplicate selection
+rules are preserved. Payroll Review remains the separate detailed report.
+
+
 As of **18.0.4.19.0**, adjustments come from independent attendance review records,
 with no Attendance History model dependency. Workbook layout, saved-salary rules
 and empty-selection warnings are unchanged. Deploy the coordinated
@@ -25,8 +33,7 @@ at the client's request. Use the existing batch generator and reports.
    if multiple states are needed, then
    **Download Excel**. Payslips must fall entirely within the selected dates.
 
-Payslip Summary contains **Monthly**, **Hourly**, **Daily** and **Final Summary**
-sheets. Normal paid weekly-off/public-holiday credits follow the template rules;
+Payslip Summary contains all salary types in a single **Payslip Summary** sheet. Normal paid weekly-off/public-holiday credits follow the template rules;
 approved additional holiday pay is shown separately. Payroll Review remains a
 separate option for detailed attendance/approval checks and review exceptions.
 

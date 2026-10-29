@@ -432,7 +432,7 @@ class TestPayrollReview(TransactionCase):
             sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
             headers = [strings[int(cell.find('s:v', ns).text)]
                        for cell in sheet.findall("s:sheetData/s:row[@r='6']/s:c", ns)]
-            for label in ('Total CTC / Contract Salary', 'Gross Salary', 'Payable Days', 'Present Days',
+            for label in ('Salary Type', 'Contract Salary / Rate', 'Gross Salary', 'Payable Days', 'Present Days',
                           'Paid Weekly-off Days', 'Absent Days', 'Public Holiday Days',
                           'Public Holiday Worked Days', 'System Overtime', 'Public Holiday Pay',
                           'Total Earnings', 'System Fine', 'Net Pay Amount'):
@@ -440,10 +440,10 @@ class TestPayrollReview(TransactionCase):
             values = {cell.attrib['r']: float(cell.find('s:v', ns).text)
                       for cell in sheet.findall("s:sheetData/s:row[@r='7']/s:c", ns)
                       if cell.attrib.get('t') != 's' and cell.find('s:v', ns) is not None}
-            self.assertEqual(values['C7'], 9000)
-            self.assertEqual(values['M7'], 1.75)
-            self.assertEqual(values['N7'], .25)
-            self.assertEqual(values['Q7'], 200)
+            self.assertEqual(values['D7'], 9000)
+            self.assertEqual(values['N7'], 1.75)
+            self.assertEqual(values['O7'], .25)
+            self.assertEqual(values['R7'], 200)
             self.assertIsNone(sheet.find('s:sheetViews/s:sheetView/s:pane', ns))
 
     def test_summary_does_not_invent_monthly_ctc_for_hourly_contract(self):
@@ -454,7 +454,7 @@ class TestPayrollReview(TransactionCase):
         self.assertIsNone(row['ctc'])
         self.assertEqual(row['rate'], 100)
 
-    def test_salary_type_tabs_and_three_final_total_rows(self):
+    def test_unified_summary_contains_all_salary_types_and_filter_totals(self):
         self.finance(self.slip())
         for basis in ('hourly', 'daily'):
             employee = self.employee.copy({'name': basis.title() + ' Staff', 'employee_number': False})
@@ -469,35 +469,30 @@ class TestPayrollReview(TransactionCase):
             ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
             workbook = ET.fromstring(archive.read('xl/workbook.xml'))
             self.assertEqual([item.attrib['name'] for item in workbook.findall('s:sheets/s:sheet', ns)],
-                             ['Monthly', 'Hourly', 'Daily', 'Final Summary'])
-            final = ET.fromstring(archive.read('xl/worksheets/sheet4.xml'))
-            for sheet_index, (header, expected) in enumerate((('Total CTC / Contract Salary', 9000),
-                                                            ('Hourly Rate (per Hour)', 100),
-                                                            ('Daily Wage (per Day)', 500)), 1):
-                detail = ET.fromstring(archive.read(f'xl/worksheets/sheet{sheet_index}.xml'))
-                self.assertEqual(float(detail.find("s:sheetData/s:row/s:c[@r='C7']/s:v", ns).text), expected)
-                final_rate = final.find(f"s:sheetData/s:row/s:c[@r='C{sheet_index + 6}']/s:v", ns)
-                self.assertEqual(float(final_rate.text), expected)
-                self.assertIn(header.encode(), archive.read('xl/sharedStrings.xml'))
-            for index, name in enumerate(('Monthly', 'Hourly', 'Daily'), 7):
-                net_cell = final.find(f"s:sheetData/s:row/s:c[@r='V{index}']", ns)
-                self.assertEqual(float(net_cell.find('s:v', ns).text), 8700)
-                self.assertEqual(net_cell.find('s:f', ns).text, f"'{name}'!V9")
-                count_cell = final.find(f"s:sheetData/s:row/s:c[@r='B{index}']/s:v", ns)
-                self.assertEqual(float(count_cell.text), 1)
-            self.assertIsNone(final.find("s:sheetData/s:row[@r='10']", ns))
-            self.assertIsNone(final.find('s:sheetViews/s:sheetView/s:pane', ns))
+                             ['Payslip Summary'])
+            detail = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
+            shared = ET.fromstring(archive.read('xl/sharedStrings.xml'))
+            strings = [''.join(item.itertext()) for item in shared]
+            actual = {}
+            for index in range(7, 10):
+                cells = {cell.attrib['r']: cell for cell in detail.findall(f"s:sheetData/s:row[@r='{index}']/s:c", ns)}
+                salary_type = strings[int(cells[f'C{index}'].find('s:v', ns).text)]
+                actual[salary_type] = float(cells[f'D{index}'].find('s:v', ns).text)
+                self.assertEqual(float(cells[f'W{index}'].find('s:v', ns).text), 8700)
+            self.assertEqual(actual, {'Monthly': 9000, 'Hourly': 100, 'Daily': 500})
+            total = detail.find("s:sheetData/s:row/s:c[@r='W11']", ns)
+            self.assertEqual(total.find('s:f', ns).text, 'SUBTOTAL(109,W7:W9)')
+            self.assertEqual(float(total.find('s:v', ns).text), 26100)
+            self.assertIsNone(detail.find("s:sheetData/s:row/s:c[@r='D11']", ns))
 
-    def test_empty_salary_types_have_zero_totals_and_populated_unknown_amounts_stay_blank(self):
+    def test_unified_summary_keeps_uncomputed_amounts_blank(self):
         self.slip()
         content = self.wizard(report_type='summary')._generate_xlsx()
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
-            final = ET.fromstring(archive.read('xl/worksheets/sheet4.xml'))
-            monthly_net = final.find("s:sheetData/s:row/s:c[@r='V7']", ns)
-            self.assertTrue(monthly_net is None or monthly_net.find('s:v', ns) is None)
-            for coordinate in ('V8', 'V9', 'B8', 'B9'):
-                self.assertEqual(float(final.find(f"s:sheetData/s:row/s:c[@r='{coordinate}']/s:v", ns).text), 0)
+            detail = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
+            net = detail.find("s:sheetData/s:row/s:c[@r='W7']", ns)
+            self.assertTrue(net is None or net.find('s:v', ns) is None)
 
     def test_one_employee_with_two_salary_types_stays_in_both_correct_groups(self):
         self.finance(self.slip(date_to='2026-09-15'))
@@ -590,7 +585,7 @@ class TestPayrollReview(TransactionCase):
             root = ET.fromstring(archive.read('xl/workbook.xml'))
             ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
             self.assertEqual([item.attrib['name'] for item in root.findall('s:sheets/s:sheet', ns)],
-                             ['Monthly', 'Hourly', 'Daily', 'Final Summary'])
+                             ['Payslip Summary'])
             self.assertIn(b'Net Pay Amount', archive.read('xl/sharedStrings.xml'))
 
 
@@ -630,7 +625,7 @@ class TestPayrollReview(TransactionCase):
         with zipfile.ZipFile(io.BytesIO(wizard._generate_xlsx())) as archive:
             ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
             monthly = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
-            value = monthly.find("s:sheetData/s:row/s:c[@r='S7']/s:v", ns)
+            value = monthly.find("s:sheetData/s:row/s:c[@r='T7']/s:v", ns)
             self.assertEqual(float(value.text), 500)
             strings = archive.read('xl/sharedStrings.xml')
             self.assertIn(b'Other Allowances', strings)

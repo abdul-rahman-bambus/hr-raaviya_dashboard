@@ -7,7 +7,7 @@
     <field name="arch" type="xml">
       <xpath expr="//sheet/notebook" position="before">
         <field name="currency_id" invisible="1"/>
-        <group name="payables" string="Payables">
+        <group name="payables" string="Payables" invisible="1">
           <div colspan="2" class="text-muted">
             Attendance amounts are payroll calculation inputs. Basic, Gross and Net Pay
             come from the saved salary lines. Use Compute Sheet after approving attendance changes.

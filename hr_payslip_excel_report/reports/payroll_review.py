@@ -209,43 +209,23 @@ class PayrollReviewReport(models.AbstractModel):
 
     def _write_salary_summary(self, workbook, data, wizard):
         groups = self._salary_type_rows(data['register'])
-        final_columns = [('salary_type', 'Salary Type', 'text'), ('employees', 'Employees', 'number'),
-                         ('contract_value', 'Contract Salary / Rate Total', 'money')] + LEGACY[3:]
-        final_rows, source_refs = [], []
+        rows = []
         for wage_type, name in (('monthly', 'Monthly'), ('hourly', 'Hourly'), ('daily', 'Daily')):
-            rows = [dict(row, number=index) for index, row in enumerate(groups[wage_type], 1)]
-            columns = list(LEGACY)
-            if wage_type == 'hourly':
-                columns[2] = ('rate', 'Hourly Rate (per Hour)', 'money')
-            elif wage_type == 'daily':
-                columns[2] = ('rate', 'Daily Wage (per Day)', 'money')
-            sheet = self._write_sheet(workbook, name, columns, rows, wizard, totals=True,
-                                      include_ctc=True, include_rates=True, empty_totals=True, decimal_hours=True)
-            sheet.write_comment(5, 2, 'Monthly salary uses contract.wage; hourly uses hourly_rate; daily uses daily_wage. '
-                                    'Totals sum configured salaries/rates, not earned pay. Varying rates remain blank; see Payroll Review.')
-            sheet.write_comment(5, 6, 'Normal weekly-off credits, including worked dates. Approved work is paid separately; no leave balance is created.')
-            sheet.write_string(4, 0, f"Salary type: {name}. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")
-            final = {'salary_type': name, 'employees': len(rows)}
-            for column, (key, label, kind) in enumerate(columns[2:], 2):
-                values = [row[key] for row in rows if row.get(key) is not None]
-                final['contract_value' if column == 2 else key] = sum(values) if values else (None if rows else 0)
-            final_rows.append(final)
-            # Excel row of the type sheet's SUBTOTAL footer.
-            source_refs.append((name, max(7, 6 + len(rows)), 8 + len(rows)))
-        sheet = self._write_sheet(workbook, 'Final Summary', final_columns, final_rows,
-                                  wizard, decimal_hours=True)
-        sheet.write_string(3, 0, 'Three salary-type totals. Formulas follow filters on the detail sheets; only available values are summed.')
-        sheet.write_string(4, 0, 'Contract column: monthly salary, hourly rate, or daily wage by row. Rate totals are not earned pay.')
-        sheet.write_comment(5, 2, 'Monthly totals are monthly contract salaries. Hourly/daily totals are sums of configured per-hour/per-day rates. Gross and Net columns show actual payslip amounts.')
-        number_format = workbook.add_format({'num_format': '0.##'})
-        money_format = workbook.add_format({'num_format': '#,##0.00;[Red]-#,##0.00'})
-        for index, (row, (name, last, footer)) in enumerate(zip(final_rows, source_refs), 6):
-            sheet.write_formula(index, 1, f"=SUBTOTAL(103,'{name}'!B7:B{last})", number_format, row['employees'])
-            for column, (key, label, kind) in enumerate(final_columns[2:], 2):
-                if row[key] is not None:
-                    letter = xlsxwriter.utility.xl_col_to_name(column)
-                    sheet.write_formula(index, column, f"='{name}'!{letter}{footer}",
-                                        money_format if kind == 'money' else number_format, row[key])
+            for row in groups[wage_type]:
+                rows.append(dict(row, salary_type=name,
+                                 rate=row.get('ctc') if wage_type == 'monthly' else row.get('rate')))
+        rows.sort(key=lambda row: ((row.get('name') or '').casefold(), row['employee_id'], row['salary_type']))
+        rows = [dict(row, number=index) for index, row in enumerate(rows, 1)]
+        columns = LEGACY[:2] + [('salary_type', 'Salary Type', 'text'),
+                                ('rate', 'Contract Salary / Rate', 'money')] + LEGACY[3:]
+        sheet = self._write_sheet(workbook, 'Payslip Summary', columns, rows, wizard,
+                                  totals=True, empty_totals=True, decimal_hours=True)
+        sheet.write_comment(5, 3, 'Monthly: contract salary per month. Hourly: rate per hour. '
+                                  'Daily: wage per day. Mixed units are not totalled. '
+                                  'Varying rates remain blank; see Payroll Review.')
+        sheet.write_comment(5, 7, 'Normal weekly-off credits, including worked dates. Approved work is paid separately; no leave balance is created.')
+        sheet.write_string(3, 0, 'One row per employee and salary type. Exact duplicate payslips are resolved; overlapping periods need review.')
+        sheet.write_string(4, 0, f"All salary types. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")
 
     def _data(self, wizard):
         slips, excluded = self._resolve_duplicate_periods(wizard._report_payslips())

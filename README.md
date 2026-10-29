@@ -1,5 +1,15 @@
 # Raaviya HR attendance and payroll add-ons
 
+## Customer layout update (29 October 2026)
+
+Upgrade `bambus_hr_daily_ops` to **18.0.1.93.0** and
+`hr_payslip_excel_report` to **18.0.4.20.0**, then reload the browser.
+Daily Attendance opens as a flat paginated list. Payslip Summary exports all wage
+types in one sheet with a Salary Type column. Payslip Payables summary groups are
+hidden; detailed attendance, earnings, deductions and salary computation remain.
+These layout changes do not reprice approvals or saved salaries.
+
+
 Attendance History has been replaced by independent HR decisions. Current punch
 records supply actual time; dashboard edits save actual punches. See the
 [coordinated migration guide](bambus_hr_daily_ops/docs/INDEPENDENT_ATTENDANCE_DECISIONS.md)

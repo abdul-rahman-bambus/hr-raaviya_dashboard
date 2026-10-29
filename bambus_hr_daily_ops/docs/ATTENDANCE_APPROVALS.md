@@ -320,3 +320,11 @@ its selected date). Review/reassess any old fine approval explicitly: fixing pun
 does not automatically cancel a previously approved deduction. Recompute draft
 payslips before exporting; finalized payslips are not rewritten. Upgrade Daily Ops
 and restart Odoo to apply the server fix.
+
+## Customer layout update (29 October 2026)
+
+Upgrade Daily Ops 18.0.1.93.0 and Payslip Excel Report 18.0.4.20.0. Reload the
+client. Verify flat Daily Attendance pagination and filters, hidden payslip
+Payables summary with detail tabs available, and one Payslip Summary sheet
+containing Monthly/Daily/Hourly rows and matching saved payroll totals.
+No salary recomputation or SaaS changes are required for these layout changes.
