@@ -3,11 +3,12 @@
 ## Customer layout update (29 October 2026)
 
 Upgrade `bambus_hr_daily_ops` to **18.0.1.98.0** and
-`hr_payslip_excel_report` to **18.0.4.23.0**, then reload the browser.
+`hr_payslip_excel_report` to **18.0.4.24.0**, then reload the browser.
 Daily Attendance opens as a flat paginated list. Payslip Summary exports all wage
 types in one sheet with a Salary Type column. Payslip Payables summary groups are
 hidden; detailed attendance, earnings, deductions and salary computation remain.
-Overtime Hours and System Overtime remain visible even when zero; other optional
+Overtime Hours, Fine Hours, OT Allowance Amount and Fine Deductions Amount
+remain visible even when zero; other optional
 zero columns retain conditional visibility. These layout changes do not reprice
 approvals or saved salaries.
 

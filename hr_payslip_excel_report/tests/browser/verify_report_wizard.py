@@ -154,7 +154,7 @@ def main():
                 text = archive.read('xl/sharedStrings.xml')
                 for label in (b'Salary Type', b'Contract Salary / Rate', b'Paid Weekly-off Days', b'Absent Days',
                               b'Public Holiday Days', b'Public Holiday Worked Days', b'Public Holiday Pay',
-                              b'System Overtime', b'System Fine', b'Total Earnings'):
+                              b'OT Allowance Amount', b'Fine Deductions Amount', b'Total Earnings'):
                     assert label in text, label
                 sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
                 assert sheet.find("s:sheetData/s:row/s:c[@r='B8']", namespace) is None
@@ -169,6 +169,8 @@ def main():
                                for item in sheet.findall('s:cols/s:col', namespace))
                 assert not hidden(14), 'OT hours must remain visible even when zero'
                 assert not hidden(17), 'OT amount must remain visible even when zero'
+                assert not hidden(15), 'Fine hours must remain visible even when zero'
+                assert not hidden(21), 'Fine deduction must remain visible even when zero'
                 assert not hidden(5), 'Gross Salary must remain visible'
             assert page.evaluate('originalWebClient.isConnected')
             assert not errors, errors
