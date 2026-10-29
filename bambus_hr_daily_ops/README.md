@@ -1,5 +1,11 @@
 # Bambus HR Daily Ops
 
+Daily Ops **18.0.1.93.0** displays Daily Attendance as a flat employee list, with
+10/25/50 employees per page and existing search/status filters. Department headings
+are removed. The Payables summary above the payslip tabs is hidden; Attendance
+Details, Salary Computation, Earnings and Deductions remain available.
+
+
 Current attendance flow: **no Attendance History dependency**. Current punches
 supply times/hours; independent employee/date/company review records retain HR
 decisions. History models/menu/cron are removed after a transactional preservation

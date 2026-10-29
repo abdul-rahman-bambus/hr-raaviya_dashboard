@@ -146,12 +146,11 @@ def main():
             with zipfile.ZipFile(summary_path) as archive:
                 workbook = ET.fromstring(archive.read('xl/workbook.xml'))
                 assert [item.attrib['name'] for item in workbook.findall('s:sheets/s:sheet', namespace)] == [
-                    'Monthly', 'Hourly', 'Daily', 'Final Summary']
-                final = ET.fromstring(archive.read('xl/worksheets/sheet4.xml'))
+                    'Payslip Summary']
+                final = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
                 assert final.find("s:sheetData/s:row[@r='10']", namespace) is None
                 text = archive.read('xl/sharedStrings.xml')
-                for label in (b'Total CTC / Contract Salary', b'Hourly Rate (per Hour)', b'Daily Wage (per Day)',
-                              b'Contract Salary / Rate Total', b'Paid Weekly-off Days', b'Absent Days',
+                for label in (b'Salary Type', b'Contract Salary / Rate', b'Paid Weekly-off Days', b'Absent Days',
                               b'Public Holiday Days', b'Public Holiday Worked Days', b'Public Holiday Pay',
                               b'System Overtime', b'System Fine', b'Total Earnings'):
                     assert label in text, label

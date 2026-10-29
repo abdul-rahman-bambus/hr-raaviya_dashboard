@@ -382,3 +382,18 @@ Installed Chromium verified the warning, no download request/new page, preserved
 web client and wizard, and successful normal Payroll Review and Summary XLSX
 exports. Expected UserError warning logging remains enabled. This does not
 establish customer deployment. Upgrade hr_payslip_excel_report and restart Odoo.
+
+## Customer layout update (29 October 2026)
+
+Upgrade Daily Ops 18.0.1.93.0 and Payslip Excel Report 18.0.4.20.0. Reload the
+client. Verify flat Daily Attendance pagination and filters, hidden payslip
+Payables summary with detail tabs available, and one Payslip Summary sheet
+containing Monthly/Daily/Hourly rows and matching saved payroll totals.
+No salary recomputation or SaaS changes are required for these layout changes.
+
+Validation on isolated `raaviya_independent_fresh_test`: 71 Odoo tests passed
+(report suite and BackendAssets); 18 production OWL Chromium tests passed, plus
+the strengthened mixed-department pagination case. Installed Chromium report
+wizard/download and reviewed-day-pay flows passed, including the hidden Payables
+summary with Salary Computation/Attendance Details/Deductions still available.
+These checks do not establish customer deployment.

@@ -92,11 +92,29 @@ class DashboardUpdates(unittest.TestCase):
     def tick(self):
         self.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
 
+    def test_daily_roster_is_flat_and_paginates_across_departments(self):
+        self.mount('AttendanceEditor', "(() => { const data = dailyData('2026-10-07'); "
+                   "data.daily_attendance.forEach((e, i) => e.department = i % 2 ? 'Office' : 'Factory'); "
+                   "return data; })()")
+        self.assertEqual(self.page.locator('.o_bae_group_title').count(), 0)
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 10)
+        self.page.evaluate("component.state.currentPage = 2")
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 10)
+        self.assertEqual(self.page.locator('.o_bae_employee strong').first.inner_text(), 'Employee 11')
+        self.page.evaluate("component.state.currentPage = 3")
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 5)
+        self.page.evaluate("component.state.query = 'Employee 25'; component.state.currentPage = 1")
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 1)
+        self.assertEqual(self.page.locator('.o_bae_employee strong').first.inner_text(), 'Employee 25')
+
     def test_pencil_opens_selected_employee_day_and_reports_access_errors(self):
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")
         self.page.evaluate('() => { window.openedActions = []; services.action.doAction = action => openedActions.push(action); }')
         buttons = self.page.get_by_role('button', name='Open attendance entries', exact=True)
-        self.assertEqual(buttons.count(), 25)
+        self.assertEqual(buttons.count(), 10)
         buttons.nth(1).click()
         self.assertEqual(self.page.evaluate('requests[1].args'),
                          ['bambus.attendance.dashboard', 'open_dashboard_attendance_entries', [2, '2026-10-07']])
@@ -290,7 +308,7 @@ class DashboardUpdates(unittest.TestCase):
                 self.tick()
                 self.assertEqual(self.page.evaluate('component.state.statusFilter'), 'all')
                 self.assertEqual(self.page.evaluate('component.state.selectedDate'), '2026-10-07')
-                self.assertEqual(self.page.locator('.o_bae_employee').count(), 25)
+                self.assertEqual(self.page.locator('.o_bae_employee').count(), 10)
 
     def test_daily_attendance_button_clears_filters_without_changing_date(self):
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")

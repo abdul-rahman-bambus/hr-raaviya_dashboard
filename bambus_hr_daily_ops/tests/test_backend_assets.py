@@ -326,6 +326,7 @@ class TestBackendAssets(TransactionCase):
         )
         form = etree.fromstring(view['arch'].encode())
         group = form.xpath("//group[@name='payables']")[0]
+        self.assertEqual(group.get('invisible'), '1')
         amounts = {
             'total_overtime_amount', 'total_public_holiday_amount',
             'total_fine_amount', 'basic_pay', 'gross_pay', 'net_pay',

@@ -153,6 +153,9 @@ def main():
             action(page, {'type': 'ir.actions.act_window', 'res_model': 'hr.payslip', 'res_id': slips[0],
                           'views': [[False, 'form']], 'target': 'current'})
             page.get_by_role('tab', name='Deductions', exact=True).click()
+            assert page.locator('.o_field_widget[name="total_regular_pay_amount"]').count() == 0
+            assert page.get_by_role('tab', name='Salary Computation', exact=True).is_visible()
+            assert page.get_by_role('tab', name='Attendance Details', exact=True).is_visible()
             assert page.get_by_text('per minute', exact=True).is_visible()
             # Export through the real HTTP download, retaining salary snapshots.
             for report_type in ('review', 'summary'):
