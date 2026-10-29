@@ -1,5 +1,9 @@
 # Bambus HR Daily Ops
 
+Daily Ops **18.0.1.94.0** adds labelled wage-type badges to the flat attendance
+list. Upgrade this module and reload the browser; no payroll recomputation is
+needed for this display change.
+
 Daily Ops **18.0.1.93.0** displays Daily Attendance as a flat employee list, with
 10/25/50 employees per page and existing search/status filters. Department headings
 are removed. The Payables summary above the payslip tabs is hidden; Attendance
@@ -523,3 +527,8 @@ its selected date). Review/reassess any old fine approval explicitly: fixing pun
 does not automatically cancel a previously approved deduction. Recompute draft
 payslips before exporting; finalized payslips are not rewritten. Upgrade Daily Ops
 and restart Odoo to apply the server fix.
+
+Daily Attendance wage badges identify Monthly (blue), Daily (amber) and Hourly
+(purple) contracts without grouping cards. Missing wage type uses a neutral
+label. Badges read the date-specific contract wage type supplied by the dashboard;
+attendance status colours and saved payroll/approval values are unchanged.

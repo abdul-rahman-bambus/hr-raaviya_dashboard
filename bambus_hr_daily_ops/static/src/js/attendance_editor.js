@@ -57,6 +57,14 @@ export class AttendanceEditor extends AttendanceDashboard {
         return this.pageCount;
     }
 
+    wageBadge(employee) {
+        return {
+            monthly: {label: "Monthly", className: "monthly"},
+            daily: {label: "Daily", className: "daily"},
+            hourly: {label: "Hourly", className: "hourly"},
+        }[employee.wage_type] || {label: "Wage type unavailable", className: "unknown"};
+    }
+
     // A flat roster: split employees into pages without department boundaries.
     get filteredDailyGroups() {
         return [{id: "all", name: "", employees: this.filteredDailyEmployees}];

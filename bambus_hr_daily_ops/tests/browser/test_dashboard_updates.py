@@ -92,6 +92,22 @@ class DashboardUpdates(unittest.TestCase):
     def tick(self):
         self.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
 
+    def test_daily_wage_badges_use_contract_wage_type_without_grouping(self):
+        self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
+        self.mount('AttendanceEditor', "(() => { const data = dailyData('2026-10-07'); "
+                   "data.daily_attendance = ['monthly', 'daily', 'hourly', ''].map((wage_type, i) => "
+                   "({...employee(i + 1), wage_type, contract_type: 'Unrelated contract label'})); "
+                   "return data; })()")
+        self.assertEqual(self.page.locator('.o_bae_group_title').count(), 0)
+        badges = self.page.locator('.o_bae_wage_badge')
+        self.assertEqual(badges.all_text_contents(), ['Monthly', 'Daily', 'Hourly', 'Wage type unavailable'])
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 4)
+        colours = []
+        for index, kind in enumerate(('monthly', 'daily', 'hourly', 'unknown')):
+            self.assertIn('o_bae_wage_' + kind, badges.nth(index).get_attribute('class'))
+            colours.append(badges.nth(index).evaluate('(node) => getComputedStyle(node).backgroundColor'))
+        self.assertEqual(len(set(colours)), 4)
+
     def test_daily_roster_is_flat_and_paginates_across_departments(self):
         self.mount('AttendanceEditor', "(() => { const data = dailyData('2026-10-07'); "
                    "data.daily_attendance.forEach((e, i) => e.department = i % 2 ? 'Office' : 'Factory'); "
