@@ -421,3 +421,20 @@ Employee photo preview (18.0.1.96.0): all 20 production OWL browser tests passed
 The photo test verifies 56px normal size, 126px hover size, keyboard Tab focus,
 unchanged card bounds and usable search while images are pending. The preview
 reuses the existing avatar source; upgrade Daily Ops and reload the browser.
+
+## Re-review after punch corrections — 18.0.1.97.0
+
+- Approve a fixed fine, correct arrival to on time: show zero and Needs Review.
+- Verify Logs show prior amount/reviewer, old/new punches and the correcting user.
+- Cancel keeps the correction pending; a pre-edit popup cannot approve.
+- Approve zero, recompute the existing draft and export: remove the fine once.
+- Correct OT checkout: re-review changed OT while unchanged fines stay saved.
+- Add/delete/move punches: flag the affected existing review date; retain audits.
+- No-op/metadata writes and refreshes do not invalidate approvals.
+- Draft compute/confirmation waits for corrected reviews; finalized salary lines
+  and states remain saved. Audit records reject edits/deletion.
+
+Validation: **239 Odoo tests passed**, **21 production OWL Chromium tests passed**,
+and the installed correction -> Logs -> zero reapproval -> payroll -> XLSX flow
+passed on an isolated test database. No live deployment or SaaS changes.
+See [workflow and installed test command](docs/PUNCH_CORRECTIONS_RE_REVIEW.md).

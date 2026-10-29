@@ -13,7 +13,12 @@ Read the root README and the affected module documentation before changing behav
   There is no parent sheet. Opening a dashboard must not create review records.
 - Dashboard time edits write real punches and invoke normal detection hooks.
   Preserve intermediate split sessions/lunch gaps; use the pencil list to remove
-  punches. Status/time edits must not approve money or erase saved adjustments.
+  punches. Status edits must not approve money or erase saved adjustments.
+  Punch corrections that change a calculated Fine/OT proposal supersede affected
+  approved/excluded decisions into submitted re-review, retaining full previous
+  decisions in append-only audits. Keep zero proposals reviewable; block draft
+  computation/confirmation until resolved. Unaffected approvals, no-op writes
+  and finalized salary lines remain saved.
 - Migration preserves legacy review IDs, approvals/exclusions/coverage and saved
   salaries; raw legacy tables are archive evidence only, never runtime inputs.
   Duplicate/incomplete/company-mismatched decisions and audited manual-only times

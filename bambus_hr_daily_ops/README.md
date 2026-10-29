@@ -1,5 +1,10 @@
 # Bambus HR Daily Ops
 
+**18.0.1.97.0** flags affected approved/excluded Fine and OT decisions for
+re-review after punch corrections, with old/new audit evidence and explicit
+review of zero proposals. Draft computation/confirmation waits for this review;
+finalized salary lines stay saved. See [the correction workflow](docs/PUNCH_CORRECTIONS_RE_REVIEW.md).
+
 Daily Ops **18.0.1.96.0** enlarges employee thumbnails from 56px to 126px on
 mouse hover or keyboard focus without shifting cards. It reuses the same image
 and adds no image requests. Reduced-motion preferences disable the transition.

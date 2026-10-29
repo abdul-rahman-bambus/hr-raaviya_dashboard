@@ -342,3 +342,11 @@ required. Reload the client after upgrading.
 
 Daily Ops **18.0.1.96.0** adds a hover/keyboard-focus photo preview without
 changing attendance, approvals or salaries. No second image is downloaded.
+
+## Punch corrections after approval (18.0.1.97.0)
+
+Affected approved/excluded Fine and OT decisions become Needs Review when their
+calculated punch proposal changes. Previous decisions and punch updates remain
+in Logs, including explicit zero-value replacement reviews. Draft payroll waits
+for re-review; finalized salary is not changed. See
+[the correction workflow](PUNCH_CORRECTIONS_RE_REVIEW.md).

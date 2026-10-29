@@ -151,3 +151,173 @@ class TestIndependentAttendance(TransactionCase):
         self.assertTrue(review.exists())
         self.assertFalse(review.attendance_status_manual)
         self.assertEqual(review.fine_review_data,{'early_pm':{'state':'ignored'}})
+
+    def revision_case(self):
+        self.template.write({'late_enabled': True, 'late_grace_minutes': 0,
+                             'fine_calculation_type': 'salary_minute',
+                             'overtime_rate': 120, 'overtime_calculation_type': 'fixed_hour'})
+        employee, contract = self.person()
+        am = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 9, 55), 'check_out': datetime(2026, 10, 22, 14)})
+        pm = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 14, 45), 'check_out': datetime(2026, 10, 22, 19, 45)})
+        payload = self.service.get_dashboard_review(employee.id, self.day)
+        wizard = self.env['bambus.hr.attendance.review.wizard'].browse(payload['wizard_id'])
+        self.assertTrue(wizard.fine_line_ids)
+        wizard.fine_line_ids.write({'calculation_type': 'fixed', 'rate': 100})
+        wizard.write({'calculation_type': 'fixed_hour', 'rate': 120})
+        wizard.action_save()
+        review = wizard.line_id
+        self.assertEqual(review.fine_amount, 100)
+        self.assertEqual(review.overtime_state, 'approved')
+        self.assertEqual(review.overtime_amount, 120)
+        return employee, contract, am, pm, review
+
+    def test_punch_correction_supersedes_fine_and_zero_can_be_reapproved(self):
+        employee, contract, am, pm, review = self.revision_case()
+        slip = self.slip(employee, contract)
+        saved_lines = sorted((line.id, line.total) for line in slip.line_ids)
+        ot = (review.overtime_state, review.overtime_amount)
+        old = self.service.get_dashboard_review(employee.id, self.day)
+        am.write({'check_in': datetime(2026, 10, 22, 9, 45)})
+        with self.assertRaises(UserError):
+            # A pre-edit popup cannot approve a stale proposal.
+            self.env['bambus.hr.attendance.review.wizard'].browse(old['wizard_id']).action_save()
+        self.assertTrue(review.fine_re_review_required)
+        self.assertEqual((review.fine_state, review.fine_hours, review.fine_amount), ('submitted', 0, 0))
+        self.assertEqual((review.overtime_state, review.overtime_amount), ot)
+        row = self.row(employee)
+        self.assertTrue(row['fine_review_pending'])
+        self.assertEqual(row['fine_hours'], 0)
+        self.assertTrue(any('requires re-review' in log.get('details', '') for log in row['logs']))
+        self.assertEqual(sorted((line.id, line.total) for line in slip.line_ids), saved_lines)
+        with self.assertRaises(UserError):
+            slip.action_compute_sheet()
+        with self.assertRaises(UserError):
+            slip.action_payslip_done()
+        audit = self.env['bambus.hr.attendance.time.audit'].search([
+            ('employee_id', '=', employee.id), ('previous_review', '!=', False)], order='id desc', limit=1)
+        self.assertEqual(audit.previous_review['amount'], 100)
+        self.assertEqual(audit.current_proposal['hours'], 0)
+        payload = self.service.get_dashboard_review(employee.id, self.day)
+        fresh = self.env['bambus.hr.attendance.review.wizard'].browse(payload['wizard_id'])
+        self.assertEqual(len(fresh.fine_line_ids), 1)
+        self.assertEqual(fresh.fine_line_ids.amount, 0)
+        fresh.action_save()
+        self.assertFalse(review.fine_re_review_required)
+        slip.action_compute_sheet()
+        self.assertEqual(slip.total_fine_amount, 0)
+        first_net = slip.line_ids.filtered(lambda row: row.code == 'NET').total
+        slip.action_compute_sheet()
+        self.assertEqual(slip.line_ids.filtered(lambda row: row.code == 'NET').total, first_net)
+
+    def test_checkout_correction_supersedes_ot_but_preserves_fine(self):
+        employee, contract, am, pm, review = self.revision_case()
+        fine = (review.fine_state, review.fine_amount, review.fine_review_data)
+        pm.write({'check_out': datetime(2026, 10, 22, 18, 45)})
+        self.assertTrue(review.overtime_re_review_required)
+        self.assertEqual(review.overtime_state, 'submitted')
+        self.assertEqual(review.overtime_hours, 0)
+        self.assertEqual((review.fine_state, review.fine_amount, review.fine_review_data), fine)
+        payload = self.service.get_dashboard_review(employee.id, self.day)
+        fresh = self.env['bambus.hr.attendance.review.wizard'].browse(payload['wizard_id'])
+        self.assertTrue(fresh.show_overtime)
+        self.assertEqual(fresh.overtime_amount, 0)
+        fresh.action_save()
+        self.assertFalse(review.overtime_re_review_required)
+        self.assertEqual(review.overtime_amount, 0)
+
+    def test_noop_or_metadata_edit_does_not_supersede_or_duplicate_audit(self):
+        employee, contract, am, pm, review = self.revision_case()
+        Audit = self.env['bambus.hr.attendance.time.audit']
+        domain = [('employee_id', '=', employee.id)]
+        count = Audit.search_count(domain)
+        am.write({'check_in': am.check_in, 'check_out': am.check_out})
+        am.write({'bambus_gap_minutes': am.bambus_gap_minutes})
+        self.row(employee)
+        self.assertEqual(Audit.search_count(domain), count)
+        self.assertFalse(review.fine_re_review_required or review.overtime_re_review_required)
+
+    def test_deleting_punch_supersedes_affected_ot_with_full_punch_audit(self):
+        employee, contract, am, pm, review = self.revision_case()
+        punch_id = pm.id
+        pm.unlink()
+        self.assertTrue(review.overtime_re_review_required)
+        audit = self.env['bambus.hr.attendance.time.audit'].search([
+            ('employee_id', '=', employee.id), ('adjustment_type', '=', 'attendance')], order='id desc', limit=1)
+        self.assertEqual(audit.punch_changes['operation'], 'deleted')
+        self.assertEqual(audit.punch_changes['before'][0]['id'], punch_id)
+        self.assertEqual(audit.punch_changes['after'], [])
+
+    def test_punch_correction_keeps_finalized_salary_snapshot_unchanged(self):
+        employee, contract, am, pm, review = self.revision_case()
+        slip = self.slip(employee, contract)
+        slip.action_payslip_done()
+        saved = [(line.id, line.total) for line in slip.line_ids]
+        am.write({'check_in': datetime(2026, 10, 22, 9, 45)})
+        self.assertEqual(slip.state, 'done')
+        self.assertEqual([(line.id, line.total) for line in slip.line_ids], saved)
+        self.assertTrue(review.fine_re_review_required)
+
+    def test_excluded_fine_needs_review_if_punch_change_introduces_new_lateness(self):
+        employee, contract, am, pm, review = self.revision_case()
+        review.write({'fine_state': 'rejected', 'fine_hours': 0, 'fine_amount': 0})
+        am.write({'check_in': datetime(2026, 10, 22, 10, 15)})
+        self.assertTrue(review.fine_re_review_required)
+        self.assertEqual(review.fine_state, 'submitted')
+        payload = self.service.get_dashboard_review(employee.id, self.day)
+        fresh = self.env['bambus.hr.attendance.review.wizard'].browse(payload['wizard_id'])
+        fresh.fine_line_ids.write({'calculation_type': 'fixed', 'rate': 50})
+        fresh.action_save()
+        self.assertFalse(review.fine_re_review_required)
+        self.assertEqual(review.fine_amount, 50)
+
+    def test_extra_session_creation_and_date_move_invalidate_correct_day(self):
+        employee, contract, am, pm, review = self.revision_case()
+        extra = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 20), 'check_out': datetime(2026, 10, 22, 21)})
+        self.assertTrue(review.overtime_re_review_required)
+        fresh = self.env['bambus.hr.attendance.review.wizard'].browse(
+            self.service.get_dashboard_review(employee.id, self.day)['wizard_id'])
+        fresh.action_save()
+        extra.write({'check_in': datetime(2026, 10, 23, 20), 'check_out': datetime(2026, 10, 23, 21)})
+        self.assertTrue(review.overtime_re_review_required)
+        audits = self.env['bambus.hr.attendance.time.audit'].search([
+            ('employee_id', '=', employee.id), ('adjustment_type', '=', 'attendance'),
+            ('date', 'in', [self.day, fields.Date.to_date('2026-10-23')])])
+        self.assertEqual(set(audits.mapped('date')), {self.day, fields.Date.to_date('2026-10-23')})
+
+    def test_review_cancel_keeps_correction_pending_and_log_snapshot(self):
+        employee, contract, am, pm, review = self.revision_case()
+        am.with_context(attendance_change_reason='Corrected mistyped arrival').write({
+            'check_in': datetime(2026, 10, 22, 9, 45)})
+        payload = self.service.get_dashboard_review(employee.id, self.day)
+        self.assertTrue(payload['re_review_required'])
+        self.env['bambus.hr.attendance.review.wizard'].browse(payload['wizard_id']).unlink()
+        self.assertTrue(review.fine_re_review_required)
+        audit = self.env['bambus.hr.attendance.time.audit'].search([
+            ('employee_id', '=', employee.id), ('previous_review', '!=', False)], limit=1)
+        self.assertEqual(audit.previous_review['amount'], 100)
+        self.assertIn('Corrected mistyped arrival', audit.change_details)
+        self.assertEqual(audit.updated_by_id, self.env.user)
+
+    def test_audit_evidence_is_append_only(self):
+        employee, contract, am, pm, review = self.revision_case()
+        audit = self.env['bambus.hr.attendance.time.audit'].search([
+            ('employee_id', '=', employee.id)], limit=1)
+        with self.assertRaises(UserError):
+            audit.write({'adjusted_hours': 100})
+        with self.assertRaises(UserError):
+            audit.unlink()
+
+    def test_zero_correction_remains_reviewable_when_detection_rule_is_disabled(self):
+        employee, contract, am, pm, review = self.revision_case()
+        self.template.late_enabled = False
+        am.write({'check_in': datetime(2026, 10, 22, 9, 45)})
+        self.assertTrue(review.fine_re_review_required)
+        self.assertTrue(self.row(employee)['fine_enabled'])
+        fresh = self.env['bambus.hr.attendance.review.wizard'].browse(
+            self.service.get_dashboard_review(employee.id, self.day)['wizard_id'])
+        self.assertEqual(fresh.fine_line_ids.amount, 0)
+        fresh.action_save()
+        self.assertFalse(review.fine_re_review_required)

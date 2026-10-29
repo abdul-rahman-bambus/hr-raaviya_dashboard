@@ -28,6 +28,9 @@
         <field name="show_overtime" invisible="1"/>
         <field name="initial_fines" invisible="1"/>
         <field name="source_write_date" invisible="1"/>
+        <field name="fine_re_review_required" invisible="1"/>
+        <field name="overtime_re_review_required" invisible="1"/>
+        <div class="alert alert-warning" invisible="not fine_re_review_required and not overtime_re_review_required">Attendance was corrected after a previous decision. Review corrected items, including zero amounts, before computing payroll. Previous decisions are retained in Logs.</div>
         <field name="source_attendance_signature" invisible="1"/>
         <field name="resplit_fines" invisible="1"/>
         <field name="can_review_sessions" invisible="1"/>
@@ -35,7 +38,7 @@
           <field name="contract_wage_label" nolabel="1"/>
           <field name="contract_wage_amount" nolabel="1"/>
         </group>
-        <div class="alert alert-info" role="status">Approve the applicable items together. Delete a fine row or select Ignore Overtime to exclude it permanently when you approve. Cancel discards these changes.</div>
+        <div class="alert alert-info" role="status">Approve the applicable items together. Delete a fine row or select Ignore Overtime to exclude the proposal when you approve. Changed punch calculations require a fresh review. Cancel discards these changes.</div>
         <group string="Overtime" invisible="not show_overtime">
           <group>
             <field name="ignore_overtime"/>

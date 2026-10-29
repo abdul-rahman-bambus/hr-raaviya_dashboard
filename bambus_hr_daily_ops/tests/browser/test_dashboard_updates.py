@@ -132,6 +132,23 @@ class DashboardUpdates(unittest.TestCase):
         for route in pending_photos:
             route.abort()
 
+    def test_zero_correction_stays_visible_in_fine_filter_and_explains_re_review(self):
+        self.mount('AttendanceEditor', "(() => { const data = dailyData('2026-10-07'); "
+                   "data.daily_attendance = [{...employee(1), fine_hours: 0, fine_review_pending: true}]; "
+                   "return data; })()")
+        self.page.evaluate("component.state.statusFilter = 'fine'")
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 1)
+        self.page.locator('.o_bae_action.fine').click()
+        self.page.evaluate("""requests[1].resolve({wizard_id: 1, adjustment: 'review', employee: 'Employee 1',
+            date: '2026-10-07', re_review_required: true, items: [{id: 1, label: 'Late Fine', hours: 0,
+            detected_hours: 0, rate: 0, calculation_type: 'fixed', calculation_options: [['fixed', 'Fixed Amount']]}],
+            currency: {symbol: '₹', position: 'before', decimal_places: 2}})""")
+        self.tick()
+        self.assertIn('Attendance was corrected', self.page.locator('.o_baa_body .alert-warning').inner_text())
+        self.assertIn('0.00', self.page.locator('.o_baa_total').inner_text())
+        self.assertTrue(self.page.get_by_role('button', name='Approve Remaining Items').is_enabled())
+
     def test_daily_wage_badges_use_contract_wage_type_without_grouping(self):
         self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
         self.mount('AttendanceEditor', "(() => { const data = dailyData('2026-10-07'); "

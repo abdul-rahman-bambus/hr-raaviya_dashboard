@@ -429,6 +429,8 @@ class AttendanceDashboard(models.AbstractModel):
                     label = dict(
                         update._fields["adjustment_type"]._description_selection(self.env)
                     ).get(update.adjustment_type)
+                if update.change_details:
+                    adjusted_times.append(update.change_details)
                 attendance_logs.append({
                     "id": f"hr-{update.id}",
                     "type": "hr_update",
@@ -495,7 +497,7 @@ class AttendanceDashboard(models.AbstractModel):
                 employee_fine_hours = 0.0
             employee_overtime_hours = max(employee_overtime_hours, 0.0)
             employee_fine_hours = max(employee_fine_hours, 0.0)
-            overtime_enabled = bool(automation and automation.overtime_enabled)
+            overtime_enabled = bool(automation and automation.overtime_enabled) or bool(override and override.overtime_re_review_required)
             fine_enabled = bool(
                 automation
                 and (
@@ -504,6 +506,7 @@ class AttendanceDashboard(models.AbstractModel):
                     or automation.break_enabled
                 )
             )
+            fine_enabled = fine_enabled or bool(override and override.fine_re_review_required)
             wage_label, wage_amount = self.env['bambus.hr.attendance.review.wizard']._contract_wage(contract)
             decisions = self.env["bambus.attendance.paid.day.decision"].search([
                 ("employee_id", "=", employee.id), ("date", "=", day),
@@ -534,10 +537,12 @@ class AttendanceDashboard(models.AbstractModel):
                 "fine_enabled": fine_enabled,
                 "overtime_enabled": overtime_enabled,
                 "overtime_review_pending": bool(
-                    overtime_enabled and employee_overtime_hours > 0 and not overtime_reviewed
+                    (override and override.overtime_re_review_required) or
+                    (overtime_enabled and employee_overtime_hours > 0 and not overtime_reviewed)
                 ),
                 "fine_review_pending": bool(
-                    fine_enabled and employee_fine_hours > 0 and not fine_reviewed
+                    (override and override.fine_re_review_required) or
+                    (fine_enabled and employee_fine_hours > 0 and not fine_reviewed)
                 ),
                 "hourly_pay_enabled": bool(
                     wage_type == "hourly"
@@ -665,10 +670,6 @@ class AttendanceDashboard(models.AbstractModel):
             elif check_in:
                 self.env['hr.attendance'].create({'employee_id': employee.id,
                     'check_in': check_in, 'check_out': check_out})
-            self.env['bambus.hr.attendance.time.audit'].create({
-                'employee_id': employee.id, 'date': day, 'adjustment_type': 'attendance',
-                'previous_check_in': previous_check_in, 'previous_check_out': previous_check_out,
-                'check_in': check_in, 'check_out': check_out, 'updated_by_id': self.env.uid})
         # Money and final adjustment hours are saved only by their review
         # wizards, never incidentally by a status/time change.
         line._compute_day_data()
