@@ -99,6 +99,9 @@ class DashboardUpdates(unittest.TestCase):
         self.page.route('http://dashboard.test/web/image/**', lambda route: pending_photos.append(route))
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")
         photos = self.page.locator('.o_bae_employee_photo')
+        self.assertEqual(photos.count(), 25)
+        self.page.locator('#o_bae_page_size').select_option('10')
+        self.tick()
         self.assertEqual(photos.count(), 10)
         self.assertFalse(self.page.evaluate('component.state.loading'))
         photo = photos.first
@@ -170,6 +173,10 @@ class DashboardUpdates(unittest.TestCase):
                    "data.daily_attendance.forEach((e, i) => e.department = i % 2 ? 'Office' : 'Factory'); "
                    "return data; })()")
         self.assertEqual(self.page.locator('.o_bae_group_title').count(), 0)
+        self.assertEqual(self.page.locator('#o_bae_page_size').input_value(), '50')
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 25)
+        self.page.locator('#o_bae_page_size').select_option('10')
+        self.tick()
         self.assertEqual(self.page.locator('.o_bae_employee').count(), 10)
         self.page.evaluate("component.state.currentPage = 2")
         self.tick()
@@ -187,7 +194,7 @@ class DashboardUpdates(unittest.TestCase):
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")
         self.page.evaluate('() => { window.openedActions = []; services.action.doAction = action => openedActions.push(action); }')
         buttons = self.page.get_by_role('button', name='Open attendance entries', exact=True)
-        self.assertEqual(buttons.count(), 10)
+        self.assertEqual(buttons.count(), 25)
         buttons.nth(1).click()
         self.assertEqual(self.page.evaluate('requests[1].args'),
                          ['bambus.attendance.dashboard', 'open_dashboard_attendance_entries', [2, '2026-10-07']])
@@ -381,7 +388,7 @@ class DashboardUpdates(unittest.TestCase):
                 self.tick()
                 self.assertEqual(self.page.evaluate('component.state.statusFilter'), 'all')
                 self.assertEqual(self.page.evaluate('component.state.selectedDate'), '2026-10-07')
-                self.assertEqual(self.page.locator('.o_bae_employee').count(), 10)
+                self.assertEqual(self.page.locator('.o_bae_employee').count(), 25)
 
     def test_daily_attendance_button_clears_filters_without_changing_date(self):
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")
