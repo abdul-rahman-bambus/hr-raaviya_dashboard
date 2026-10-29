@@ -11,18 +11,9 @@
                     <field name="duration_type"/>
                     <field name="start_date" invisible="duration_type != 'custom'" required="duration_type == 'custom'"/>
                     <field name="end_date" invisible="duration_type != 'custom'" required="duration_type == 'custom'"/>
-                    <field name="department_id" domain="['|', ('company_id', '=', company_id), ('company_id', '=', False)]" options="{'no_create': True}"/>
                     <field name="employee_ids" widget="many2many_tags" domain="[('company_id', '=', company_id)]" options="{'no_create': True}"/>
                     <field name="payslip_status"/>
                 </group>
-                <div class="alert alert-info" role="status">
-                    Payslips must fall entirely within the selected period. Salary amounts come from payslip lines;
-                    this export does not recalculate or prorate salary.
-                    Payslip Summary has Monthly, Hourly, Daily, and Final Summary sheets, with one employee row per salary type. Exact duplicate periods use the highest status,
-                    then computed totals, then latest update; Payroll Review lists excluded payslips.
-                    <span invisible="report_type != 'review'">Attendance and review information shows current records.
-                    Missing payslips and pending adjustments appear in Review Exceptions.</span>
-                </div>
                 <footer>
                     <button name="action_download_payslip_excel_report" string="Download Excel" type="object" class="btn-primary"/>
                     <button string="Cancel" class="btn-secondary" special="cancel"/>

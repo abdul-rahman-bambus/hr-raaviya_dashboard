@@ -103,6 +103,8 @@ def main():
             page.goto(f'{args.url}/odoo/action-{action}')
             page.get_by_role('button', name='Download Excel', exact=True).wait_for()
             report = page.locator('.o_field_widget[name="report_type"] select')
+            assert page.locator('.o_field_widget[name="department_id"]').count() == 0
+            assert page.get_by_text('Payslips must fall entirely within the selected period.', exact=False).count() == 0
             assert report.locator('option:checked').inner_text() == 'Payslip Summary'
             status = page.locator('.o_field_widget[name="payslip_status"] select')
             assert status.locator('option:checked').inner_text() == 'Draft'

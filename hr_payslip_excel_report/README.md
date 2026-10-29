@@ -1,5 +1,13 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.22.0** removes the Department filter and explanatory banner from the
+Payroll Reports form. Report Type, Company, Period/custom dates, Employees,
+Payslip Status and Download Excel remain. The backend Department field is kept
+for compatibility with existing integrations; new wizards have no department
+filter. Upgrade this report module and reopen the wizard.
+Validation: the module upgrade and installed Chromium wizard/download check
+passed, including absence of the Department field/banner and both XLSX exports.
+
 **18.0.4.21.0** simplifies Payslip Summary: explanatory rows 3–5 are hidden,
 and optional columns are hidden when every exported employee row is exactly
 zero. Any nonzero value (including negative refunds) keeps a column visible.
