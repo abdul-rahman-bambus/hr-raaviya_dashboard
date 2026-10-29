@@ -92,6 +92,32 @@ class DashboardUpdates(unittest.TestCase):
     def tick(self):
         self.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
 
+    def test_employee_photos_do_not_block_cards_or_load_unrendered_pages(self):
+        self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
+        # Keep thumbnail requests pending: cards and actions must remain usable.
+        pending_photos = []
+        self.page.route('http://dashboard.test/web/image/**', lambda route: pending_photos.append(route))
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        photos = self.page.locator('.o_bae_employee_photo')
+        self.assertEqual(photos.count(), 10)
+        self.assertFalse(self.page.evaluate('component.state.loading'))
+        photo = photos.first
+        self.assertEqual(photo.get_attribute('src'), '/web/image/hr.employee/1/avatar_128')
+        self.assertEqual(photo.get_attribute('loading'), 'lazy')
+        self.assertEqual(photo.get_attribute('decoding'), 'async')
+        self.assertEqual(photo.get_attribute('alt'), 'Employee 1 photo')
+        self.assertEqual(photo.bounding_box()['width'], 56)
+        self.assertEqual(photo.bounding_box()['height'], 56)
+        self.assertEqual(self.page.evaluate('requests.length'), 1)
+        self.page.get_by_placeholder('Search Staff by Name, Department or Schedule').fill('Employee 25')
+        self.tick()
+        self.assertEqual(photos.count(), 1)
+        self.assertEqual(photos.first.get_attribute('src'), '/web/image/hr.employee/25/avatar_128')
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 1)
+        self.assertEqual(self.page.evaluate('requests.length'), 1)
+        for route in pending_photos:
+            route.abort()
+
     def test_daily_wage_badges_use_contract_wage_type_without_grouping(self):
         self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
         self.mount('AttendanceEditor', "(() => { const data = dailyData('2026-10-07'); "

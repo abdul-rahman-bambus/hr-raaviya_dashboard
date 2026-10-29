@@ -406,3 +406,13 @@ attendance status colours and saved payroll/approval values are unchanged.
 Wage badge validation (18.0.1.94.0): all 19 production OWL Chromium tests passed,
 including rendered Monthly/Daily/Hourly/unknown labels and distinct CSS colours,
 flat pagination, search, attendance edits and review navigation.
+
+## Employee thumbnails (18.0.1.95.0)
+
+Upgrade Daily Ops and reload. Check the 56px photo at the right of employee
+details; an employee without a photo shows the standard Odoo avatar. Verify
+search/page changes and approval actions remain usable while images load.
+All 20 production OWL Chromium tests passed, including deliberately pending
+image requests, current-page-only image elements, fixed dimensions and search.
+An installed isolated Odoo browser check loaded the avatar endpoint and rendered
+the card successfully. No customer-server timing benchmark was performed.

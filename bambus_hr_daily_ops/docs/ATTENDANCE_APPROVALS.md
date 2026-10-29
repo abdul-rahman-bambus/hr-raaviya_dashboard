@@ -335,3 +335,7 @@ label. Badges read the date-specific contract wage type supplied by the dashboar
 attendance status colours and saved payroll/approval values are unchanged.
 
 Upgrade Daily Ops **18.0.1.94.0** and reload for the wage badges.
+
+Daily Ops **18.0.1.95.0** adds lazy-loaded employee thumbnails beside card
+details. This is a display-only change; no approval or salary recomputation is
+required. Reload the client after upgrading.
