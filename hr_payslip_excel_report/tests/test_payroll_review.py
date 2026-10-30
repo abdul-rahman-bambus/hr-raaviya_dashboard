@@ -417,6 +417,29 @@ class TestPayrollReview(TransactionCase):
         self.assertEqual((row['weekly_off_leave'], row['weekly_off_worked'], row['absent'], row['holidays']),
                          (1, 0, 1, 0))
 
+    def test_summary_daily_unpaid_weekly_off_days_complete_october(self):
+        self.contract.write({'wage_type': 'daily', 'daily_wage': 885})
+        self.template.write({'monthly_paid_weekly_off': False, 'partial_attendance_salary_treatment': 'fine_only'})
+        self.calendar.attendance_ids = [Command.clear()] + [Command.create({
+            'name': 'Working day', 'dayofweek': str(day), 'day_period': 'morning',
+            'hour_from': 9, 'hour_to': 17}) for day in range(6)]
+        self.env['hr.attendance'].create({'employee_id': self.employee.id,
+            'check_in': datetime(2026, 10, 1, 3, 30), 'check_out': datetime(2026, 10, 1, 11, 30)})
+        self.finance(self.slip(date_from='2026-10-01', date_to='2026-10-31'))
+        data = self.report._data(self.wizard(report_type='summary', start_date='2026-10-01', end_date='2026-10-31'))
+        row = self.report._employee_summary_rows(data['register'])[0]
+        self.assertEqual((row['present'], row['absent'], row['weekly_off'], row['weekly_off_leave']), (1, 26, 4, 0))
+        sheet, strings, ns, hidden = self._compact_summary_sheet(data)
+        self.assertFalse(hidden('Weekly-off Days'))
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='Z7']/s:v", ns).text, '4')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='Z9']/s:f", ns).text, 'SUBTOTAL(109,Z7:Z7)')
+        first = dict(data['register'][0], date_to='2026-10-15', weekly_off=2)
+        second = dict(first, date_from='2026-10-16', date_to='2026-10-31')
+        refund = dict(first, credit='Yes')
+        self.assertEqual(self.report._employee_summary_rows([first, second, refund])[0]['weekly_off'], 4)
+        overlap = dict(second, date_from='2026-10-14')
+        self.assertIsNone(self.report._employee_summary_rows([first, overlap])[0]['weekly_off'])
+
     def test_detailed_summary_headers_and_decimal_hours(self):
         self.env['hr.attendance'].create({'employee_id': self.employee.id,
             'check_in': datetime(2026, 9, 7, 3, 45), 'check_out': datetime(2026, 9, 7, 13, 15)})
