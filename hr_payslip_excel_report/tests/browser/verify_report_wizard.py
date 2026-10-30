@@ -158,7 +158,7 @@ def main():
                     assert label in text, label
                 sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
                 assert sheet.find("s:sheetData/s:row/s:c[@r='B8']", namespace) is None
-                assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace).get('topLeftCell') == 'C7'
+                assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace) is None
                 for row_number in (4,):
                     assert sheet.find(f"s:sheetData/s:row[@r='{row_number}']", namespace).get('hidden') == '1'
                 # This fixture has a real duplicate/uncomputed salary warning.

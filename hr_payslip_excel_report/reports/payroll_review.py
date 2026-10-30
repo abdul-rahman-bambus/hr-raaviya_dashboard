@@ -242,7 +242,6 @@ class PayrollReviewReport(models.AbstractModel):
                                   (13, 16, 'HOURS'), (17, 24, 'SALARY AMOUNTS')]:
             sheet.merge_range(4, start, 4, end, label, band_format)
         sheet.set_row(4, 24)
-        sheet.freeze_panes(6, 2)
         sheet.repeat_rows(4, 5)
 
         # Keep the source cells/formulas available, but simplify the default view.
