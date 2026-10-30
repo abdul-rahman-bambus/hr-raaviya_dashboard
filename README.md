@@ -28,7 +28,7 @@ before exporting changed approved amounts. Never mass-approve to apply a rate.
 ## Customer layout update (29 October 2026)
 
 Upgrade `bambus_hr_daily_ops` to **18.0.1.98.0** and
-`hr_payslip_excel_report` to **18.0.4.26.0**, then reload the browser.
+`hr_payslip_excel_report` to **18.0.4.27.0**, then reload the browser.
 Daily Attendance opens as a flat paginated list. Payslip Summary exports all wage
 types in one sheet with a Salary Type column, grouped sections and adjacent
 calendar/paid weekly-off columns that stay visible even at zero. Payslip Payables summary groups are

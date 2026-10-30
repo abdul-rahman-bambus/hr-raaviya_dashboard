@@ -1,5 +1,11 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.27.0** removes frozen rows/columns from Payslip Summary so the whole
+worksheet scrolls together. Grouped headings, column order/widths, both weekly-off
+counts, filter totals and print-repeat headings remain. All 49 targeted report
+tests passed, including absence of worksheet freeze/split panes. Upgrade and export again;
+no salary recomputation is required.
+
 **18.0.4.26.0** arranges Payslip Summary into Employee Details, Attendance Days,
 Hours and Salary Amounts, with section bands, wrapped headings, suitable widths
 and frozen headings/employee names. Weekly-off Days and Paid Weekly-off Days sit

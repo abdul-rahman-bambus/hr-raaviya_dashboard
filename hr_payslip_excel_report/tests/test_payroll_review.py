@@ -433,7 +433,7 @@ class TestPayrollReview(TransactionCase):
         self.assertFalse(hidden('Weekly-off Days'))
         self.assertFalse(hidden('Paid Weekly-off Days'))
         self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='H7']/s:v", ns).text, '0')
-        self.assertEqual(sheet.find('s:sheetViews/s:sheetView/s:pane', ns).get('topLeftCell'), 'C7')
+        self.assertIsNone(sheet.find('s:sheetViews/s:sheetView/s:pane', ns))
         self.assertNotEqual(sheet.find("s:sheetData/s:row[@r='5']", ns).get('hidden'), '1')
         self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='G7']/s:v", ns).text, '4')
         self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='G9']/s:f", ns).text, 'SUBTOTAL(109,G7:G7)')
@@ -473,7 +473,7 @@ class TestPayrollReview(TransactionCase):
             self.assertEqual(values['O7'], 1.75)
             self.assertEqual(values['P7'], .25)
             self.assertEqual(values['T7'], 200)
-            self.assertEqual(sheet.find('s:sheetViews/s:sheetView/s:pane', ns).get('topLeftCell'), 'C7')
+            self.assertIsNone(sheet.find('s:sheetViews/s:sheetView/s:pane', ns))
 
     def test_summary_does_not_invent_monthly_ctc_for_hourly_contract(self):
         self.contract.write({'wage_type': 'hourly', 'hourly_rate': 100})
