@@ -640,6 +640,7 @@ class HrAttendanceOvertime(models.Model):
                 else:
                     fine_rate = 0.0
 
+                    salary_hours = automation._salary_calculation_day_hours(emp, d, contract)
                     if automation and automation.fine_calculation_type == "salary_minute":
                         if wage_type == "daily":
                             daily_rate = float(getattr(contract, "daily_wage", 0.0) or 0.0)
@@ -648,8 +649,8 @@ class HrAttendanceOvertime(models.Model):
                         else:
                             daily_rate = 0.0
                         fine_amount = (
-                            fine_minutes * daily_rate / (scheduled * 60.0)
-                            if scheduled > 0 else 0.0
+                            fine_minutes * daily_rate / (salary_hours * 60.0)
+                            if salary_hours > 0 else 0.0
                         )
                     elif automation and automation.fine_calculation_type in ("fixed", "fixed_hour"):
                         fine_rate = float(automation.fine_rate or 0.0)

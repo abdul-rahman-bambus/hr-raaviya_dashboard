@@ -389,7 +389,7 @@ class BambusHrOvertimeWizard(models.TransientModel):
         contract = line.contract_id
         if not contract:
             return 0.0, 0.0
-        hours_per_day = contract.resource_calendar_id.hours_per_day or 8.0
+        hours_per_day = self._salary_hours_on_date(line)
         wage_type = getattr(contract, "wage_type", "monthly") or "monthly"
         if wage_type == "hourly":
             hourly_rate = contract.hourly_rate or 0.0
@@ -399,6 +399,13 @@ class BambusHrOvertimeWizard(models.TransientModel):
             return daily_rate, daily_rate / hours_per_day if hours_per_day else 0.0
         daily_rate = contract._get_monthly_daily_rate(line.date)
         return daily_rate, daily_rate / hours_per_day if hours_per_day else 0.0
+
+    def _salary_hours_on_date(self, line):
+        contract = line.contract_id
+        template = line.employee_id._get_attendance_automation_template(line.date)
+        if template and contract and contract.wage_type != 'hourly':
+            return template._salary_calculation_day_hours(line.employee_id, line.date, contract)
+        return (contract.resource_calendar_id.hours_per_day if contract else 0.0) or 8.0
 
     def _scheduled_hours_on_date(self, line):
         contract = line.contract_id
@@ -714,7 +721,7 @@ class BambusHrFineWizard(models.TransientModel):
         overtime_wizard = self.env["bambus.hr.overtime.wizard"]
         for wizard in self:
             daily_rate, hourly_rate = overtime_wizard._contract_rates(wizard.line_id)
-            scheduled_hours = overtime_wizard._scheduled_hours_on_date(wizard.line_id)
+            scheduled_hours = overtime_wizard._salary_hours_on_date(wizard.line_id)
             contract = wizard.line_id.contract_id
             wage_type = getattr(contract, "wage_type", "monthly") if contract else ""
             salary_per_minute = (

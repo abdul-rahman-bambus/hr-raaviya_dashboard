@@ -66,6 +66,88 @@ class TestIndependentAttendance(TransactionCase):
         return next(row for row in self.service.get_attendance_dashboard(str(self.day))[
             'daily_attendance'] if row['id'] == employee.id)
 
+    def test_salary_hours_daily_fine_detection_and_review_agree(self):
+        self.template.write({'late_enabled': True, 'late_grace_minutes': 5,
+                             'fine_calculation_type': 'salary_minute'})
+        employee, contract = self.person()
+        punch = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 9, 51), 'check_out': datetime(2026, 10, 22, 14)})
+        self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 14, 45), 'check_out': datetime(2026, 10, 22, 18, 45)})
+        for basis, denominator, expected in [('schedule', 8.25, 1.79), ('fixed', 8, 1.84)]:
+            self.template.write({'salary_hours_basis': basis, 'salary_calculation_hours': 8})
+            payload = self.service.get_dashboard_review(employee.id, self.day)
+            wizard = self.env['bambus.hr.attendance.review.wizard'].browse(payload['wizard_id'])
+            fine = wizard.fine_line_ids.filtered(lambda item: item.hours > 0)
+            self.assertEqual(len(fine), 1)
+            self.assertAlmostEqual(fine.hours, 1 / 60, places=5)
+            self.assertAlmostEqual(payload['salary_per_minute'], 885 / denominator / 60, places=6)
+            self.assertAlmostEqual(fine.amount, expected, places=2)
+            self.assertAlmostEqual(sum(wizard.line_id._review_attendances().mapped('bambus_fine_amount')), expected, places=2)
+        self.assertEqual(punch.check_in, datetime(2026, 10, 22, 9, 51))
+        self.assertAlmostEqual(sum(wizard.line_id._review_attendances().mapped('worked_hours')), 8.15)
+
+    def test_salary_hours_ot_multipliers_fixed_rates_and_hourly_contract(self):
+        employee, contract = self.person()
+        line = self.env['bambus.attendance.day.review'].create({
+            'employee_id': employee.id, 'date': self.day, 'company_id': self.env.company.id})
+        for basis, denominator in [('schedule', 8.25), ('fixed', 8)]:
+            self.template.write({'salary_hours_basis': basis})
+            for calculation, factor in [('salary_1', 1), ('salary_1_5', 1.5), ('salary_2', 2)]:
+                wizard = self.env['bambus.hr.overtime.wizard'].new({
+                    'line_id': line.id, 'overtime_hours': .5, 'calculation_type': calculation})
+                self.assertAlmostEqual(wizard.overtime_amount, self.env.company.currency_id.round(.5 * 885 / denominator * factor))
+            fixed = self.env['bambus.hr.overtime.wizard'].new({
+                'line_id': line.id, 'overtime_hours': .5, 'calculation_type': 'fixed_hour', 'rate': 120})
+            self.assertEqual(fixed.overtime_amount, 60)
+        hourly, hourly_contract = self.person('hourly')
+        hourly_line = self.env['bambus.attendance.day.review'].create({
+            'employee_id': hourly.id, 'date': self.day, 'company_id': self.env.company.id})
+        self.assertEqual(self.env['bambus.hr.overtime.wizard']._contract_rates(hourly_line)[1], 53)
+
+    def test_salary_hours_schedule_varies_by_date_and_special_day_fallback(self):
+        employee, contract = self.person()
+        self.calendar.attendance_ids.filtered(lambda item: item.dayofweek == '4').unlink()
+        self.env['resource.calendar.attendance'].create({'calendar_id': self.calendar.id,
+            'name': 'Friday short', 'dayofweek': '4', 'day_period': 'morning', 'hour_from': 9, 'hour_to': 16})
+        helper = self.template._salary_calculation_day_hours
+        self.assertEqual(helper(employee, self.day, contract), 8.25)
+        self.assertEqual(helper(employee, fields.Date.to_date('2026-10-23'), contract), 7)
+        self.assertEqual(helper(employee, fields.Date.to_date('2026-10-25'), contract), self.calendar.hours_per_day)
+        self.template.write({'salary_hours_basis': 'fixed', 'salary_calculation_hours': 8})
+        self.assertEqual(helper(employee, fields.Date.to_date('2026-10-23'), contract), 8)
+        for invalid in [0, -1, 25]:
+            with self.assertRaises(ValidationError), self.cr.savepoint():
+                self.template.salary_calculation_hours = invalid
+
+    def test_salary_hours_monthly_calendar_days_and_saved_decisions_unchanged(self):
+        employee, contract = self.person('monthly')
+        self.template.write({'salary_hours_basis': 'fixed', 'salary_calculation_hours': 8})
+        for date, days in [('2026-10-22', 31), ('2026-11-02', 30), ('2027-02-02', 28)]:
+            line = self.env['bambus.attendance.day.review'].create({
+                'employee_id': employee.id, 'date': date, 'company_id': self.env.company.id})
+            daily, hourly = self.env['bambus.hr.overtime.wizard']._contract_rates(line)
+            self.assertAlmostEqual(daily, 8000 / days)
+            self.assertAlmostEqual(hourly, 8000 / days / 8)
+        daily_emp, daily_contract, am, pm, review = self.revision_case()
+        slip = self.slip(daily_emp, daily_contract)
+        saved_lines = sorted((item.id, item.total) for item in slip.line_ids)
+        self.template.write({'salary_hours_basis': 'schedule'})
+        self.row(daily_emp)
+        self.assertEqual((review.fine_state, review.fine_amount), ('approved', 100))
+        self.assertEqual((review.overtime_state, review.overtime_amount), ('approved', 120))
+        self.assertFalse(review.fine_re_review_required or review.overtime_re_review_required)
+        self.assertEqual(sorted((item.id, item.total) for item in slip.line_ids), saved_lines)
+
+    def test_salary_hours_change_requires_reopening_pending_review(self):
+        employee, contract, am, pm, review = self.revision_case()
+        old = self.service.get_dashboard_review(employee.id, self.day)
+        self.template.write({'salary_hours_basis': 'fixed', 'salary_calculation_hours': 8})
+        with self.assertRaises(UserError):
+            self.env['bambus.hr.attendance.review.wizard'].browse(old['wizard_id']).action_save()
+        self.assertEqual((review.fine_state, review.fine_amount), ('approved', 100))
+        self.assertEqual((review.overtime_state, review.overtime_amount), ('approved', 120))
+
     def test_history_models_are_not_registered_and_dashboard_read_creates_no_review(self):
         self.assertNotIn('bambus.hr.attendance.sheet', self.env)
         self.assertNotIn('bambus.hr.attendance.sheet.line', self.env)

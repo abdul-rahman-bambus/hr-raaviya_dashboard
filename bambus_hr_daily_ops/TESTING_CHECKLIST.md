@@ -442,3 +442,15 @@ See [workflow and installed test command](docs/PUNCH_CORRECTIONS_RE_REVIEW.md).
 Daily Attendance default pagination (18.0.1.98.0): all 21 production OWL browser
 tests passed. The dropdown starts at 50, remains switchable to 10/25, and flat
 pagination, search, pending review navigation and thumbnails retain their behavior.
+
+### Salary Rate Conversion (18.0.1.99.0 / Attendance OT-Fine 18.0.3.35.0)
+
+- [x] Working Schedule default and date-specific work sessions.
+- [x] Fixed 8-hour daily fine and 1x/1.5x/2x OT rates.
+- [x] Monthly calendar-day divisor, explicit Hourly rates, fixed-rate isolation.
+- [x] Invalid fixed hours rejected; no-session date fallback.
+- [x] Saved approvals/salary lines retained; stale rate popup requires reopening.
+- [x] Installed Chromium conditional fields and saved review rate payload.
+- [ ] Client acceptance on Basha (09:51 arrival, 5-minute grace, Fixed 8: fine 1.84).
+
+247 combined attendance/payroll-report Odoo tests passed on the isolated test DB.

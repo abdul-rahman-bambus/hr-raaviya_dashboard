@@ -106,6 +106,16 @@
                                     Review each session explicitly; missing halves require a leave decision.
                                 </div>
                             </group>
+                            <group string="Salary Rate Conversion">
+                                <field name="salary_hours_basis"/>
+                                <field name="salary_calculation_hours" invisible="salary_hours_basis != 'fixed'" required="salary_hours_basis == 'fixed'"/>
+                                <div class="text-muted">
+                                    Converts Monthly/Daily salary to per-hour and per-minute rates for fines and salary-based OT.
+                                    Working Schedule uses the date's work sessions, excluding breaks; on dates without sessions,
+                                    it uses the calendar's hours per day (8 hours if unavailable).
+                                    Actual hours, day classification, fixed rates and saved approvals are unchanged.
+                                </div>
+                            </group>
                             <group string="Attendance Day Classification">
                                 <field name="half_day_hours"/>
                                 <field name="full_day_basis"/>
@@ -129,7 +139,7 @@
                                        invisible="fine_calculation_type not in ('fixed', 'fixed_hour')"/>
                                 <div class="text-muted" invisible="fine_calculation_type != 'salary_minute'">
                                     The deduction uses the employee's daily salary divided by
-                                    scheduled working minutes for the attendance date.
+                                    salary calculation hours × 60, using the Salary Rate Conversion setting.
                                 </div>
                             </group>
                         </page>

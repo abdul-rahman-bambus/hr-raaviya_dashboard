@@ -253,6 +253,10 @@ class AttendanceReviewLine(models.Model):
         self.ensure_one()
         values = [(att.id, str(att.check_in), str(att.check_out)) for att in self._review_attendances()]
         values.append(self.employee_id._get_attendance_work_periods(self.date))
+        template = self.employee_id._get_attendance_automation_template(self.date)
+        if template:
+            values.append((template.id, template.salary_hours_basis, template.salary_calculation_hours,
+                           template._salary_calculation_day_hours(self.employee_id, self.date, self.contract_id)))
         values.append(self.employee_id._attendance_exception_components(self.date))
         return hashlib.sha256(repr(values).encode()).hexdigest()
 
