@@ -362,3 +362,20 @@ Installed Chromium verified the warning, no download request/new page, preserved
 web client and wizard, and successful normal Payroll Review and Summary XLSX
 exports. Expected UserError warning logging remains enabled. This does not
 establish customer deployment. Upgrade hr_payslip_excel_report and restart Odoo.
+
+## Salary calculation hours acceptance
+
+- Upgrade Attendance OT/Fine 18.0.3.35.0 and Daily Ops 18.0.1.99.0 together.
+- Check default Working Schedule, fixed 8-hour rate, validation of zero/negative
+  hours, date-specific Friday hours and Sunday fallback.
+- Daily 885, schedule 8h15, late 09:51 against 09:45 with 5-minute grace:
+  one chargeable minute, proposed fine 1.79; Fixed 8 gives 1.84.
+- Verify salary-based 1x/1.5x/2x OT, explicit Hourly rates and fixed amounts.
+- Confirm old approved decisions/finalized salary lines remain saved.
+- Client acceptance is pending; clean test results do not establish live readiness.
+
+Validation for Salary Rate Conversion: 247 Odoo attendance/payroll-report tests
+passed on the isolated raaviya_independent_fresh_test database. Installed Chromium
+verified schedule default, conditional Fixed Hours field, saving 8 hours and the
+dashboard review rates (daily wage 885: 1.84375/minute and 110.625/hour).
+Client testing/deployment remains pending.

@@ -1,5 +1,30 @@
 # Raaviya HR attendance and payroll add-ons
 
+
+## Salary calculation hours (30 October 2026)
+
+Upgrade `bambus_hr_attendance_ot_fine` to **18.0.3.35.0** and
+`bambus_hr_daily_ops` to **18.0.1.99.0**, restart Odoo and reload the browser.
+In Automation Rules > Late & Early Exit > Salary Rate Conversion, select
+**Working Schedule** (default) or **Fixed Hours** and enter e.g. **8**.
+Working Schedule uses that date's assigned work sessions, excluding breaks and
+respecting date/week restrictions. On a date without sessions (e.g. Sunday), it
+uses calendar hours per day, falling back to 8 when unavailable. Fixed Hours must
+be greater than zero and at most 24. It affects Monthly/Daily per-minute fines
+and salary-multiplier fine/OT/holiday review rates, including 1x, 1.5x and 2x.
+Monthly daily salary still uses calendar days in the attendance month. Hourly
+contracts retain their explicit hourly rate. Fixed amounts and fixed per-hour
+rates, raw punches, full/half-day classification, breaks and OT windows remain
+unchanged. Schedule-based salary OT now uses the date's hours rather than a
+calendar-wide average when schedules vary by weekday.
+
+For daily wage 885 and 1 fine minute: schedule 8h15 gives 1.79; fixed 8 gives
+1.84. Thirty OT minutes at fixed 8 yield 55.31 / 82.97 / 110.63 at 1x/1.5x/2x.
+Existing approvals/exclusions and finalized salary lines are snapshots: changing
+this setting does not reprice or invalidate them. Close/reopen unapproved review
+popups to use the new basis; review intentionally and recompute draft payslips
+before exporting changed approved amounts. Never mass-approve to apply a rate.
+
 ## Customer layout update (29 October 2026)
 
 Upgrade `bambus_hr_daily_ops` to **18.0.1.98.0** and

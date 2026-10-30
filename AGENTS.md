@@ -77,6 +77,13 @@ Read the root README and the affected module documentation before changing behav
   approvals and finalized salary lines; new proposals and draft normal pay use
   the calendar-month basis. Client selected this rule on 20 October 2026.
 
+- Salary Rate Conversion on the effective attendance template uses date-specific
+  scheduled work hours by default, or explicitly configured fixed hours (0 < h <= 24).
+  Share this denominator for Monthly/Daily per-minute fine detection and salary
+  multiplier reviews. On special dates without work sessions use calendar hours
+  per day, falling back to 8. Keep Hourly contract rates, fixed rates, attendance
+  classification, actual punches and saved financial snapshots unchanged.
+
 ## Payroll workflow
 
 Use standard Payslip Batches > Generate Payslips, then Payroll Reports > Payslip

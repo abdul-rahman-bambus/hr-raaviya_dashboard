@@ -35,6 +35,25 @@ class AttendanceAutomationTemplate(models.Model):
     )
     employee_count = fields.Integer(compute="_compute_employee_count")
 
+    salary_hours_basis = fields.Selection([
+        ('schedule', 'Working Schedule'),
+        ('fixed', 'Fixed Hours'),
+    ], string='Salary Calculation Hours Basis', required=True, default='schedule',
+       help='Hours used to convert Monthly/Daily salary into per-hour or per-minute '
+            'fines and salary-based overtime. Does not change actual hours or day classification.')
+    salary_calculation_hours = fields.Float(
+        string='Salary Calculation Hours per Day', default=8.0,
+        help='Fixed working hours per day for salary conversion, excluding breaks.')
+
+    def _salary_calculation_day_hours(self, employee, day, contract):
+        self.ensure_one()
+        if self.salary_hours_basis == 'fixed':
+            return self.salary_calculation_hours
+        calendar = contract.resource_calendar_id or employee.resource_calendar_id
+        periods = employee._get_attendance_work_periods(day) if day else []
+        # Non-working dates still need a rate for approved special-day work.
+        return sum(max(end - start, 0.0) for start, end in periods) or calendar.hours_per_day or 8.0
+
     late_enabled = fields.Boolean(string="Late Entry Rule", default=True)
     partial_attendance_salary_treatment = fields.Selection([
         ('thresholds', 'Use Half/Full-Day Thresholds'),
@@ -254,9 +273,12 @@ class AttendanceAutomationTemplate(models.Model):
         "public_holiday_rate", "fine_rate", "hourly_pay_rate", "hourly_wage_hour_limit",
         "overtime_start_offset_minutes", "maximum_overtime_minutes", "half_day_hours",
         "full_day_hours", "overtime_start_hour", "overtime_end_hour",
+        "salary_hours_basis", "salary_calculation_hours",
     )
     def _check_values(self):
         for template in self:
+            if template.salary_hours_basis == 'fixed' and not 0 < template.salary_calculation_hours <= 24:
+                raise ValidationError('Salary calculation hours must be greater than zero and no more than 24.')
             if template.date_from and template.date_to and template.date_to < template.date_from:
                 raise ValidationError("Effective Until cannot be before Effective From.")
             values = (
