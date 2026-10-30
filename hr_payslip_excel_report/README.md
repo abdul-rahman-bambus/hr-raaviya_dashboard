@@ -1,5 +1,16 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.26.0** arranges Payslip Summary into Employee Details, Attendance Days,
+Hours and Salary Amounts, with section bands, wrapped headings, suitable widths
+and frozen headings/employee names. Weekly-off Days and Paid Weekly-off Days sit
+beside each other and remain visible even at zero, alongside Present/Absent Days.
+The duplicate Gross/Total Earnings display is consolidated into Gross Salary.
+Other optional zero columns retain conditional visibility. Amounts, day-credit
+eligibility, filter totals and the detailed Payroll Review layout are unchanged.
+Upgrade and export again; no salary recomputation is required.
+Validation: 49 targeted report tests passed; installed Chromium verified both
+exports, section band/frozen headings, OT/fine columns and both weekly-off counts.
+
 **18.0.4.25.0** adds **Weekly-off Days** to Payslip Summary, including unpaid
 weekly offs for Daily employees. Paid Weekly-off Days retains its separate paid
 credit meaning. Calendar weekly offs are summed across non-overlapping split

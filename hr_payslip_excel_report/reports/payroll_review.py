@@ -217,32 +217,48 @@ class PayrollReviewReport(models.AbstractModel):
                                  rate=row.get('ctc') if wage_type == 'monthly' else row.get('rate')))
         rows.sort(key=lambda row: ((row.get('name') or '').casefold(), row['employee_id'], row['salary_type']))
         rows = [dict(row, number=index) for index, row in enumerate(rows, 1)]
-        columns = LEGACY[:2] + [('salary_type', 'Salary Type', 'text'),
-                                ('rate', 'Contract Salary / Rate', 'money')] + LEGACY[3:]
+        definitions = {key: (label, kind) for key, label, kind in LEGACY}
+        definitions.update(salary_type=('Salary Type', 'text'),
+                           rate=('Contract Salary / Rate', 'money'), earnings=('Gross Salary', 'money'))
+        order = ('number', 'name', 'salary_type', 'rate',
+                 'present', 'absent', 'weekly_off', 'weekly_off_leave', 'holidays', 'paid_holiday_days',
+                 'weekly_off_worked', 'holiday_worked', 'payable_days',
+                 'worked_hours', 'ot_hours', 'fine_hours', 'regularized_hours',
+                 'basic', 'overtime', 'public_holiday_pay', 'allowances', 'earnings', 'fine', 'deductions', 'net')
+        columns = [(key, *definitions[key]) for key in order]
         sheet = self._write_sheet(workbook, 'Payslip Summary', columns, rows, wizard,
                                   totals=True, empty_totals=True, decimal_hours=True)
         sheet.write_comment(5, 3, 'Monthly: contract salary per month. Hourly: rate per hour. '
                                   'Daily: wage per day. Mixed units are not totalled. '
                                   'Varying rates remain blank; see Payroll Review.')
-        sheet.write_comment(5, len(columns) - 1, 'Weekly-off calendar dates in the report period, paid or unpaid. '
+        sheet.write_comment(5, order.index('weekly_off'), 'Weekly-off calendar dates in the report period, paid or unpaid. '
                             'Public holidays take precedence on overlapping dates. '
                             'Paid Weekly-off Days separately shows normal paid credits; do not add both counts.')
-        sheet.write_comment(5, 7, 'Normal weekly-off credits, including worked dates. Approved work is paid separately; no leave balance is created.')
+        sheet.write_comment(5, order.index('weekly_off_leave'), 'Normal weekly-off credits, including worked dates. Approved work is paid separately; no leave balance is created.')
         sheet.write_string(3, 0, 'One row per employee and salary type. Exact duplicate payslips are resolved; overlapping periods need review.')
-        sheet.write_string(4, 0, f"All salary types. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")
+        band_format = workbook.add_format({'bold': True, 'bg_color': '#24485A', 'font_color': '#FFFFFF',
+                                           'align': 'center', 'valign': 'vcenter'})
+        for start, end, label in [(0, 3, 'EMPLOYEE DETAILS'), (4, 12, 'ATTENDANCE DAYS'),
+                                  (13, 16, 'HOURS'), (17, 24, 'SALARY AMOUNTS')]:
+            sheet.merge_range(4, start, 4, end, label, band_format)
+        sheet.set_row(4, 24)
+        sheet.freeze_panes(6, 2)
+        sheet.repeat_rows(4, 5)
 
         # Keep the source cells/formulas available, but simplify the default view.
         # Unknown values are not zeros: leave those columns visible for review.
         essential = {'number', 'name', 'salary_type', 'rate', 'earnings', 'payable_days', 'basic', 'net',
-                     'ot_hours', 'overtime', 'fine_hours', 'fine'}
+                     'ot_hours', 'overtime', 'fine_hours', 'fine', 'present', 'absent',
+                     'weekly_off', 'weekly_off_leave'}
         for column, (key, label, kind) in enumerate(columns):
-            if key not in essential and rows and all(row.get(key) == 0 for row in rows):
-                sheet.set_column(column, column, 18, None, {'hidden': True})
+            hidden = key not in essential and bool(rows) and all(row.get(key) == 0 for row in rows)
+            width = 8 if key == 'number' else 28 if key == 'name' else 16 if kind != 'money' else 21
+            sheet.set_column(column, column, width, None, {'hidden': hidden})
             if 'hours' in key:
                 sheet.write_comment(5, column, 'Hours are decimal hours: 0.5 means 30 minutes. Blank means unavailable.')
             elif any(row.get(key) is None for row in rows):
                 sheet.write_comment(5, column, 'Blank means unavailable, not zero. Check Payroll Review.')
-        for row_number in (2, 3, 4):
+        for row_number in (2, 3):
             sheet.set_row(row_number, None, None, {'hidden': True})
         warnings = []
         if data['excluded_count']:
