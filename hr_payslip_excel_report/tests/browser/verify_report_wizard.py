@@ -154,12 +154,12 @@ def main():
                 text = archive.read('xl/sharedStrings.xml')
                 for label in (b'Salary Type', b'Contract Salary / Rate', b'Paid Weekly-off Days', b'Absent Days',
                               b'Public Holiday Days', b'Public Holiday Worked Days', b'Public Holiday Pay',
-                              b'OT Allowance Amount', b'Fine Deductions Amount', b'Total Earnings'):
+                              b'OT Allowance Amount', b'Fine Deductions Amount', b'Gross Salary'):
                     assert label in text, label
                 sheet = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
                 assert sheet.find("s:sheetData/s:row/s:c[@r='B8']", namespace) is None
-                assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace) is None
-                for row_number in (4, 5):
+                assert sheet.find('s:sheetViews/s:sheetView/s:pane', namespace).get('topLeftCell') == 'C7'
+                for row_number in (4,):
                     assert sheet.find(f"s:sheetData/s:row[@r='{row_number}']", namespace).get('hidden') == '1'
                 # This fixture has a real duplicate/uncomputed salary warning.
                 assert sheet.find("s:sheetData/s:row[@r='3']", namespace).get('hidden') != '1'
@@ -167,11 +167,13 @@ def main():
                 def hidden(column):
                     return any(int(item.get('min')) <= column <= int(item.get('max')) and item.get('hidden') == '1'
                                for item in sheet.findall('s:cols/s:col', namespace))
-                assert not hidden(14), 'OT hours must remain visible even when zero'
-                assert not hidden(17), 'OT amount must remain visible even when zero'
-                assert not hidden(15), 'Fine hours must remain visible even when zero'
-                assert not hidden(21), 'Fine deduction must remain visible even when zero'
-                assert not hidden(5), 'Gross Salary must remain visible'
+                assert not hidden(15), 'OT hours must remain visible even when zero'
+                assert not hidden(19), 'OT amount must remain visible even when zero'
+                assert not hidden(16), 'Fine hours must remain visible even when zero'
+                assert not hidden(23), 'Fine deduction must remain visible even when zero'
+                assert not hidden(22), 'Gross Salary must remain visible'
+                assert not hidden(7) and not hidden(8), 'Calendar and paid weekly-off columns must remain visible'
+                assert sheet.find("s:sheetData/s:row[@r='5']", namespace).get('hidden') != '1'
             assert page.evaluate('originalWebClient.isConnected')
             assert not errors, errors
             print('Empty Summary warns in Odoo without navigation/download; standard batch UI, report filters, both XLSX exports and persistent web client: passed')

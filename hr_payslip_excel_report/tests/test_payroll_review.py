@@ -431,8 +431,12 @@ class TestPayrollReview(TransactionCase):
         self.assertEqual((row['present'], row['absent'], row['weekly_off'], row['weekly_off_leave']), (1, 26, 4, 0))
         sheet, strings, ns, hidden = self._compact_summary_sheet(data)
         self.assertFalse(hidden('Weekly-off Days'))
-        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='Z7']/s:v", ns).text, '4')
-        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='Z9']/s:f", ns).text, 'SUBTOTAL(109,Z7:Z7)')
+        self.assertFalse(hidden('Paid Weekly-off Days'))
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='H7']/s:v", ns).text, '0')
+        self.assertEqual(sheet.find('s:sheetViews/s:sheetView/s:pane', ns).get('topLeftCell'), 'C7')
+        self.assertNotEqual(sheet.find("s:sheetData/s:row[@r='5']", ns).get('hidden'), '1')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='G7']/s:v", ns).text, '4')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='G9']/s:f", ns).text, 'SUBTOTAL(109,G7:G7)')
         first = dict(data['register'][0], date_to='2026-10-15', weekly_off=2)
         second = dict(first, date_from='2026-10-16', date_to='2026-10-31')
         refund = dict(first, credit='Yes')
@@ -460,16 +464,16 @@ class TestPayrollReview(TransactionCase):
             for label in ('Salary Type', 'Contract Salary / Rate', 'Gross Salary', 'Payable Days', 'Present Days',
                           'Paid Weekly-off Days', 'Absent Days', 'Public Holiday Days',
                           'Public Holiday Worked Days', 'OT Allowance Amount', 'Public Holiday Pay',
-                          'Total Earnings', 'Fine Deductions Amount', 'Net Pay Amount'):
+                          'Gross Salary', 'Fine Deductions Amount', 'Net Pay Amount'):
                 self.assertIn(label, headers)
             values = {cell.attrib['r']: float(cell.find('s:v', ns).text)
                       for cell in sheet.findall("s:sheetData/s:row[@r='7']/s:c", ns)
                       if cell.attrib.get('t') != 's' and cell.find('s:v', ns) is not None}
             self.assertEqual(values['D7'], 9000)
-            self.assertEqual(values['N7'], 1.75)
-            self.assertEqual(values['O7'], .25)
-            self.assertEqual(values['R7'], 200)
-            self.assertIsNone(sheet.find('s:sheetViews/s:sheetView/s:pane', ns))
+            self.assertEqual(values['O7'], 1.75)
+            self.assertEqual(values['P7'], .25)
+            self.assertEqual(values['T7'], 200)
+            self.assertEqual(sheet.find('s:sheetViews/s:sheetView/s:pane', ns).get('topLeftCell'), 'C7')
 
     def test_summary_does_not_invent_monthly_ctc_for_hourly_contract(self):
         self.contract.write({'wage_type': 'hourly', 'hourly_rate': 100})
@@ -503,10 +507,10 @@ class TestPayrollReview(TransactionCase):
                 cells = {cell.attrib['r']: cell for cell in detail.findall(f"s:sheetData/s:row[@r='{index}']/s:c", ns)}
                 salary_type = strings[int(cells[f'C{index}'].find('s:v', ns).text)]
                 actual[salary_type] = float(cells[f'D{index}'].find('s:v', ns).text)
-                self.assertEqual(float(cells[f'W{index}'].find('s:v', ns).text), 8700)
+                self.assertEqual(float(cells[f'Y{index}'].find('s:v', ns).text), 8700)
             self.assertEqual(actual, {'Monthly': 9000, 'Hourly': 100, 'Daily': 500})
-            total = detail.find("s:sheetData/s:row/s:c[@r='W11']", ns)
-            self.assertEqual(total.find('s:f', ns).text, 'SUBTOTAL(109,W7:W9)')
+            total = detail.find("s:sheetData/s:row/s:c[@r='Y11']", ns)
+            self.assertEqual(total.find('s:f', ns).text, 'SUBTOTAL(109,Y7:Y9)')
             self.assertEqual(float(total.find('s:v', ns).text), 26100)
             self.assertIsNone(detail.find("s:sheetData/s:row/s:c[@r='D11']", ns))
 
@@ -516,7 +520,7 @@ class TestPayrollReview(TransactionCase):
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
             ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
             detail = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
-            net = detail.find("s:sheetData/s:row/s:c[@r='W7']", ns)
+            net = detail.find("s:sheetData/s:row/s:c[@r='Y7']", ns)
             self.assertTrue(net is None or net.find('s:v', ns) is None)
 
     def test_one_employee_with_two_salary_types_stays_in_both_correct_groups(self):
@@ -650,7 +654,7 @@ class TestPayrollReview(TransactionCase):
         with zipfile.ZipFile(io.BytesIO(wizard._generate_xlsx())) as archive:
             ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'}
             monthly = ET.fromstring(archive.read('xl/worksheets/sheet1.xml'))
-            value = monthly.find("s:sheetData/s:row/s:c[@r='T7']/s:v", ns)
+            value = monthly.find("s:sheetData/s:row/s:c[@r='U7']/s:v", ns)
             self.assertEqual(float(value.text), 500)
             strings = archive.read('xl/sharedStrings.xml')
             self.assertIn(b'Other Allowances', strings)
@@ -685,13 +689,13 @@ class TestPayrollReview(TransactionCase):
             self.assertTrue(hidden(label), label)
         for label in ('Staff Name', 'Salary Type', 'Contract Salary / Rate', 'Basic',
                       'Gross Salary', 'Net Pay Amount', 'Payable Days', 'Overtime Hours', 'OT Allowance Amount',
-                      'Fine Hours', 'Fine Deductions Amount'):
+                      'Fine Hours', 'Fine Deductions Amount', 'Weekly-off Days', 'Paid Weekly-off Days'):
             self.assertFalse(hidden(label), label)
-        for index in (3, 4, 5):
+        for index in (3, 4):
             self.assertEqual(sheet.find(f"s:sheetData/s:row[@r='{index}']", ns).get('hidden'), '1')
         # Zero-value cells and filter-aware totals are preserved, not deleted.
-        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='U7']/s:v", ns).text, '0')
-        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='U9']/s:f", ns).text, 'SUBTOTAL(109,U7:U7)')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='W7']/s:v", ns).text, '0')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='W9']/s:f", ns).text, 'SUBTOTAL(109,W7:W7)')
 
     def test_compact_summary_keeps_negative_cancelling_and_unknown_columns_visible(self):
         self.finance(self.slip())
@@ -706,7 +710,7 @@ class TestPayrollReview(TransactionCase):
         self.assertFalse(hidden('Public Holiday Days'), 'Unknown is not zero')
         self.assertFalse(hidden('Public Holiday Pay'), 'One nonzero employee keeps the column visible')
         self.assertTrue(hidden('Total Work Hours'))
-        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='T10']/s:v", ns).text, '0.0')
+        self.assertEqual(sheet.find("s:sheetData/s:row/s:c[@r='U10']/s:v", ns).text, '0.0')
 
     def test_compact_summary_shows_real_review_warnings_without_routine_notes(self):
         self.finance(self.slip())
