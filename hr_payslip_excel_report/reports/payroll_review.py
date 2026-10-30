@@ -68,7 +68,8 @@ LEGACY = [('number', 'S.No', 'number'), ('name', 'Staff Name', 'text'),
           ('earnings', 'Total Earnings', 'money'), ('allowances', 'Other Allowances', 'money'),
           ('fine', 'Fine Deductions Amount', 'money'), ('deductions', 'Total Deductions', 'money'),
           ('net', 'Net Pay Amount', 'money'), ('paid_holiday_days', 'Paid Public Holiday Days', 'number'),
-          ('regularized_hours', 'Reviewed Exception Hours', 'number')]
+          ('regularized_hours', 'Reviewed Exception Hours', 'number'),
+          ('weekly_off', 'Weekly-off Days', 'number')]
 
 
 
@@ -170,7 +171,7 @@ class PayrollReviewReport(models.AbstractModel):
             grouped[row['employee_id']].append(row)
         output = []
         salary_keys = ('basic', 'all_allowances', 'earnings', 'deductions', 'net', 'overtime', 'fine', 'public_holiday_pay')
-        attendance_keys = ('payable_days', 'present', 'weekly_off_leave', 'paid_holiday_days', 'absent', 'holidays', 'weekly_off_worked', 'holiday_worked',
+        attendance_keys = ('payable_days', 'present', 'weekly_off', 'weekly_off_leave', 'paid_holiday_days', 'absent', 'holidays', 'weekly_off_worked', 'holiday_worked',
                            'worked_hours', 'ot_hours', 'fine_hours', 'regularized_hours')
         for employee_rows in grouped.values():
             merged = dict(employee_rows[0])
@@ -223,6 +224,9 @@ class PayrollReviewReport(models.AbstractModel):
         sheet.write_comment(5, 3, 'Monthly: contract salary per month. Hourly: rate per hour. '
                                   'Daily: wage per day. Mixed units are not totalled. '
                                   'Varying rates remain blank; see Payroll Review.')
+        sheet.write_comment(5, len(columns) - 1, 'Weekly-off calendar dates in the report period, paid or unpaid. '
+                            'Public holidays take precedence on overlapping dates. '
+                            'Paid Weekly-off Days separately shows normal paid credits; do not add both counts.')
         sheet.write_comment(5, 7, 'Normal weekly-off credits, including worked dates. Approved work is paid separately; no leave balance is created.')
         sheet.write_string(3, 0, 'One row per employee and salary type. Exact duplicate payslips are resolved; overlapping periods need review.')
         sheet.write_string(4, 0, f"All salary types. Duplicate payslips excluded: {data['excluded_count']}. Selection details are in Payroll Review.")

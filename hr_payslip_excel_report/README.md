@@ -1,5 +1,14 @@
 # Payroll reports: standard batch workflow
 
+**18.0.4.25.0** adds **Weekly-off Days** to Payslip Summary, including unpaid
+weekly offs for Daily employees. Paid Weekly-off Days retains its separate paid
+credit meaning. Calendar weekly offs are summed across non-overlapping split
+payslips, counted once for repeated/refund periods and left blank for ambiguous
+overlaps. Public-holiday precedence is retained. Zero-only optional columns keep
+their visibility rules. Upgrade and export again; saved salary is unchanged.
+Validation: 49 targeted report tests passed, including Daily October counts
+1 present + 26 absent + 4 weekly offs, split/refund periods and overlap ambiguity.
+
 **18.0.4.24.0** always displays **Overtime Hours**, **Fine Hours**,
 **OT Allowance Amount** and **Fine Deductions Amount** in Payslip Summary,
 including zero values. The amount labels replace System Overtime and System Fine.
