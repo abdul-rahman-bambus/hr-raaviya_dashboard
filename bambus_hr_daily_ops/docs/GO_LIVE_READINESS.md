@@ -386,3 +386,8 @@ installed on raaviya_independent_fresh_test. Installed Chromium exercised the re
 face sync create/checkout/split-session route (three visible punches, three retained
 backend audits) and a manual dashboard edit (exactly one visible HR Update).
 No client database was changed; staging acceptance remains pending.
+
+Legacy audit hotfix validation (18.0.1.101.0): reproduced the original list.filtered
+AttributeError, then passed 252 attendance/payroll-report tests. Installed Chromium
+confirmed routine kiosk logs, one manual update and a successful real dashboard
+request containing an ambiguous legacy audit. No client data changed.

@@ -465,3 +465,11 @@ pagination, search, pending review navigation and thumbnails retain their behavi
 - [x] Approval/reapproval events remain visible.
 - [x] Legacy photo-correlated capture duplicates hidden; genuine corrections retained.
 - [ ] Client validation of kiosk photos and manual HR edit on staging.
+
+### Legacy audit list regression — 18.0.1.101.0
+
+- [x] Reproduced the reported list.filtered AttributeError before the fix.
+- [x] Legacy audit helper accepts recordsets, lists and empty lists.
+- [x] Real dashboard with photo-correlated legacy check-in/checkout suppresses
+  routine duplicates and retains the manual correction.
+- [ ] Staging/live acceptance after upgrade and all-worker restart.
