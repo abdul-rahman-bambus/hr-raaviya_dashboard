@@ -379,3 +379,10 @@ passed on the isolated raaviya_independent_fresh_test database. Installed Chromi
 verified schedule default, conditional Fixed Hours field, saving 8 hours and the
 dashboard review rates (daily wage 885: 1.84375/minute and 110.625/hour).
 Client testing/deployment remains pending.
+
+
+Validation: 252 Odoo attendance/payroll-report tests passed with Face Attendance
+installed on raaviya_independent_fresh_test. Installed Chromium exercised the real
+face sync create/checkout/split-session route (three visible punches, three retained
+backend audits) and a manual dashboard edit (exactly one visible HR Update).
+No client database was changed; staging acceptance remains pending.

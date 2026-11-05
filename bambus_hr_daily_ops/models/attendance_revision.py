@@ -47,7 +47,18 @@ class AttendanceRevision(models.Model):
                 snapshots[(employee_id, day)] = (review, deepcopy(self._revision_proposal(review)))
         return snapshots
 
-    def _revision_finish(self, keys, snapshots, previous, current, operation):
+    def _revision_event_source(self, values):
+        source = self.env.context.get('bambus_attendance_event_source')
+        if source in ('manual', 'routine'):
+            return source
+        # Explicit modes describe this operation; never infer an HR edit's
+        # source from the modes already stored on a kiosk-created attendance.
+        modes = [values.get(mode) for field, mode in (('check_in', 'in_mode'), ('check_out', 'out_mode'))
+                 if field in values]
+        return 'routine' if modes and all(mode in ('kiosk', 'systray', 'technical', 'auto_check_out')
+                                         for mode in modes) else 'manual'
+
+    def _revision_finish(self, keys, snapshots, previous, current, operation, sources=None):
         if previous == current:
             return
         Audit = self.env['bambus.hr.attendance.time.audit'].sudo()
@@ -57,13 +68,15 @@ class AttendanceRevision(models.Model):
             new = next((row for row in current if row['employee_id'] == employee_id), {})
             before_rows = [row for row in previous if row['employee_id'] == employee_id]
             after_rows = [row for row in current if row['employee_id'] == employee_id]
+            event_sources = {(sources or {}).get(row['id'], 'manual') for row in before_rows + after_rows}
+            event_source = event_sources.pop() if len(event_sources) == 1 else 'manual'
             details = reason
             if max(len(before_rows), len(after_rows)) > 1:
                 details += ' | Before: ' + str(before_rows) + ' | After: ' + str(after_rows)
             Audit.create({'employee_id': employee_id, 'date': day, 'adjustment_type': 'attendance',
                 'previous_check_in': old.get('check_in'), 'previous_check_out': old.get('check_out'),
                 'check_in': new.get('check_in'), 'check_out': new.get('check_out'),
-                'updated_by_id': self.env.uid, 'change_details': details,
+                'updated_by_id': self.env.uid, 'event_source': event_source, 'change_details': details,
                 'punch_changes': {'operation': operation,
                     'before': [row for row in previous if row['employee_id'] == employee_id],
                     'after': [row for row in current if row['employee_id'] == employee_id]}})
@@ -78,7 +91,7 @@ class AttendanceRevision(models.Model):
                 hours = max(after[kind]['hours'], 0)
                 Audit.create({'employee_id': employee_id, 'date': day, 'adjustment_type': kind,
                     'previous_hours': saved['hours'], 'adjusted_hours': hours,
-                    'updated_by_id': self.env.uid, 'previous_review': saved,
+                    'updated_by_id': self.env.uid, 'event_source': event_source, 'previous_review': saved,
                     'current_proposal': after[kind],
                     'change_details': _('%s requires re-review after punch correction. Previous %s: %.2f; new calculated proposal: %.2f. Previous reviewer: %s. Reason: %s',
                         kind.title(), saved['state'], saved['amount'], after[kind]['amount'], saved['reviewer'] or '-', reason)})
@@ -108,7 +121,8 @@ class AttendanceRevision(models.Model):
             keys |= self.new(dict(defaults, **vals))._revision_keys()
         snapshots = self._revision_before(keys)
         records = super().create(vals_list)
-        records._revision_finish(keys | records._revision_keys(), snapshots, [], records._revision_punches(), 'created')
+        records._revision_finish(keys | records._revision_keys(), snapshots, [], records._revision_punches(), 'created',
+                                 {record.id: self._revision_event_source(values) for record, values in zip(records, vals_list)})
         return records
 
     def write(self, vals):
@@ -121,7 +135,8 @@ class AttendanceRevision(models.Model):
         snapshots = self._revision_before(keys)
         previous = self._revision_punches()
         result = super().write(vals)
-        self._revision_finish(keys | self._revision_keys(), snapshots, previous, self._revision_punches(), 'updated')
+        self._revision_finish(keys | self._revision_keys(), snapshots, previous, self._revision_punches(), 'updated',
+                              {record.id: self._revision_event_source(vals) for record in self})
         return result
 
     def unlink(self):
@@ -174,6 +189,39 @@ class ReviewRevision(models.Model):
 
 class RevisionAudit(models.Model):
     _inherit = 'bambus.hr.attendance.time.audit'
+
+    event_source = fields.Selection([
+        ('legacy', 'Source not recorded'), ('manual', 'Manual HR change'),
+        ('routine', 'Routine punch event'),
+    ], required=True, default='legacy', readonly=True, copy=False)
+
+    def _is_routine_dashboard_event(self, attendances):
+        self.ensure_one()
+        if self.event_source == 'routine':
+            return True
+        if self.event_source != 'legacy' or self.adjustment_type != 'attendance':
+            return False
+        # Only suppress an old event when it corroborates a kiosk photo punch
+        # at the same time. Ambiguous historical corrections stay visible.
+        changes = self.punch_changes or {}
+        before, after = changes.get('before', []), changes.get('after', [])
+        if len(after) != 1:
+            return False
+        old, new = before[0] if len(before) == 1 else {}, after[0]
+        if changes.get('operation') == 'created' and not before:
+            field, mode, photo = 'check_in', 'in_mode', 'recognized_face_checkin'
+        elif (changes.get('operation') == 'updated' and len(before) == 1
+              and old.get('id') == new.get('id') and old.get('employee_id') == new.get('employee_id')
+              and old.get('check_in') == new.get('check_in') and not old.get('check_out')):
+            field, mode, photo = 'check_out', 'out_mode', 'recognized_face_checkout'
+        else:
+            return False
+        punch_time = fields.Datetime.to_datetime(new.get(field))
+        attendance = attendances.filtered(lambda row: row.id == new.get('id'))[:1]
+        return bool(attendance and punch_time and attendance[field] == punch_time
+                    and attendance[mode] == 'kiosk' and photo in attendance._fields
+                    and attendance.with_context(bin_size=True)[photo]
+                    and abs((self.create_date - punch_time).total_seconds()) <= 300)
 
     previous_review = fields.Json(readonly=True, copy=False)
     current_proposal = fields.Json(readonly=True, copy=False)

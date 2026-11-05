@@ -160,7 +160,8 @@ class PortalCalendar(http.Controller):
         if current_employee and not has_explicit_company:
             company = current_employee.company_id.sudo()
 
-        Attendance = request.env["hr.attendance"].sudo().with_company(company)
+        Attendance = request.env["hr.attendance"].sudo().with_company(company).with_context(
+            bambus_attendance_event_source="routine")
 
         employees = kw.get("employees") or []
         for employee_data in employees:

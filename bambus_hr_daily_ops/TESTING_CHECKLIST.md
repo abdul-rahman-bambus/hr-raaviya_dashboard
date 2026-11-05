@@ -454,3 +454,14 @@ pagination, search, pending review navigation and thumbnails retain their behavi
 - [ ] Client acceptance on Basha (09:51 arrival, 5-minute grace, Fixed 8: fine 1.84).
 
 247 combined attendance/payroll-report Odoo tests passed on the isolated test DB.
+
+### Kiosk versus manual attendance logs
+
+- [x] Routine kiosk check-in/out and split sessions show one log per punch event.
+- [x] Backend routine audits retained; mixed bulk creation keeps manual events.
+- [x] Manual edit of an existing kiosk punch produces one HR update.
+- [x] Refresh/no-op does not add logs.
+- [x] Routine-source corrections still invalidate affected approvals and block draft compute.
+- [x] Approval/reapproval events remain visible.
+- [x] Legacy photo-correlated capture duplicates hidden; genuine corrections retained.
+- [ ] Client validation of kiosk photos and manual HR edit on staging.
