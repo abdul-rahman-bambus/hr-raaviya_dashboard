@@ -11,6 +11,11 @@ Read the root README and the affected module documentation before changing behav
 - `bambus.attendance.day.review` stores independent employee/date/company HR
   decisions. Current times/hours, contract and leave are non-stored computations.
   There is no parent sheet. Opening a dashboard must not create review records.
+- Dashboard Logs show routine kiosk/photo punch events once, and expose manual
+  time edits and HR financial decisions. Keep all underlying immutable audits.
+  Source tagging/filtering must never bypass detection, correction-triggered
+  re-review or payroll guards. Editing a kiosk-created punch manually is manual;
+  do not infer an edit source from the record's stored original kiosk mode.
 - Dashboard time edits write real punches and invoke normal detection hooks.
   Preserve intermediate split sessions/lunch gaps; use the pencil list to remove
   punches. Status edits must not approve money or erase saved adjustments.

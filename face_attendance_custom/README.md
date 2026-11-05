@@ -2,6 +2,15 @@
 
 This module adds face-attendance data, attendance routes and employee live maps.
 
+## Routine kiosk audit source — 18.0.0.3
+
+The face-attendance sync route tags its attendance create/checkout writes as routine
+punches, including requests without in/out mode metadata. With Daily Ops
+18.0.1.100.0, the dashboard avoids duplicate HR Update entries while preserving
+kiosk/photo events and the full backend audit. Detection and financial re-review
+remain enabled; no audit bypass context is used. Existing authentication, company
+checks and idempotent client-ID matching are unchanged.
+
 ## Missing map assets fix — 18.0.0.2
 
 The backend manifest introduced in commit 51eed1f referenced local Leaflet and

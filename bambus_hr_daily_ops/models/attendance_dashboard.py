@@ -402,6 +402,8 @@ class AttendanceDashboard(models.AbstractModel):
             ], order="create_date, id")
             logged_adjustment_types = set(hr_updates.mapped("adjustment_type"))
             for update in hr_updates:
+                if update._is_routine_dashboard_event(employee_attendances):
+                    continue
                 adjusted_times = []
                 if update.adjustment_type == "attendance":
                     if update.previous_check_in or update.check_in:

@@ -148,6 +148,87 @@ class TestIndependentAttendance(TransactionCase):
         self.assertEqual((review.fine_state, review.fine_amount), ('approved', 100))
         self.assertEqual((review.overtime_state, review.overtime_amount), ('approved', 120))
 
+    def test_routine_kiosk_audits_are_retained_but_not_duplicated_in_logs(self):
+        employee, contract = self.person()
+        am = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 9, 45), 'in_mode': 'kiosk'})
+        am.write({'check_out': datetime(2026, 10, 22, 14), 'out_mode': 'kiosk'})
+        self.env['hr.attendance'].with_context(bambus_attendance_event_source='routine').create({
+            'employee_id': employee.id, 'check_in': datetime(2026, 10, 22, 14, 45), 'in_mode': 'kiosk'})
+        audits = self.env['bambus.hr.attendance.time.audit'].search([('employee_id', '=', employee.id)])
+        self.assertEqual(len(audits), 3)
+        self.assertEqual(set(audits.mapped('event_source')), {'routine'})
+        logs = self.row(employee)['logs']
+        self.assertEqual(len(logs), 3)
+        self.assertFalse(any(log['type'] == 'hr_update' for log in logs))
+        # A manual edit to a kiosk-created record must still be visible.
+        am.write({'check_out': datetime(2026, 10, 22, 13, 55)})
+        manual = [log for log in self.row(employee)['logs'] if log['type'] == 'hr_update']
+        self.assertEqual(len(manual), 1)
+        self.assertIn('1:55', manual[0]['details'])
+        count = len(audits) + 1
+        self.row(employee)
+        self.assertEqual(self.env['bambus.hr.attendance.time.audit'].search_count([('employee_id', '=', employee.id)]), count)
+
+    def test_mixed_batch_punch_sources_do_not_hide_manual_creation(self):
+        kiosk, contract = self.person()
+        manual, contract = self.person()
+        self.env['hr.attendance'].create([
+            {'employee_id': kiosk.id, 'check_in': datetime(2026, 10, 22, 9, 45), 'in_mode': 'kiosk'},
+            {'employee_id': manual.id, 'check_in': datetime(2026, 10, 22, 9, 45)}])
+        self.assertFalse(any(item['type'] == 'hr_update' for item in self.row(kiosk)['logs']))
+        self.assertEqual(len([item for item in self.row(manual)['logs'] if item['type'] == 'hr_update']), 1)
+
+    def test_routine_source_does_not_bypass_financial_rereview(self):
+        employee, contract, am, pm, review = self.revision_case()
+        am.with_context(bambus_attendance_event_source='routine').write({'check_in': datetime(2026, 10, 22, 9, 45)})
+        self.assertTrue(review.fine_re_review_required)
+        self.assertEqual(review.fine_state, 'submitted')
+        audit = self.env['bambus.hr.attendance.time.audit'].search([
+            ('employee_id', '=', employee.id), ('adjustment_type', '=', 'fine'),
+            ('event_source', '=', 'routine')], order='id desc', limit=1)
+        self.assertEqual(audit.previous_review['amount'], 100)
+        self.assertFalse(any(item['id'] == 'hr-%s' % audit.id for item in self.row(employee)['logs']))
+        with self.assertRaises(UserError):
+            self.slip(employee, contract)
+        payload = self.service.get_dashboard_review(employee.id, self.day)
+        self.env['bambus.hr.attendance.review.wizard'].browse(payload['wizard_id']).action_save()
+        self.assertFalse(review.fine_re_review_required)
+        self.assertTrue(any('re-review completed' in item.get('details', '') for item in self.row(employee)['logs']))
+
+    def test_legacy_kiosk_photo_audit_dedup_keeps_real_corrections(self):
+        import base64
+        import io
+        from PIL import Image
+        if 'recognized_face_checkin' not in self.env['hr.attendance']._fields:
+            self.skipTest('Face Attendance is required for legacy photo correlation')
+        photo = io.BytesIO()
+        Image.new('RGB', (4, 4), 'white').save(photo, format='PNG')
+        employee, contract = self.person()
+        stamp = fields.Datetime.now().replace(microsecond=0)
+        punch = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': stamp, 'in_mode': 'kiosk', 'recognized_face_checkin': base64.b64encode(photo.getvalue())})
+        audit = self.env['bambus.hr.attendance.time.audit'].create({
+            'employee_id': employee.id, 'date': self.day, 'adjustment_type': 'attendance',
+            'create_date': stamp, 'event_source': 'legacy',
+            'punch_changes': {'operation': 'created', 'before': [], 'after': punch._revision_punches()}})
+        self.assertTrue(audit._is_routine_dashboard_event(punch))
+        old = dict(punch._revision_punches()[0], check_in='2026-10-22 09:51:00')
+        manual = self.env['bambus.hr.attendance.time.audit'].create({
+            'employee_id': employee.id, 'date': self.day, 'adjustment_type': 'attendance',
+            'create_date': stamp, 'event_source': 'legacy',
+            'punch_changes': {'operation': 'updated', 'before': [old], 'after': punch._revision_punches()}})
+        self.assertFalse(manual._is_routine_dashboard_event(punch))
+        from datetime import timedelta
+        previous = punch._revision_punches()
+        punch.write({'check_out': stamp + timedelta(minutes=1), 'out_mode': 'kiosk',
+                     'recognized_face_checkout': base64.b64encode(photo.getvalue())})
+        checkout = self.env['bambus.hr.attendance.time.audit'].create({
+            'employee_id': employee.id, 'date': stamp.date(), 'adjustment_type': 'attendance',
+            'event_source': 'legacy',
+            'punch_changes': {'operation': 'updated', 'before': previous, 'after': punch._revision_punches()}})
+        self.assertTrue(checkout._is_routine_dashboard_event(punch))
+
     def test_history_models_are_not_registered_and_dashboard_read_creates_no_review(self):
         self.assertNotIn('bambus.hr.attendance.sheet', self.env)
         self.assertNotIn('bambus.hr.attendance.sheet.line', self.env)

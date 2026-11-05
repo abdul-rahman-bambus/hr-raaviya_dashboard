@@ -1,5 +1,25 @@
 # Raaviya HR attendance and payroll add-ons
 
+## Dashboard attendance logs (5 November 2026)
+
+Upgrade `bambus_hr_daily_ops` to **18.0.1.100.0** and
+`face_attendance_custom` to **18.0.0.3**, restart Odoo and refresh the client.
+Normal face/kiosk, systray and automatic punch operations retain backend audits
+but no longer add a second HR Update entry to the dashboard Logs popup. Kiosk
+punch/photo logs remain visible. Manual dashboard edits and native attendance
+entry edits/creation/deletion remain visible, including edits to records originally
+created by a kiosk. Fine/OT approvals, changes, exclusions and completed re-reviews
+remain logged. Source labels affect presentation only: detection, financial
+re-review and draft compute guards continue for every source. Refresh/no-op writes
+create no new audit.
+
+Old audits are never rewritten or deleted. A legacy first-punch/first-checkout audit
+is suppressed only when its source punch, kiosk mode, face photo and timestamp
+(within five minutes of capture) corroborate the existing photo event. Ambiguous
+historical entries remain visible rather than concealing a possible HR correction.
+Mixed bulk operations retain per-record source classification.
+
+
 
 ## Salary calculation hours (30 October 2026)
 
