@@ -91,7 +91,15 @@ def main():
             expect(logs).to_contain_text('Attendance time adjusted')
             assert logs.inner_text().count('via HR Update') == 1, logs.inner_text()
             assert not errors, errors
-            print('PASS: real face kiosk create/checkout/split session retain 3 backend audits and show only 3 punch logs; manual dashboard correction adds exactly one visible HR update.')
+            # A legacy record with no corroborated photo must not crash the list-based
+            # dashboard caller or be silently hidden as a routine event.
+            legacy = rpc('bambus.hr.attendance.time.audit', 'create', [{
+                'employee_id': employee, 'date': '2026-10-22', 'adjustment_type': 'attendance',
+                'event_source': 'legacy', 'punch_changes': {'operation': 'created', 'before': [],
+                    'after': [{'id': first, 'employee_id': employee,
+                               'check_in': '2026-10-22 09:45:00', 'check_out': False}]}}])
+            assert any(item['id'] == 'hr-%s' % legacy for item in dashboard_row()['logs'])
+            print('PASS: kiosk punches deduplicated, manual edit logged once, legacy audit dashboard request succeeds and ambiguous evidence remains visible.')
         finally:
             for model, record in reversed(created):
                 if model == 'hr.employee':

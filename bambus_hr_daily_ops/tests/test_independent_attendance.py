@@ -209,13 +209,15 @@ class TestIndependentAttendance(TransactionCase):
         punch = self.env['hr.attendance'].create({'employee_id': employee.id,
             'check_in': stamp, 'in_mode': 'kiosk', 'recognized_face_checkin': base64.b64encode(photo.getvalue())})
         audit = self.env['bambus.hr.attendance.time.audit'].create({
-            'employee_id': employee.id, 'date': self.day, 'adjustment_type': 'attendance',
+            'employee_id': employee.id, 'date': stamp.date(), 'adjustment_type': 'attendance',
             'create_date': stamp, 'event_source': 'legacy',
             'punch_changes': {'operation': 'created', 'before': [], 'after': punch._revision_punches()}})
         self.assertTrue(audit._is_routine_dashboard_event(punch))
+        self.assertTrue(audit._is_routine_dashboard_event(list(punch)))
+        self.assertFalse(audit._is_routine_dashboard_event([]))
         old = dict(punch._revision_punches()[0], check_in='2026-10-22 09:51:00')
         manual = self.env['bambus.hr.attendance.time.audit'].create({
-            'employee_id': employee.id, 'date': self.day, 'adjustment_type': 'attendance',
+            'employee_id': employee.id, 'date': stamp.date(), 'adjustment_type': 'attendance',
             'create_date': stamp, 'event_source': 'legacy',
             'punch_changes': {'operation': 'updated', 'before': [old], 'after': punch._revision_punches()}})
         self.assertFalse(manual._is_routine_dashboard_event(punch))
@@ -228,6 +230,14 @@ class TestIndependentAttendance(TransactionCase):
             'event_source': 'legacy',
             'punch_changes': {'operation': 'updated', 'before': previous, 'after': punch._revision_punches()}})
         self.assertTrue(checkout._is_routine_dashboard_event(punch))
+        self.assertTrue(checkout._is_routine_dashboard_event(list(punch)))
+        # Exercise the real dashboard caller, which groups punches into lists.
+        row = next(row for row in self.service.get_attendance_dashboard(str(stamp.date()))[
+            'daily_attendance'] if row['id'] == employee.id)
+        ids = {item['id'] for item in row['logs']}
+        self.assertNotIn('hr-%s' % audit.id, ids)
+        self.assertNotIn('hr-%s' % checkout.id, ids)
+        self.assertIn('hr-%s' % manual.id, ids)
 
     def test_history_models_are_not_registered_and_dashboard_read_creates_no_review(self):
         self.assertNotIn('bambus.hr.attendance.sheet', self.env)

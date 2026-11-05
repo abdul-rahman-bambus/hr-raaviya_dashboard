@@ -217,7 +217,8 @@ class RevisionAudit(models.Model):
         else:
             return False
         punch_time = fields.Datetime.to_datetime(new.get(field))
-        attendance = attendances.filtered(lambda row: row.id == new.get('id'))[:1]
+        # Dashboard grouping uses lists; direct callers may supply recordsets.
+        attendance = next((row for row in attendances if row.id == new.get('id')), None)
         return bool(attendance and punch_time and attendance[field] == punch_time
                     and attendance[mode] == 'kiosk' and photo in attendance._fields
                     and attendance.with_context(bin_size=True)[photo]
