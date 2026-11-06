@@ -424,3 +424,19 @@ Installed Chromium script `tests/browser/verify_open_checkin_late.py` passed:
 minutes before checkout, including the combined review popup. It verifies zero
 worked/early/gap hours and leaves approval untouched. Automated fixtures use an
 isolated test database; local customer acceptance and deployment remain pending.
+
+## Salary history and overview visibility — 6 November 2026
+
+Daily Ops **18.0.1.104.0** passed **40 targeted Odoo tests**, zero failures/errors
+(backend assets and independent attendance), plus all **21 production OWL Chromium
+tests**. Installed Chromium verified the native payslip Revision History button,
+read-only saved 885-to-900 before/after detail, the employee Salary Overview history
+button, explicit confirmed-only summary labels and table geometry at 1920px with
+chatter visible. Header/row bounds stay inside the bordered panel without overlap.
+The scoped margin reset removes native notebook negative margins; filler rows are
+hidden only in this embedded read-only payslip list.
+
+History actions use existing employee revisions across contracts, with normal
+ACL/company rules and no sudo. Existing salary calculation, revision application,
+contracts, approval snapshots and finalized salaries remain unchanged. Upgrade
+Daily Ops and reload; customer local acceptance and deployment remain pending.

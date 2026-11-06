@@ -1,5 +1,22 @@
 # Bambus HR Daily Ops
 
+## Salary revision history and overview — 18.0.1.104.0
+
+Employee > Salary Overview now provides **Salary Revision History**, and payslips
+provide **Revision History**. Both open saved revisions for that employee across
+contracts, with a read-only list and before/after detail showing wage type/rate,
+working schedule, automation template, effective date, source payslip, reason,
+changed-by user and recorded timestamp. The original contract history tab remains.
+Existing revision records are used without rewriting history or salary lines.
+
+The overview table uses normal non-sticky headers inside the embedded list,
+readable row spacing and no filler rows. Overview cards explicitly say **Latest
+Confirmed Net** and **Year-to-date Confirmed Net**; draft payslips remain visible
+in the table but do not contribute to those cards. Confirmed does not mean paid.
+Upgrade Daily Ops to **18.0.1.104.0**, restart and reload the browser. No salary
+recomputation or Face Attendance update is required for this UI change.
+
+
 ## Late arrivals before checkout — 6 November 2026
 
 Upgrade Daily Ops to **18.0.1.103.0** and Attendance OT/Fine to

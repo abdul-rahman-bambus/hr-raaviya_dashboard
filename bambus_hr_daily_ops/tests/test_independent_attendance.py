@@ -249,6 +249,28 @@ class TestIndependentAttendance(TransactionCase):
         self.assertFalse(self.env['bambus.attendance.day.review'].search([
             ('employee_id', '=', employee.id)]))
 
+    def test_salary_revision_history_actions_show_saved_employee_history(self):
+        employee, contract = self.person()
+        other, other_contract = self.person()
+        self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 9, 45), 'check_out': datetime(2026, 10, 22, 18, 45)})
+        slip = self.slip(employee, contract)
+        wizard = self.env['hr.salary.revision.wizard'].with_context(default_payslip_id=slip.id).create({
+            'revised_wage': 900, 'reason': 'History visibility test'})
+        wizard.action_apply_revision()
+        history = contract.salary_revision_ids
+        self.assertEqual((history.previous_wage, history.revised_wage, history.difference), (885, 900, 15))
+        for action in (employee.action_open_salary_revision_history(), slip.action_open_salary_revision_history()):
+            self.assertEqual(action['res_model'], 'hr.salary.revision')
+            self.assertEqual(self.env['hr.salary.revision'].search(action['domain']), history)
+            self.assertEqual([view[1] for view in action['views']], ['list', 'form'])
+            self.assertFalse(action['context']['edit'])
+        self.assertFalse(self.env['hr.salary.revision'].search(other.action_open_salary_revision_history()['domain']))
+        self.assertEqual(employee.latest_payslip_amount, 0)
+        self.assertEqual(employee.year_to_date_pay, 0)
+        self.assertEqual(slip.net_pay, 900)
+        self.assertEqual(history.reason, 'History visibility test')
+
     def test_dashboard_refresh_skips_unchanged_metric_writes_but_reads_policy_changes(self):
         self.template.write({'late_enabled': True, 'late_grace_minutes': 5})
         employee, contract = self.person()

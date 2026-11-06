@@ -63,6 +63,21 @@ class HrEmployee(models.Model):
         )
         return action
 
+    def action_open_salary_revision_history(self):
+        self.ensure_one()
+        self.check_access('read')
+        self.env['hr.salary.revision'].check_access('read')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Salary Revision History - %s', self.name),
+            'res_model': 'hr.salary.revision',
+            'views': [(self.env.ref('bambus_hr_daily_ops.salary_revision_history_list').id, 'list'),
+                      (self.env.ref('bambus_hr_daily_ops.salary_revision_history_form').id, 'form')],
+            'domain': [('employee_id', '=', self.id)],
+            'context': {'create': False, 'edit': False, 'delete': False},
+            'help': _('No salary revisions have been recorded for this employee.'),
+        }
+
     def action_open_monthly_attendance(self):
         self.ensure_one()
         return {

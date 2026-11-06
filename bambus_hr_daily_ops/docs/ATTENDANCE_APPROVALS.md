@@ -413,3 +413,12 @@ produce worked-hour pay, future early-exit/internal-gap or missing-session fines
 Attendance list, dashboard and review use the same components. HR can review the
 known late proposal; checkout preserves an unchanged decision and a changed
 proposal still requires re-review. No automatic financial approval occurs.
+
+## Finding salary revision history (18.0.1.104.0)
+
+Use payslip **Revision History** or employee **Salary Overview > Salary Revision
+History**. Open a row to inspect saved before/after wage terms, effective date,
+reason and recorded user/time. History is read-only in these views and includes
+all of that employee's contracts. The contract Salary Revision History tab remains
+available. Overview summary cards count confirmed payslips only; draft payslips
+remain visible in the table. These views do not recompute or approve payroll.

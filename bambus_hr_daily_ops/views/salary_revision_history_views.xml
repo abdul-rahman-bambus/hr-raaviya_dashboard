@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="salary_revision_history_list" model="ir.ui.view">
+        <field name="name">hr.salary.revision.history.list</field>
+        <field name="model">hr.salary.revision</field>
+        <field name="arch" type="xml">
+            <list string="Salary Revision History" create="0" edit="0" delete="0">
+                <field name="effective_date"/>
+                <field name="previous_wage_type" string="Previous Pay Type" optional="hide"/>
+                <field name="previous_wage" string="Previous Wage / Rate"/>
+                <field name="revised_wage_type" string="Revised Pay Type"/>
+                <field name="revised_wage" string="Revised Wage / Rate"/>
+                <field name="difference" string="Change"/>
+                <field name="percentage_change" widget="percentage" optional="hide"/>
+                <field name="reason"/>
+                <field name="revised_by_id" string="Changed By"/>
+                <field name="revised_on" string="Recorded On" optional="hide"/>
+                <field name="payslip_id" optional="hide"/>
+                <field name="currency_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+    <record id="salary_revision_history_form" model="ir.ui.view">
+        <field name="name">hr.salary.revision.history.form</field>
+        <field name="model">hr.salary.revision</field>
+        <field name="arch" type="xml">
+            <form string="Salary Revision" create="0" edit="0" delete="0">
+                <sheet>
+                    <div class="oe_title"><h1>Salary Revision</h1></div>
+                    <group>
+                        <group><field name="employee_id"/><field name="effective_date"/><field name="payslip_id"/></group>
+                        <group><field name="revised_by_id" string="Changed By"/><field name="revised_on" string="Recorded On"/><field name="reason"/></group>
+                    </group>
+                    <group>
+                        <group string="Before Revision">
+                            <field name="source_contract_id" string="Contract"/>
+                            <field name="previous_wage_type" string="Pay Type"/>
+                            <field name="previous_wage" string="Wage / Rate"/>
+                            <field name="previous_calendar_id" string="Working Schedule"/>
+                            <field name="previous_automation_template_id" string="Automation Template"/>
+                        </group>
+                        <group string="After Revision">
+                            <field name="revised_contract_id" string="Contract"/>
+                            <field name="revised_wage_type" string="Pay Type"/>
+                            <field name="revised_wage" string="Wage / Rate"/>
+                            <field name="revised_calendar_id" string="Working Schedule"/>
+                            <field name="revised_automation_template_id" string="Automation Template"/>
+                        </group>
+                    </group>
+                    <group string="Wage / Rate Change"><field name="difference"/><field name="percentage_change" widget="percentage"/></group>
+                    <field name="currency_id" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="payslip_salary_revision_history_button" model="ir.ui.view">
+        <field name="name">hr.payslip.salary.revision.history.button</field>
+        <field name="model">hr.payslip</field>
+        <field name="inherit_id" ref="custom_hr_payroll.inherit_view_hr_payslip_form"/>
+        <field name="arch" type="xml">
+            <button name="action_open_salary_revision" position="after">
+                <button name="action_open_salary_revision_history" type="object"
+                        string="Revision History" icon="fa-history" groups="hr.group_hr_user"/>
+            </button>
+        </field>
+    </record>
+</odoo>
