@@ -213,6 +213,10 @@ appear in customer logs; a smaller payroll-only registry does not cover them.
 - Include missing whole sessions in enabled late/early/internal-gap proposals on
   attended dates. Do not create leave, approve money automatically, generate an
   absence fine, or count only open/zero/outside-schedule punches as attended.
+- An open punch may expose known late arrival after session grace without granting
+  worked hours/day pay. Never forecast its checkout, early exit, internal gaps or
+  missing whole sessions. Store whole-day fine keys and session keys consistently
+  so attendance, dashboard and review agree; retain normal financial re-review.
 - Preserve Hourly pay, effective-template/contract/company boundaries, validated
   leave fractions, special-date credits/withholding and separately approved OT.
   No duplicate attendance credit for leave time. Keep saved fine snapshots even

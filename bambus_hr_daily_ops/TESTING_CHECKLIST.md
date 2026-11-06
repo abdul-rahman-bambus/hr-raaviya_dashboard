@@ -491,3 +491,18 @@ Client acceptance remains: switch several populated dates in the restored local
 DB, confirm inline Updating with no global loading overlay, then verify a manual
 time autosave and a review still remain tied to the selected date. No deployment
 or customer database changes were performed.
+
+## Open check-in late visibility — 6 November 2026
+
+Daily Ops **18.0.1.103.0** and Attendance OT/Fine **18.0.3.37.0** passed
+**194 Odoo tests**, zero failures/errors, on `raaviya_independent_fresh_test`.
+New coverage checks Daily/Monthly open late arrivals across stored attendance,
+dashboard and review, morning grace, post-break return, no forecast missing
+sessions/early/gap, no pay from an open punch, disabled late rules, unchanged
+approval after checkout and re-review after a newly introduced early exit.
+
+Installed Chromium script `tests/browser/verify_open_checkin_late.py` passed:
+09:57 check-in against 09:45 start with five-minute grace displays seven fine
+minutes before checkout, including the combined review popup. It verifies zero
+worked/early/gap hours and leaves approval untouched. Automated fixtures use an
+isolated test database; local customer acceptance and deployment remain pending.

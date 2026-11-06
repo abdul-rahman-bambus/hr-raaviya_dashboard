@@ -404,3 +404,12 @@ wait for the selected date's response; pending autosaves and open review dialogs
 continue to lock date navigation. A slow earlier response cannot replace the
 latest selected date. Detection refreshes policy changes while avoiding redundant
 custom metric writes. Photo links no longer require loading full photo bytes.
+
+## Open-punch lateness (18.0.1.103.0)
+
+Fine-only day pay now shows known late arrivals before checkout, using the normal
+morning/post-break grace and existing minute rounding. The open punch does not
+produce worked-hour pay, future early-exit/internal-gap or missing-session fines.
+Attendance list, dashboard and review use the same components. HR can review the
+known late proposal; checkout preserves an unchanged decision and a changed
+proposal still requires re-review. No automatic financial approval occurs.
