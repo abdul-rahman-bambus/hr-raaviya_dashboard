@@ -395,3 +395,12 @@ calculated punch proposal changes. Previous decisions and punch updates remain
 in Logs, including explicit zero-value replacement reviews. Draft payroll waits
 for re-review; finalized salary is not changed. See
 [the correction workflow](PUNCH_CORRECTIONS_RE_REVIEW.md).
+
+## Date switching (18.0.1.102.0)
+
+Daily Attendance and dashboard date changes refresh in place using silent RPC.
+The inline Updating indicator remains visible while loading. Time/status edits
+wait for the selected date's response; pending autosaves and open review dialogs
+continue to lock date navigation. A slow earlier response cannot replace the
+latest selected date. Detection refreshes policy changes while avoiding redundant
+custom metric writes. Photo links no longer require loading full photo bytes.

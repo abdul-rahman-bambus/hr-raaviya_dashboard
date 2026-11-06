@@ -1,5 +1,6 @@
 """Acceptance checks for payroll/reports without any Attendance History model."""
 from datetime import datetime
+from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.exceptions import UserError, ValidationError
@@ -247,6 +248,50 @@ class TestIndependentAttendance(TransactionCase):
         self.row(employee)
         self.assertFalse(self.env['bambus.attendance.day.review'].search([
             ('employee_id', '=', employee.id)]))
+
+    def test_dashboard_refresh_skips_unchanged_metric_writes_but_reads_policy_changes(self):
+        self.template.write({'late_enabled': True, 'late_grace_minutes': 5})
+        employee, contract = self.person()
+        punches = self.env['hr.attendance'].create([
+            {'employee_id': employee.id, 'check_in': datetime(2026, 10, 22, 9, 51),
+             'check_out': datetime(2026, 10, 22, 14)},
+            {'employee_id': employee.id, 'check_in': datetime(2026, 10, 22, 14, 45),
+             'check_out': datetime(2026, 10, 22, 20)},
+        ])
+        before = self.row(employee)
+        attendance_model = type(punches)
+        overtime_model = type(self.env['hr.attendance.overtime'])
+        with patch.object(attendance_model, 'write', autospec=True, side_effect=attendance_model.write) as writes, \
+                patch.object(overtime_model, 'write', autospec=True, side_effect=overtime_model.write) as ot_writes:
+            after = self.row(employee)
+        self.assertEqual(before, after)
+        self.assertFalse([call for call in writes.call_args_list if set(call.args[0].ids) & set(punches.ids)
+                          and any(key.startswith('bambus_') for key in call.args[1])])
+        self.assertFalse([call for call in ot_writes.call_args_list if employee in call.args[0].employee_id])
+        # A policy-only edit still refreshes detection immediately; no cached date payload.
+        self.template.late_grace_minutes = 0
+        self.row(employee)
+        self.assertEqual(sum(punches.mapped('bambus_late_minutes')), 6)
+
+    def test_dashboard_photo_links_do_not_read_filestore_binary(self):
+        import base64
+        import io
+        from PIL import Image
+        photo = io.BytesIO()
+        Image.new('RGB', (4, 4), 'white').save(photo, format='PNG')
+        employee, contract = self.person()
+        punch = self.env['hr.attendance'].create({
+            'employee_id': employee.id, 'check_in': datetime(2026, 10, 22, 9, 45),
+            'check_out': datetime(2026, 10, 22, 18, 45),
+            'recognized_face_checkin': base64.b64encode(photo.getvalue()),
+        })
+        self.env.flush_all()
+        self.env.invalidate_all()
+        with patch.object(type(self.env['ir.attachment']), '_file_read',
+                          side_effect=AssertionError('Date switching must not load photo bytes')):
+            logs = self.row(employee)['logs']
+        photo_log = next(log for log in logs if log['id'] == '%s-in' % punch.id)
+        self.assertEqual(photo_log['image_url'], '/web/image/hr.attendance/%s/recognized_face_checkin' % punch.id)
 
     def test_manual_time_edits_drive_real_punches_payroll_and_both_exports(self):
         for basis, expected in [('monthly', 129.03), ('daily', 442.5), ('hourly', 159)]:

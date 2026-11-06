@@ -41,7 +41,9 @@ export class AttendanceDashboard extends Component {
         this.state.loading = true;
         this.state.error = "";
         try {
-            const data = await this.orm.call(
+            // We render our own inline loading/error states. Avoid Odoo's
+            // global RPC loading overlay while changing or refreshing a day.
+            const data = await this.orm.silent.call(
                 "bambus.attendance.dashboard",
                 "get_attendance_dashboard",
                 [],

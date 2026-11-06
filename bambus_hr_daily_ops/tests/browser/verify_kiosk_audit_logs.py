@@ -90,6 +90,18 @@ def main():
             expect(logs).to_be_visible()
             expect(logs).to_contain_text('Attendance time adjusted')
             assert logs.inner_text().count('via HR Update') == 1, logs.inner_text()
+            logs.get_by_role('button', name='Done', exact=True).click()
+            page.evaluate("window.dateSwitchSearch = document.querySelector('input[type=search]')")
+            for day in ('2026-10-23', '2026-10-22'):
+                date_input = page.locator('input[type=date]')
+                date_input.fill(day)
+                with page.expect_response(lambda response: 'get_attendance_dashboard' in response.url) as refresh:
+                    date_input.dispatch_event('change')
+                assert refresh.value.json().get('result', {}).get('date') == day
+                expect(page.get_by_role('status')).to_have_count(0)
+                expect(card).to_be_visible()
+                assert page.evaluate("dateSwitchSearch === document.querySelector('input[type=search]')")
+            expect(card.get_by_role('textbox', name='Punch In', exact=True)).to_have_value('09:50')
             assert not errors, errors
             # A legacy record with no corroborated photo must not crash the list-based
             # dashboard caller or be silently hidden as a routine event.
@@ -99,7 +111,7 @@ def main():
                     'after': [{'id': first, 'employee_id': employee,
                                'check_in': '2026-10-22 09:45:00', 'check_out': False}]}}])
             assert any(item['id'] == 'hr-%s' % legacy for item in dashboard_row()['logs'])
-            print('PASS: kiosk punches deduplicated, manual edit logged once, legacy audit dashboard request succeeds and ambiguous evidence remains visible.')
+            print('PASS: kiosk/manual/legacy logs retained correctly; populated/empty date switching preserves mounted search and refreshes punches.')
         finally:
             for model, record in reversed(created):
                 if model == 'hr.employee':

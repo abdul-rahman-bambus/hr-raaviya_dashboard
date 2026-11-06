@@ -391,3 +391,21 @@ Legacy audit hotfix validation (18.0.1.101.0): reproduced the original list.filt
 AttributeError, then passed 252 attendance/payroll-report tests. Installed Chromium
 confirmed routine kiosk logs, one manual update and a successful real dashboard
 request containing an ambiguous legacy audit. No client data changed.
+
+## Date-switch performance validation — 6 November 2026
+
+Daily Ops **18.0.1.102.0** and Attendance OT/Fine **18.0.3.36.0** passed
+**191 Odoo tests**, zero failures/errors, on the isolated
+`raaviya_independent_fresh_test` database. All **21 production OWL Chromium tests**
+passed. The installed Chromium scenario switched between populated/empty dates,
+retained the mounted search input and refreshed the saved punch time; kiosk,
+manual and legacy audit checks also passed. Regression checks verify photo links
+without filestore binary reads, unchanged custom metrics/base OT without redundant
+writes, and immediate detection refresh after a policy-only edit.
+
+A synthetic 12-employee/two-punch-per-employee profile reduced dashboard queries
+from 449 to 404. This fixture does not measure customer database/network latency.
+Client acceptance remains: switch several populated dates in the restored local
+DB, confirm inline Updating with no global loading overlay, then verify a manual
+time autosave and a review still remain tied to the selected date. No deployment
+or customer database changes were performed.
