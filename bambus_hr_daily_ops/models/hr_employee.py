@@ -102,7 +102,7 @@ class HrEmployee(models.Model):
             raise UserError(_("Select a valid month."))
         month_start = selected_month.replace(day=1)
         month_end = selected_month.replace(day=monthrange(selected_month.year, selected_month.month)[1])
-        timezone = pytz.timezone(self.env.user.tz or "UTC")
+        timezone = pytz.timezone(self.env.context.get("tz") or self.env.user.tz or "UTC")
         utc = pytz.UTC
         range_start = timezone.localize(datetime.combine(month_start, time.min)).astimezone(utc).replace(tzinfo=None)
         range_end = timezone.localize(datetime.combine(month_end + timedelta(days=1), time.min)).astimezone(utc).replace(tzinfo=None)
@@ -112,6 +112,19 @@ class HrEmployee(models.Model):
             ("check_in", ">=", range_start),
             ("check_in", "<", range_end),
         ], order="check_in asc")
+
+        # Refresh the selected employee once, rather than loading the whole
+        # company dashboard for every date. Adjacent dates cover timezone edges.
+        if attendances:
+            self.env['hr.attendance.overtime'].sudo().bambus_recompute_range(
+                employee.ids, month_start - timedelta(days=1), month_end + timedelta(days=1))
+
+        def empty_row(day):
+            return {'date': fields.Date.to_string(day), 'status': 'not_marked',
+                    'status_label': _('Not Marked'), 'check_in': '', 'check_out': '',
+                    'check_out_day_offset': 0, 'check_out_date': '', 'has_open_attendance': False,
+                    'worked_hours': 0.0, 'overtime_hours': 0.0, 'fine_hours': 0.0,
+                    'logs': [], 'leave_id': False}
 
         def optional_value(attendance, field_name, default=""):
             """Read fields supplied by optional attendance integrations safely."""
@@ -127,52 +140,51 @@ class HrEmployee(models.Model):
             return field.convert_to_export(value, attendance) or _("Attendance")
 
         def attendance_image_url(attendance, field_name):
-            if not optional_value(attendance, field_name):
+            if not optional_value(attendance.with_context(bin_size=True), field_name):
                 return ""
             return f"/web/image/hr.attendance/{attendance.id}/{field_name}"
 
         rows = {}
+        punches_by_day = {}
         for attendance in attendances:
             local_in = utc.localize(attendance.check_in).astimezone(timezone)
             local_out = utc.localize(attendance.check_out).astimezone(timezone) if attendance.check_out else False
             day = local_in.date()
-            row = rows.setdefault(day, {
-                "date": fields.Date.to_string(day),
-                "status": "present",
-                "status_label": _("Present"),
-                "check_in": local_in.strftime("%I:%M %p").lstrip("0"),
-                "check_out": "",
-                "worked_hours": 0.0,
-                "overtime_hours": 0.0,
-                "fine_hours": 0.0,
-                "logs": [],
-                "leave_id": False,
-            })
-            if optional_value(attendance, "recognized_face_checkin") or attendance.check_in:
+            row = rows.setdefault(day, empty_row(day))
+            punches_by_day.setdefault(day, []).append(attendance)
+            row.update(status='present', status_label=_('Present'))
+            if not row['check_in']:
+                row['check_in'] = local_in.strftime('%I:%M %p').lstrip('0')
+            row['has_open_attendance'] |= not bool(attendance.check_out)
+            if attendance.check_in:
                 row["logs"].append({
                     "id": f"{attendance.id}-in",
                     "type": "check_in",
                     "label": _("Punched In"),
                     "time": local_in.strftime("%I:%M %p").lstrip("0"),
+                    "day_offset": 0,
                     "mode": attendance_mode(attendance, "in_mode"),
                     "address": optional_value(attendance, "checkin_reverse_address"),
                     "image_url": attendance_image_url(attendance, "recognized_face_checkin"),
                 })
             if local_out:
-                row["check_out"] = local_out.strftime("%I:%M %p").lstrip("0")
+                # Select the latest actual checkout, even with split sessions.
+                completed = [a.check_out for a in punches_by_day[day] if a.check_out]
+                latest_out = utc.localize(max(completed)).astimezone(timezone)
+                row['check_out'] = latest_out.strftime('%I:%M %p').lstrip('0')
+                row['check_out_day_offset'] = (latest_out.date() - day).days
+                row['check_out_date'] = fields.Date.to_string(latest_out.date())
                 row["logs"].append({
                     "id": f"{attendance.id}-out",
                     "type": "check_out",
                     "label": _("Punched Out"),
                     "time": local_out.strftime("%I:%M %p").lstrip("0"),
+                    "day_offset": (local_out.date() - day).days,
                     "mode": attendance_mode(attendance, "out_mode"),
                     "address": optional_value(attendance, "checkout_reverse_address"),
                     "image_url": attendance_image_url(attendance, "recognized_face_checkout"),
                 })
             row["worked_hours"] += attendance.worked_hours or 0.0
-            row["overtime_hours"] += attendance.overtime_hours or 0.0
-            if "fine_hours" in attendance._fields:
-                row["fine_hours"] += attendance.fine_hours or 0.0
 
         leaves = self.env["hr.leave"].search([
             ("employee_id", "=", employee.id),
@@ -185,25 +197,19 @@ class HrEmployee(models.Model):
             leave_end = min(fields.Datetime.context_timestamp(self, leave.date_to).date(), month_end)
             day = leave_start
             while day <= leave_end:
-                if day in rows:
-                    rows[day]["leave_id"] = leave.id
-                else:
-                    is_half_day = bool(getattr(leave, "request_unit_half", False))
-                    rows[day] = {
-                        "date": fields.Date.to_string(day),
-                        "status": "halfday" if is_half_day else "leave",
-                        "status_label": _("Half Day") if is_half_day else _("Leave"),
-                        "check_in": "", "check_out": "", "worked_hours": 0.0,
-                        "overtime_hours": 0.0, "fine_hours": 0.0,
-                        "logs": [],
-                        "leave_id": leave.id,
-                    }
+                row = rows.setdefault(day, empty_row(day))
+                row['leave_id'] = leave.id
+                if leave.state == 'validate':
+                    is_half_day = bool(getattr(leave, 'request_unit_half', False))
+                    row['status'] = 'halfday' if is_half_day else 'leave'
+                    row['status_label'] = _('Half Day') if is_half_day else _('Leave')
                 day += timedelta(days=1)
 
         # Explicit HR decisions overlay status only; actual punches and current
         # leave remain authoritative even when a review was opened previously.
         sheet_lines = self.env["bambus.attendance.day.review"].search([
             ("employee_id", "=", employee.id),
+            ("company_id", "=", employee.company_id.id),
             ("date", ">=", month_start),
             ("date", "<=", month_end),
         ], order="date asc")
@@ -211,25 +217,37 @@ class HrEmployee(models.Model):
             "present": _("Present"), "absent": _("Absent"),
             "halfday": _("Half Day"), "leave": _("Leave"),
         }
+        reviews_by_day = {line.date: line for line in sheet_lines}
         for line in sheet_lines:
-            current = rows.get(line.date, {})
-            if not current and not line.attendance_status_manual:
+            if not line.attendance_status_manual:
                 continue
-            status = line.status if line.attendance_status_manual else current.get('status', 'not_marked')
-            local_in = fields.Datetime.context_timestamp(self, line.check_in) if line.check_in else False
-            local_out = fields.Datetime.context_timestamp(self, line.check_out) if line.check_out else False
-            rows[line.date] = {
-                "date": fields.Date.to_string(line.date),
-                "status": status,
-                "status_label": status_labels.get(status, current.get('status_label', '')),
-                "check_in": local_in.strftime("%I:%M %p").lstrip("0") if local_in else "",
-                "check_out": local_out.strftime("%I:%M %p").lstrip("0") if local_out else "",
-                "worked_hours": line.worked_hours or 0.0,
-                "overtime_hours": line.overtime_hours or 0.0,
-                "fine_hours": line.fine_hours or 0.0,
-                "logs": rows.get(line.date, {}).get("logs", []),
-                "leave_id": line.leave_id.id or rows.get(line.date, {}).get("leave_id", False),
-            }
+            row = rows.setdefault(line.date, empty_row(line.date))
+            row['status'] = line.status
+            row['status_label'] = status_labels[line.status]
+
+        service = self.env['bambus.attendance.dashboard']
+        # Match the daily dashboard's derived Monthly paid-day statuses without
+        # creating punches, leave requests or review records.
+        day = month_start
+        while day <= month_end:
+            contract = employee._get_attendance_contract(day)
+            info = service._paid_day_info(employee, day, contract) if contract and contract.company_id == employee.company_id else {}
+            if info.get('kind') and (day in rows or info['eligible'] or info['withheld']):
+                row = rows.setdefault(day, empty_row(day))
+                row.update(paid_day_kind=info['kind'], paid_day_eligible=info['eligible'],
+                           paid_day_withheld=info['withheld'], paid_day_reason=info['reason'])
+            if info.get('kind') and (info['eligible'] or info['withheld']):
+                row = rows.setdefault(day, empty_row(day))
+                if row['status'] == 'not_marked':
+                    row['status'] = ('unpaid_' if info['withheld'] else 'paid_') + info['kind']
+                    row['status_label'] = {
+                        'paid_public_holiday': _('Paid Public Holiday'), 'paid_weekly_off': _('Paid Weekly Off'),
+                        'unpaid_public_holiday': _('Unpaid Public Holiday'), 'unpaid_weekly_off': _('Unpaid Weekly Off'),
+                    }[row['status']]
+            day += timedelta(days=1)
+        for day, row in rows.items():
+            row.update(service._employee_day_adjustments(
+                employee, day, punches_by_day.get(day, []), reviews_by_day.get(day)))
 
         result_rows = [rows[day] for day in sorted(rows)]
         for row in result_rows:
@@ -237,6 +255,7 @@ class HrEmployee(models.Model):
                 row[key] = round(row[key], 2)
         return {
             "employee": {"id": employee.id, "name": employee.name, "barcode": employee.barcode or ""},
+            "can_manage_attendance": bool(self.env.user.has_group('hr.group_hr_user') and employee.company_id == self.env.company),
             "month": month_start.strftime("%Y-%m"),
             "month_label": month_start.strftime("%B %Y"),
             "rows": result_rows,
@@ -246,6 +265,9 @@ class HrEmployee(models.Model):
                 "absent": sum(row["status"] == "absent" for row in result_rows),
                 "halfday": sum(row["status"] == "halfday" for row in result_rows),
                 "leave": sum(row["status"] == "leave" for row in result_rows),
+                "not_marked": sum(row['status'] == 'not_marked' for row in result_rows),
+                "paid_off": sum(row['status'].startswith('paid_') for row in result_rows),
+                "unpaid_off": sum(row['status'].startswith('unpaid_') for row in result_rows),
                 "punched_in": sum(bool(row["check_in"]) for row in result_rows),
                 "punched_out": sum(bool(row["check_out"]) for row in result_rows),
             },

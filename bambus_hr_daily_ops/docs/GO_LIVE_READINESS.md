@@ -456,3 +456,24 @@ The prior native-list CSS fix did not resolve the customer's local screenshot.
 This release replaces that renderer instead of relying on further margin overrides.
 Customer theme/deployment acceptance still requires upgrading and loading the new
 assets locally. No customer records or production deployment were changed.
+
+## Read-only employee daily parity — 6 November 2026
+
+Daily Ops **18.0.1.106.0** completed **200 Odoo tests**, zero failures/errors.
+After the final summary-count adjustment, all **29 partial-attendance tests** also
+completed with zero failures/errors. All **25 production OWL Chromium tests**
+passed. Installed Chromium confirmed live monthly/daily Fine/OT equality with a
+stale draft review, preserved exclusion labels and money, known open-punch late
+minutes, next-day checkout labels, no leave-creation button and navigation to
+exactly one employee on the selected daily-dashboard date. Source punch times,
+worked hours and saved review financial fields were compared before/after reads.
+
+New backend coverage includes policy-only proposal refresh, saved approvals and
+exclusions, manual status without fabricated punches, a context timezone different
+from the user timezone, overnight checkout dates, pending versus validated half-day
+leave, Monthly paid/withheld statuses and coherent displayed-date summary counts.
+The employee browser refreshes just that employee's range and shares display
+selection with the daily service; it does not run the whole-company dashboard for
+every date. Remaining acceptance: compare the customer's actual November dates,
+particularly the original 2 November source punches. No customer timestamps,
+financial decisions or finalized salaries were changed or automatically approved.

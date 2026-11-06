@@ -203,6 +203,94 @@ class TestPartialSalaryTreatment(TransactionCase):
         employee, contract, line = self.person(spans=[('10:13', None)])
         self.assertFalse(self.wizard(line).fine_line_ids)
 
+    def monthly_row(self, employee, day=None, tz='UTC'):
+        day = day or self.day
+        payload = self.env['hr.employee'].with_context(tz=tz).get_monthly_attendance(employee.id, day.strftime('%Y-%m'))
+        return next(row for row in payload['rows'] if row['date'] == str(day))
+
+    def test_employee_monthly_view_matches_daily_live_detection_and_ignores_stale_drafts(self):
+        self.template.overtime_enabled = True
+        employee, contract, line = self.person(spans=[('09:51', '14:00'), ('14:50', '20:00')])
+        line.write({'fine_hours': 0, 'overtime_hours': 0})
+        audit_count = self.env['bambus.hr.attendance.time.audit'].search_count([('employee_id', '=', employee.id)])
+        review_count = self.env['bambus.attendance.day.review'].search_count([('employee_id', '=', employee.id)])
+        row = self.monthly_row(employee)
+        daily = next(row for row in self.env['bambus.attendance.dashboard'].with_context(tz='UTC').get_attendance_dashboard(
+            str(self.day))['daily_attendance'] if row['id'] == employee.id)
+        self.assertEqual(row['fine_hours'], .1)  # one morning minute plus five after lunch
+        self.assertEqual(row['overtime_hours'], 1.25)
+        for name in ('fine_hours', 'overtime_hours', 'fine_review_pending', 'overtime_review_pending', 'status', 'worked_hours'):
+            self.assertEqual(row[name], daily[name], name)
+        self.assertEqual(row['fine_review_state'], 'submitted')
+        self.assertEqual(row['overtime_review_state'], 'submitted')
+        self.assertEqual((line.fine_state, line.overtime_state), ('draft', 'draft'))
+        self.assertEqual(self.env['bambus.hr.attendance.time.audit'].search_count([('employee_id', '=', employee.id)]), audit_count)
+        self.assertEqual(self.env['bambus.attendance.day.review'].search_count([('employee_id', '=', employee.id)]), review_count)
+        # Policy changes refresh proposals; they never approve them.
+        self.template.late_grace_minutes = 0
+        self.assertEqual(self.monthly_row(employee)['fine_hours'], round(11 / 60, 2))
+
+    def test_employee_monthly_view_keeps_saved_approvals_exclusions_and_actual_punches(self):
+        self.template.overtime_enabled = True
+        employee, contract, line = self.person(spans=[('09:57', '20:00')])
+        line.write({'fine_state': 'approved', 'fine_hours': .5, 'fine_amount': 30,
+                    'overtime_state': 'rejected', 'overtime_hours': 0, 'overtime_amount': 0})
+        before = line.read(['fine_state', 'fine_hours', 'fine_amount', 'overtime_state', 'overtime_amount'])[0]
+        punch_before = line._review_attendances().read(['check_in', 'check_out', 'worked_hours'])
+        self.template.salary_hours_basis = 'fixed'
+        row = self.monthly_row(employee)
+        self.assertEqual((row['fine_hours'], row['fine_review_state']), (.5, 'approved'))
+        self.assertEqual((row['overtime_hours'], row['overtime_review_state']), (0, 'rejected'))
+        self.assertEqual(line.read(['fine_state', 'fine_hours', 'fine_amount', 'overtime_state', 'overtime_amount'])[0], before)
+        self.assertEqual(line._review_attendances().read(['check_in', 'check_out', 'worked_hours']), punch_before)
+        line.attendance_status_manual = True
+        line.status = 'absent'
+        self.assertEqual(self.monthly_row(employee)['status'], 'absent')
+        self.assertTrue(self.monthly_row(employee)['check_in'])
+
+    def test_employee_monthly_open_punch_and_overnight_context_timezone(self):
+        self.calendar.tz = 'Asia/Calcutta'
+        employee, contract, line = self.person(spans=[('04:27', None)])  # 09:57 local
+        row = self.monthly_row(employee, tz='Asia/Calcutta')
+        self.assertEqual((row['check_in'], row['fine_hours'], row['worked_hours']), ('9:57 AM', round(7 / 60, 2), 0))
+        self.assertTrue(row['has_open_attendance'])
+        self.assertFalse(row['check_out'])
+        punch = line._review_attendances()
+        punch.check_out = str(self.day) + ' 18:46:00'  # 00:16 next local day
+        row = self.monthly_row(employee, tz='Asia/Calcutta')
+        self.assertEqual((row['check_out'], row['check_out_day_offset'], row['check_out_date']), ('12:16 AM', 1, '2026-10-23'))
+        self.assertFalse(row['has_open_attendance'])
+        self.assertEqual(row['logs'][-1]['day_offset'], 1)
+
+    def test_employee_monthly_pending_leave_is_not_an_approved_half_day(self):
+        employee, contract, line = self.person(spans=[('09:45', '14:00')])
+        leave_type = self.env['hr.leave.type'].create({'name': 'Monthly parity half leave',
+            'request_unit': 'half_day', 'requires_allocation': 'no', 'leave_validation_type': 'hr'})
+        leave = self.env['hr.leave'].create({'employee_id': employee.id, 'holiday_status_id': leave_type.id,
+            'request_date_from': self.day, 'request_date_to': self.day,
+            'request_unit_half': True, 'request_date_from_period': 'pm'})
+        self.assertEqual(leave.state, 'confirm')
+        self.assertEqual(self.monthly_row(employee)['status'], 'present')
+        leave.action_approve()
+        self.assertEqual(leave.state, 'validate')
+        self.assertEqual(self.monthly_row(employee)['status'], 'halfday')
+        self.assertEqual(self.monthly_row(employee)['leave_id'], leave.id)
+
+    def test_employee_monthly_paid_off_status_matches_daily_and_preserves_withholding(self):
+        self.template.write({'weekly_off_thursday': True, 'monthly_paid_weekly_off': True})
+        employee, contract, line = self.person('monthly', spans=[])
+        self.assertEqual(self.monthly_row(employee)['status'], 'paid_weekly_off')
+        self.env['bambus.attendance.dashboard'].with_context(tz='UTC').set_dashboard_paid_day(
+            employee.id, self.day, 'weekly_off', 'withhold', 'Monthly view test')
+        row = self.monthly_row(employee)
+        self.assertEqual(row['status'], 'unpaid_weekly_off')
+        self.assertTrue(row['paid_day_withheld'])
+        self.assertEqual(row['paid_day_reason'], 'Monthly view test')
+        metrics = self.env['hr.employee'].with_context(tz='UTC').get_monthly_attendance(employee.id, '2026-10')['metrics']
+        self.assertEqual(metrics['unpaid_off'], 1)
+        self.assertEqual(sum(metrics[key] for key in ('present', 'absent', 'halfday', 'leave', 'not_marked', 'paid_off', 'unpaid_off')), metrics['days'])
+        self.assertFalse(line._review_attendances())
+
     def test_hourly_stays_actual_payable_hours(self):
         employee, contract, line = self.person('hourly')
         slip = self.slip(employee, contract)

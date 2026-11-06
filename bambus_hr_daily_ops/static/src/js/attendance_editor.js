@@ -290,6 +290,7 @@ export class AttendanceEditor extends AttendanceDashboard {
 
     showDailyAttendance() {
         this.state.statusFilter = "all";
+        this.state.employeeFilterId = false;
         this.state.query = "";
         this.state.currentPage = 1;
     }

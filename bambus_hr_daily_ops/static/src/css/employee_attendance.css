@@ -4,7 +4,7 @@
 .o_bea_summary { overflow:hidden; border:1px solid #e5e9ef; border-radius:9px; background:#fff; box-shadow:0 3px 12px rgba(26,44,67,.04); }
 .o_bea_month { display:flex; float:left; align-items:center; margin:18px 22px; overflow:hidden; border:1px solid #e3e7ed; border-radius:7px; }.o_bea_month button { width:40px; height:38px; border:0; color:#758291; background:#fff; }.o_bea_month label { position:relative; min-width:155px; margin:0; text-align:center; font-weight:600; }.o_bea_month input { position:absolute; inset:0; width:100%; opacity:0; cursor:pointer; }
 .o_bea_approval { float:right; margin:27px 24px; color:#219653; font-weight:600; }.o_bea_approval i { margin-right:7px; }
-.o_bea_metrics { display:grid; clear:both; grid-template-columns:repeat(7,1fr); padding:18px 22px; border-top:1px solid #edf0f4; }.o_bea_metrics div { padding:4px 12px; border-right:1px solid #edf0f4; }.o_bea_metrics div:last-child { border:0; }.o_bea_metrics span,.o_bea_metrics strong { display:block; }.o_bea_metrics span { color:#65717e; }.o_bea_metrics strong { margin-top:5px; font-size:17px; }
+.o_bea_metrics { display:grid; clear:both; grid-template-columns:repeat(5,minmax(0,1fr)); row-gap:14px; padding:18px 22px; border-top:1px solid #edf0f4; }.o_bea_metrics div { padding:4px 12px; border-right:1px solid #edf0f4; }.o_bea_metrics div:last-child { border:0; }.o_bea_metrics span,.o_bea_metrics strong { display:block; }.o_bea_metrics span { color:#65717e; }.o_bea_metrics strong { margin-top:5px; font-size:17px; }
 .o_bea_tabs { display:flex; gap:26px; margin-top:20px; padding:0 12px; border-bottom:1px solid #dfe5ec; }.o_bea_tabs button { padding:12px 2px 11px; border:0; border-bottom:2px solid transparent; color:#3d4854; background:transparent; }.o_bea_tabs button.active { border-bottom-color:#3775df; color:#3775df; font-weight:600; }
 .o_bea_days { margin-top:14px; }.o_bea_day { display:grid; grid-template-columns:minmax(170px,1.1fr) minmax(240px,1.1fr) minmax(130px,.7fr) minmax(130px,.7fr) minmax(130px,.7fr); align-items:center; gap:12px; min-height:96px; margin-bottom:10px; padding:15px 20px; border:1px solid #e5e9ef; border-radius:8px; background:#fff; box-shadow:0 2px 8px rgba(28,44,64,.035); }
 .o_bea_day_info { display:flex; align-items:flex-start; flex-direction:column; }.o_bea_day_info span { margin-top:5px; color:#697582; }.o_bea_day_info button { margin-top:7px; padding:0; border:0; color:#356dcc; background:transparent; font-weight:600; }
@@ -21,3 +21,11 @@
 
 .o_bea_log_modal h3 { padding-right:40px; overflow-wrap:anywhere; }
 .o_bea_modal_close { z-index:1; }
+
+.o_bea_review_state { display:block; margin-top:4px; font-weight:600; }
+.o_bea_status.paid_weekly_off,.o_bea_status.paid_public_holiday { color:#176338; background:#dcf5e5; }
+.o_bea_status.unpaid_weekly_off,.o_bea_status.unpaid_public_holiday { color:#855a00; background:#fff1ce; }
+.o_bea_calendar_status.paid_weekly_off,.o_bea_calendar_status.paid_public_holiday { color:#176338; background:#dcf5e5; }
+.o_bea_calendar_status.unpaid_weekly_off,.o_bea_calendar_status.unpaid_public_holiday { color:#855a00; background:#fff1ce; }
+
+@media (min-width:1600px) { .o_bea_metrics { grid-template-columns:repeat(10,minmax(0,1fr)); } }

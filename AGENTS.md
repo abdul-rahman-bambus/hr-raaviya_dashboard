@@ -89,6 +89,20 @@ Read the root README and the affected module documentation before changing behav
   per day, falling back to 8. Keep Hourly contract rates, fixed rates, attendance
   classification, actual punches and saved financial snapshots unchanged.
 
+## Employee attendance browser
+
+- The employee monthly browser is read-only. Share fine/OT display selection with
+  Daily Attendance: live detection for draft/submitted reviews, saved hours for
+  approvals, zero for exclusions and explicit corrected-proposal re-review states.
+  Never overlay stale unreviewed day-review hours onto current detection.
+- No punch editing, leave creation or approval controls on this employee screen.
+  Route authorized HR users to the exact employee/date in Daily Attendance.
+  Preserve actual punches, financial snapshots and normal backend permissions.
+- Use one request timezone for grouping and displayed times; identify next-day
+  checkouts without changing timestamps. Dates Shown is not a calendar-day total.
+  Approved leave, explicit manual status and derived paid-day eligibility/withholding
+  retain the daily dashboard's meaning; never infer absence for unrecorded dates.
+
 ## Payroll workflow
 
 Use standard Payslip Batches > Generate Payslips, then Payroll Reports > Payslip

@@ -41,6 +41,7 @@ class DashboardUpdates(unittest.TestCase):
         self.page.add_script_tag(content='''
             const { Component, onWillStart, useState } = owl;
             const useService = name => owl.useEnv().services[name];
+            const _t = (text, ...args) => args.reduce((value, arg) => value.replace('%s', arg), text);
             const registry = { category: () => ({ add() {} }) };
             window.requests = []; window.notifications = [];
             const pending = (...args) => new Promise((resolve, reject) => {
@@ -99,7 +100,6 @@ class DashboardUpdates(unittest.TestCase):
     def mount_salary_table(self, empty=False):
         self.page.add_style_tag(path=str(ROOT / 'css/employee_dashboard.css'))
         self.page.add_script_tag(content="""
-            const _t = text => text;
             const standardFieldProps = {name: {type: String}, record: {type: Object}, readonly: {type: Boolean, optional: true}};
             const formatDate = value => value;
             const formatMonetary = value => value.toFixed(2);
@@ -151,6 +151,29 @@ class DashboardUpdates(unittest.TestCase):
         self.assertIn('No payslips yet.', self.page.locator('tbody').inner_text())
         self.assertEqual(self.page.locator('tbody tr').count(), 1)
         self.assertEqual(self.page.locator('tfoot').count(), 0)
+
+    def test_employee_attendance_is_readonly_and_routes_hr_to_filtered_daily_dashboard(self):
+        self.mount('EmployeeAttendance', "({...monthlyData('2026-10'), can_manage_attendance:true, rows:[{date:'2026-10-07',status:'present',status_label:'Present',check_in:'9:57 AM',check_out:'12:16 AM',check_out_day_offset:1,worked_hours:9.25,fine_hours:7/60,overtime_hours:0,fine_review_state:'submitted',overtime_review_state:'rejected',logs:[],leave_id:false}]})")
+        self.assertIn('(+1 day)', self.page.locator('.o_bea_status').inner_text())
+        self.assertIn('Needs Review', self.page.locator('.o_bea_detail.fine').inner_text())
+        self.assertIn('Excluded', self.page.locator('.o_bea_detail').first.inner_text())
+        self.assertEqual(self.page.get_by_role('button', name='Leave', exact=True).count(), 0)
+        self.page.evaluate('() => {window.openedActions=[]; services.action.doAction=action=>openedActions.push(action);}')
+        self.page.get_by_role('button', name='Open Daily Dashboard', exact=True).click()
+        self.assertEqual(self.page.evaluate('openedActions[0].params.selected_date'), '2026-10-07')
+        self.assertEqual(self.page.evaluate('openedActions[0].params.filter_employee_id'), 1)
+        self.page.evaluate('component.state.data.can_manage_attendance=false')
+        self.tick()
+        self.assertEqual(self.page.get_by_role('button', name='Open Daily Dashboard', exact=True).count(), 0)
+
+    def test_employee_filter_limits_daily_navigation_and_clears_with_daily_attendance(self):
+        self.mount('AttendanceEditor', "dailyData('2026-10-07')")
+        self.page.evaluate('component.state.employeeFilterId=2;component.state.query="Employee 2"')
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 1)
+        self.page.get_by_role('button', name='Daily Attendance', exact=True).click()
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 25)
 
     def test_employee_photos_do_not_block_cards_or_load_unrendered_pages(self):
         self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
