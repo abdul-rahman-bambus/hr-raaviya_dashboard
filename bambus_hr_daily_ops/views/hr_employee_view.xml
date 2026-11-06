@@ -125,22 +125,7 @@
                         </div>
                         <field name="payslip_currency_id" invisible="1"/>
                         <div class="o_bso_list">
-                            <field name="slip_ids" readonly="1" nolabel="1">
-                                <list string="Payslips" create="0" delete="0"
-                                      decoration-success="state == 'done'"
-                                      decoration-muted="state == 'cancel'">
-                                    <field name="name" string="Pay Period"/>
-                                    <field name="date_from"/>
-                                    <field name="date_to"/>
-                                    <field name="basic_pay" sum="Total Basic"/>
-                                    <field name="gross_pay" sum="Total Gross"/>
-                                    <field name="net_pay" sum="Total Net"/>
-                                    <field name="state" widget="badge"
-                                           decoration-success="state == 'done'"
-                                           decoration-warning="state in ('draft', 'verify')"
-                                           decoration-danger="state == 'cancel'"/>
-                                </list>
-                            </field>
+                            <field name="slip_ids" widget="bambus_salary_payslips" readonly="1" nolabel="1"/>
                         </div>
                     </div>
                 </page>

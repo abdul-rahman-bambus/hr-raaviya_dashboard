@@ -86,7 +86,7 @@ def main():
             expect(overview.locator('button[name=action_open_salary_revision_history]')).to_be_visible()
             expect(overview).to_contain_text('Latest Confirmed Net')
             expect(overview).to_contain_text('confirmed payslips only')
-            row = overview.locator('.o_data_row')
+            row = overview.locator('.o_bso_payslip_row')
             expect(row).to_have_count(1)
             expect(row).to_contain_text('900.00')
             row.scroll_into_view_if_needed()
@@ -96,17 +96,26 @@ def main():
             row_bounds = row.bounding_box()
             assert row_bounds['y'] >= bounds['y'] + bounds['height'] - 1, (bounds, row_bounds)
             assert row_bounds['height'] >= 36, row_bounds
-            container = overview.locator('.o_bso_list').bounding_box()
+            container = overview.locator('.o_bso_payslips').bounding_box()
             assert bounds['y'] >= container['y'], (bounds, container)
             assert bounds['x'] >= container['x'], (bounds, container)
+            assert overview.locator('.o_list_renderer').count() == 0
+            assert overview.locator('.o_bso_payslips').evaluate('(el) => el.scrollWidth <= el.clientWidth + 1')
             page.screenshot(path='work/salary-overview-layout.png', full_page=True)
+            overview.evaluate("el => el.style.maxWidth = '700px'")
+            assert overview.locator('.o_bso_payslips').evaluate('(el) => el.scrollWidth <= el.clientWidth + 1')
+            overview.evaluate("el => el.style.maxWidth = ''")
             overview.locator('button[name=action_open_salary_revision_history]').click()
             expect(page.locator('.o_list_table .o_data_row')).to_have_count(1)
             assert not errors, errors
-            print('PASS: employee/payslip revision history opens saved 885 to 900 detail; draft overview labels explicit and table rows do not overlap headers.')
+            print('PASS: saved revision history retained; dedicated payslip table has readable headers/rows and no horizontal overflow at natural/700px widths.')
         except Exception:
             if 'page' in locals():
                 page.screenshot(path='work/salary-history-failure.png', full_page=True)
+                details = page.get_by_role('button', name='See technical details', exact=True)
+                if details.count():
+                    details.click()
+                    print(page.get_by_role('dialog').inner_text()[-6000:])
                 print('Browser errors:', errors)
                 print(page.locator('body').inner_text()[-4000:])
             raise
