@@ -92,6 +92,29 @@ class AttendanceDashboard(models.AbstractModel):
         }
 
     @api.model
+    def _employee_day_adjustments(self, employee, day, attendances, review, automation=None):
+        """Shared display of live detection and saved HR decisions; no approval."""
+        if automation is None:
+            automation = employee._get_attendance_automation_template(day)
+        fine = sum(a.bambus_fine_hours or 0.0 for a in attendances)
+        if employee._fine_only_attendance_context(day) is not None:
+            fine = sum(item['hours'] for item in employee._attendance_exception_components(day).values())
+        result = {}
+        for kind, detected, enabled in (
+            ('fine', fine, bool(automation and (automation.late_enabled or automation.early_exit_enabled or automation.break_enabled))),
+            ('overtime', sum(a.overtime_hours or 0.0 for a in attendances), bool(automation and automation.overtime_enabled)),
+        ):
+            state = review[kind + '_state'] if review else 'draft'
+            re_review = bool(review and review[kind + '_re_review_required'])
+            hours = review[kind + '_hours'] if state == 'approved' else 0.0 if state == 'rejected' else detected
+            hours = max(hours, 0.0)
+            pending = re_review or bool(enabled and hours > 0 and state not in ('approved', 'rejected'))
+            result.update({kind + '_hours': hours, kind + '_enabled': enabled or re_review,
+                           kind + '_review_pending': pending,
+                           kind + '_review_state': 'submitted' if pending else state})
+        return result
+
+    @api.model
     def get_attendance_dashboard(self, selected_date=None):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
@@ -365,18 +388,9 @@ class AttendanceDashboard(models.AbstractModel):
             contract_type = contract.contract_type_id if contract else False
             wage_type = contract.wage_type if contract and "wage_type" in contract._fields else ""
             automation = employee._get_attendance_automation_template(day)
-            employee_fine_hours = 0.0
-            if "bambus_fine_hours" in attendances._fields:
-                employee_fine_hours = sum(
-                    attendance.bambus_fine_hours or 0.0
-                    for attendance in employee_attendances
-                )
-            if employee._fine_only_attendance_context(day) is not None:
-                # Whole missing sessions belong to the date-wide proposal;
-                # legacy punch fines can omit a session with no punch.
-                employee_fine_hours = sum(
-                    item['hours'] for item in employee._attendance_exception_components(day).values()
-                )
+            adjustments = self._employee_day_adjustments(employee, day, employee_attendances, override, automation)
+            employee_fine_hours = adjustments['fine_hours']
+            employee_overtime_hours = adjustments['overtime_hours']
             display_check_in = min(check_ins) if check_ins else False
             display_check_out = max(check_outs) if check_outs else False
             display_worked_hours = sum(a.worked_hours for a in employee_attendances)
@@ -486,35 +500,8 @@ class AttendanceDashboard(models.AbstractModel):
                     "image_url": False,
                     "actor": override[user_field].name,
                 })
-            raw_overtime_hours = sum(a.overtime_hours for a in employee_attendances)
-            overtime_reviewed = bool(
-                override and override.overtime_state in ("approved", "rejected")
-            )
-            fine_reviewed = bool(
-                override and override.fine_state in ("approved", "rejected")
-            )
-            if override and override.overtime_state == "approved":
-                employee_overtime_hours = override.overtime_hours
-            elif override and override.overtime_state == "rejected":
-                employee_overtime_hours = 0.0
-            else:
-                employee_overtime_hours = raw_overtime_hours
-            if override and override.fine_state == "approved":
-                employee_fine_hours = override.fine_hours
-            elif override and override.fine_state == "rejected":
-                employee_fine_hours = 0.0
-            employee_overtime_hours = max(employee_overtime_hours, 0.0)
-            employee_fine_hours = max(employee_fine_hours, 0.0)
-            overtime_enabled = bool(automation and automation.overtime_enabled) or bool(override and override.overtime_re_review_required)
-            fine_enabled = bool(
-                automation
-                and (
-                    automation.late_enabled
-                    or automation.early_exit_enabled
-                    or automation.break_enabled
-                )
-            )
-            fine_enabled = fine_enabled or bool(override and override.fine_re_review_required)
+            overtime_enabled = adjustments['overtime_enabled']
+            fine_enabled = adjustments['fine_enabled']
             wage_label, wage_amount = self.env['bambus.hr.attendance.review.wizard']._contract_wage(contract)
             decisions = self.env["bambus.attendance.paid.day.decision"].search([
                 ("employee_id", "=", employee.id), ("date", "=", day),
@@ -544,14 +531,10 @@ class AttendanceDashboard(models.AbstractModel):
                 "is_hourly": wage_type == "hourly",
                 "fine_enabled": fine_enabled,
                 "overtime_enabled": overtime_enabled,
-                "overtime_review_pending": bool(
-                    (override and override.overtime_re_review_required) or
-                    (overtime_enabled and employee_overtime_hours > 0 and not overtime_reviewed)
-                ),
-                "fine_review_pending": bool(
-                    (override and override.fine_re_review_required) or
-                    (fine_enabled and employee_fine_hours > 0 and not fine_reviewed)
-                ),
+                "overtime_review_pending": adjustments['overtime_review_pending'],
+                "fine_review_pending": adjustments['fine_review_pending'],
+                "overtime_review_state": adjustments['overtime_review_state'],
+                "fine_review_state": adjustments['fine_review_state'],
                 "hourly_pay_enabled": bool(
                     wage_type == "hourly"
                     and automation.hourly_pay_enabled

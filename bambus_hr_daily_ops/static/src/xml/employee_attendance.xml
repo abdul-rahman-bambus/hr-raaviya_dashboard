@@ -21,28 +21,32 @@
             <label><span t-esc="state.data.month_label"/><input type="month" t-att-value="state.selectedMonth" t-on-change="changeMonth" aria-label="Select month"/></label>
             <button type="button" t-on-click="() => this.moveMonth(1)" aria-label="Next month"><i class="fa fa-chevron-right"/></button>
           </div>
-          <div class="o_bea_approval"><i class="fa fa-check-circle"/> Attendance Summary</div>
+          <div class="o_bea_approval"><i class="fa fa-eye"/> Read-only Attendance Summary</div>
           <div class="o_bea_metrics">
-            <div><span>Days</span><strong t-esc="state.data.metrics.days"/></div>
+            <div><span>Dates Shown</span><strong t-esc="state.data.metrics.days"/></div>
             <div><span>Present</span><strong t-esc="state.data.metrics.present"/></div>
             <div><span>Absent</span><strong t-esc="state.data.metrics.absent"/></div>
             <div><span>Half Day</span><strong t-esc="state.data.metrics.halfday"/></div>
             <div><span>Leave</span><strong t-esc="state.data.metrics.leave"/></div>
+            <div><span>Not Marked</span><strong t-esc="state.data.metrics.not_marked"/></div>
+            <div><span>Paid Off</span><strong t-esc="state.data.metrics.paid_off"/></div>
+            <div><span>Unpaid Off</span><strong t-esc="state.data.metrics.unpaid_off"/></div>
             <div><span>Punched In</span><strong t-esc="state.data.metrics.punched_in"/></div>
             <div><span>Punched Out</span><strong t-esc="state.data.metrics.punched_out"/></div>
           </div>
         </section>
+        <p class="text-muted small mt-3">Times and worked hours come from actual punches. Fine/OT hours show current detection until HR approves or excludes them.</p>
         <div class="o_bea_tabs">
           <button type="button" t-att-class="state.activeView === 'daily' ? 'active' : ''" t-on-click="() => state.activeView = 'daily'">Daily Attendance View</button>
           <button type="button" t-att-class="state.activeView === 'calendar' ? 'active' : ''" t-on-click="() => state.activeView = 'calendar'">Calendar View</button>
         </div>
         <section class="o_bea_days" t-if="state.activeView === 'daily'">
           <article class="o_bea_day" t-foreach="state.data.rows" t-as="row" t-key="row.date">
-            <div class="o_bea_day_info"><strong t-esc="formatDate(row.date)"/><span><t t-esc="formatHours(row.worked_hours)"/> Hrs</span><button type="button" t-on-click="() => this.openLogs(row)">Logs</button></div>
-            <span t-att-class="'o_bea_status ' + row.status"><b t-esc="row.status_label"/><t t-if="row.check_in"> | <t t-esc="row.check_in"/> - <t t-esc="row.check_out || 'Punched In'"/></t></span>
-            <span class="o_bea_detail"><b>OT</b> | <t t-esc="formatHours(row.overtime_hours)"/> Hrs</span>
-            <span class="o_bea_detail fine"><b>F</b> | <t t-esc="formatHours(row.fine_hours)"/> Hrs</span>
-            <button type="button" t-att-class="'o_bea_detail leave ' + (row.leave_id ? 'selected' : '')" t-on-click="() => this.openLeave(row)"><b>L</b> | <t t-esc="row.leave_id ? 'View Leave' : 'Leave'"/></button>
+            <div class="o_bea_day_info"><strong t-esc="formatDate(row.date)"/><span><t t-esc="formatHours(row.worked_hours)"/> Hrs</span><button type="button" t-on-click="() => this.openLogs(row)">Punch Logs</button><button t-if="state.data.can_manage_attendance" type="button" t-on-click="() => this.openDailyDashboard(row)">Open Daily Dashboard</button></div>
+            <span t-att-class="'o_bea_status ' + row.status"><b t-esc="row.status_label"/><t t-if="row.check_in"> | <t t-esc="row.check_in"/> - <t t-esc="checkoutLabel(row)"/><small t-if="row.has_open_attendance &amp;&amp; row.check_out"> · Punch still open</small></t><small t-if="row.paid_day_withheld"> · Paid-off credit withheld</small></span>
+            <span class="o_bea_detail"><b>OT</b> | <t t-esc="formatHours(row.overtime_hours)"/> Hrs<small t-if="reviewLabel(row.overtime_review_state)" class="o_bea_review_state" t-esc="reviewLabel(row.overtime_review_state)"/></span>
+            <span class="o_bea_detail fine"><b>F</b> | <t t-esc="formatHours(row.fine_hours)"/> Hrs<small t-if="reviewLabel(row.fine_review_state)" class="o_bea_review_state" t-esc="reviewLabel(row.fine_review_state)"/></span>
+            <span t-att-class="'o_bea_detail leave ' + (row.leave_id ? 'selected' : '')"><b>L</b> | <t t-esc="row.leave_id ? 'Leave request' : 'No leave'"/></span>
           </article>
           <div class="o_bea_empty" t-if="!state.data.rows.length"><i class="fa fa-calendar-o"/><strong>No attendance for this month</strong></div>
         </section>
@@ -56,7 +60,7 @@
                     t-att-disabled="!day.inMonth" t-on-click="() => day.row &amp;&amp; this.openLogs(day.row)">
               <span class="o_bea_day_number" t-esc="day.number"/>
               <span t-if="day.inMonth" t-att-class="'o_bea_calendar_status ' + day.status">
-                <b t-if="day.status !== 'not_marked'" t-esc="day.status === 'present' ? 'P' : day.status === 'absent' ? 'A' : day.status === 'halfday' ? 'HD' : 'L'"/>
+                <b t-if="day.status !== 'not_marked'" t-esc="statusShort(day.status)"/>
                 <t t-esc="day.statusLabel"/>
               </span>
               <span class="o_bea_calendar_fine" t-if="day.row &amp;&amp; day.row.fine_hours"><b>F</b> Fine <t t-esc="formatHours(day.row.fine_hours)"/></span>
@@ -75,7 +79,7 @@
                 <div class="o_bea_log_copy">
                   <strong><i t-att-class="'fa ' + (log.type === 'check_in' ? 'fa-sign-in' : 'fa-sign-out')"/> <t t-esc="log.label"/> via <t t-esc="log.mode"/></strong>
                   <span t-if="log.address" t-esc="log.address"/>
-                  <small>By <t t-esc="state.data.employee.name"/> at <t t-esc="log.time"/></small>
+                  <small>By <t t-esc="state.data.employee.name"/> at <t t-esc="log.time"/><t t-if="log.day_offset"> (+<t t-esc="log.day_offset"/> day)</t></small>
                 </div>
               </article>
               <div class="o_bea_no_logs" t-if="!state.selectedDay.logs.length"><i class="fa fa-camera"/><span>No punch logs were captured for this day.</span></div>

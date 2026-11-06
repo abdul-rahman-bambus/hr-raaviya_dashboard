@@ -1,5 +1,34 @@
 # Raaviya HR attendance and payroll add-ons
 
+## Read-only employee attendance with daily parity — 18.0.1.106.0
+
+Employee > Attendance now presents read-only daily results for the selected
+employee/month. Daily Attendance and this view share the helper that selects live
+Fine/OT detection or saved HR approval/exclusion hours. Draft/submitted review
+values cannot replace current proposals with stale zeros. Display Needs Review,
+Approved or Excluded explicitly, including zero-value re-reviews. Refresh detection
+once for the selected employee's month; keep saved approvals and salaries intact.
+
+Use **Open Daily Dashboard** on a date for corrections and approvals. This link
+is available to HR officers in the employee's active company and filters the
+editable dashboard to that employee/date. Daily Attendance clears that filter.
+Leave creation controls are removed from the employee view. Punch Logs remain
+read-only; HR review/change audits are available through the daily dashboard.
+
+Use the request timezone consistently. Next-day checkouts show (+1 day), retain
+their actual date in punch logs and add Check Out Date to the CSV. A split day
+with a still-open punch shows that state without changing actual completed hours.
+Only validated leave determines leave/half-day status; manual HR status remains
+an explicit override. Monthly paid/withheld off dates use shared eligibility rules.
+**Dates Shown** counts displayed records/derived dates; it is not the month's
+calendar-day count. Unrecorded ordinary dates remain Not Marked in the calendar,
+and no absence, leave or review is created by opening this screen.
+
+Upgrade Daily Ops to **18.0.1.106.0**, restart Odoo and reload the browser assets.
+No Face Attendance/mobile API changes, automatic approvals or salary recomputation
+are included. Actual punch timestamps and saved financial decisions remain intact.
+
+
 ## Salary Overview readable table — 18.0.1.105.0
 
 The Salary Overview payslip section now uses a dedicated read-only table instead

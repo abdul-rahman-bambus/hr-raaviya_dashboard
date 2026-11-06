@@ -1,5 +1,6 @@
 /** @odoo-module **/
 
+import { _t } from "@web/core/l10n/translation";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -41,7 +42,7 @@ export class EmployeeAttendance extends Component {
             if (!this.employeeId) {
                 throw new Error("No employee was selected. Return to Employees and open Attendance again.");
             }
-            const data = await this.orm.call(
+            const data = await this.orm.silent.call(
                 "hr.employee", "get_monthly_attendance", [this.employeeId, selectedMonth]
             );
             if (sequence === this.loadSequence) {
@@ -131,22 +132,27 @@ export class EmployeeAttendance extends Component {
         this.state.selectedDay = null;
     }
 
-    openLeave(row) {
-        this.action.doAction({
-            type: "ir.actions.act_window",
-            name: row.leave_id ? "Time Off" : "New Time Off Request",
-            res_model: "hr.leave",
-            res_id: row.leave_id || false,
-            views: [[false, "form"]],
-            target: "new",
-            context: {
-                default_employee_id: this.employeeId,
-                default_holiday_type: "employee",
-                default_request_date_from: row.date,
-                default_request_date_to: row.date,
-            },
-        }, {
-            onClose: () => this.load(),
+    reviewLabel(state) {
+        return {submitted: _t("Needs Review"), approved: _t("Approved"), rejected: _t("Excluded")}[state] || "";
+    }
+
+    checkoutLabel(row) {
+        if (!row.check_out || !row.check_out_day_offset) return row.check_out || _t("Punched In");
+        return _t("%s (+%s day)", row.check_out, row.check_out_day_offset);
+    }
+
+    statusShort(status) {
+        return {present: "P", absent: "A", halfday: "HD", leave: "L",
+            paid_weekly_off: "WO", unpaid_weekly_off: "WO",
+            paid_public_holiday: "PH", unpaid_public_holiday: "PH"}[status] || "";
+    }
+
+    openDailyDashboard(row) {
+        if (!this.state.data.can_manage_attendance) return;
+        return this.action.doAction({
+            type: "ir.actions.client", tag: "bambus_attendance_editor",
+            params: {selected_date: row.date, filter_employee_id: this.employeeId,
+                employee_query: this.state.data.employee.name},
         });
     }
 
@@ -154,9 +160,9 @@ export class EmployeeAttendance extends Component {
         const rows = this.state.data.rows.map((row) => [
             row.date, row.status_label, row.check_in, row.check_out,
             this.formatHours(row.worked_hours), this.formatHours(row.overtime_hours),
-            this.formatHours(row.fine_hours),
+            this.formatHours(row.fine_hours), row.check_out_date || "",
         ]);
-        const csv = [["Date", "Status", "Check In", "Check Out", "Worked Hours", "Overtime", "Fine"], ...rows]
+        const csv = [["Date", "Status", "Check In", "Check Out", "Worked Hours", "Overtime", "Fine", "Check Out Date"], ...rows]
             .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
             .join("\n");
         const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));

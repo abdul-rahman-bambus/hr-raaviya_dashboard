@@ -19,7 +19,8 @@ export class AttendanceDashboard extends Component {
             data: null,
             selectedDate: this.initialDate || this.today(),
             error: "",
-            query: "",
+            query: actionParams.employee_query || "",
+            employeeFilterId: actionParams.filter_employee_id || false,
             statusFilter: actionParams.metric_filter || "all",
             currentPage: 1,
             pageSize: 10,
@@ -105,6 +106,7 @@ export class AttendanceDashboard extends Component {
     get filteredDailyEmployees() {
         const query = this.state.query.trim().toLowerCase();
         return (this.state.data?.daily_attendance || []).filter((employee) => {
+            if (this.state.employeeFilterId && employee.id !== this.state.employeeFilterId) return false;
             const matchesStatus = this.state.statusFilter === "all" ||
                 (this.state.statusFilter === "overtime" && (employee.overtime_hours > 0 || employee.overtime_review_pending)) ||
                 (this.state.statusFilter === "fine" && (employee.fine_hours > 0 || employee.fine_review_pending)) ||

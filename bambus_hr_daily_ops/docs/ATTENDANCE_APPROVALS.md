@@ -427,3 +427,13 @@ Salary Overview **18.0.1.105.0** renders saved payslip amounts in a separate
 read-only table with wrapping names, status labels and pagination. Page-only totals
 are labeled Total shown. Pay-period links open existing payslips; neither table
 rendering nor history navigation recomputes or approves salary.
+
+## Employee attendance is read-only (18.0.1.106.0)
+
+The employee monthly browser uses the daily dashboard's Fine/OT display helper:
+unreviewed dates show current detection, saved approvals show their hours, exclusions
+show zero, and corrected decisions show Needs Review. It does not approve, exclude,
+edit punches or create Time Off. HR can use Open Daily Dashboard for the exact
+employee/date; ordinary readers remain in the read-only view. Pending leave is not
+an approved absence/half day, Monthly paid-day/withholding statuses remain derived,
+and actual overnight checkouts are labeled with their day offset.
