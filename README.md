@@ -1,15 +1,5 @@
 # Raaviya HR attendance and payroll add-ons
 
-## Legacy audit dashboard loading fix — 18.0.1.101.0
-
-The dashboard groups attendance records into Python lists. Legacy kiosk audit
-correlation now accepts those lists as well as Odoo recordsets, preventing an
-AttributeError when loading dates containing older audit records. Upgrade
-Daily Ops, restart every Odoo worker and reload. Face Attendance stays 18.0.0.3;
-no salary recomputation or audit cleanup is needed. Source filtering, manual
-correction visibility and financial re-review behavior remain unchanged.
-
-
 ## Dashboard attendance logs (5 November 2026)
 
 Upgrade `bambus_hr_daily_ops` to **18.0.1.100.0** and

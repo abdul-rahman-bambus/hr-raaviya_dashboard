@@ -132,3 +132,22 @@
     display: none !important;
 }
 
+.o_employee_live_map_header {
+    .btn-group {
+        .btn {
+            font-size: 0.72rem;
+            padding: 0.2rem 0.5rem;
+            line-height: 1.2;
+            font-weight: 500;
+        }
+    }
+}
+
+.o_employee_live_map_card {
+    .badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.35em 0.65em;
+    }
+}
+

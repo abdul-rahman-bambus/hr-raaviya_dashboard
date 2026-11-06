@@ -94,7 +94,14 @@ class HrAEmployeeInherit(models.Model):
                 "status": "error",
                 "message": "Employee not found",
                 "points": [],
+                "is_checked_in": False,
+                "attendance_state": "checked_out",
             }
+        open_attendance = self.env["hr.attendance"].sudo().search([
+            ("employee_id", "=", employee.id),
+            ("check_out", "=", False)
+        ], limit=1, order="check_in desc")
+        is_checked_in = bool(open_attendance)
         today_start = fields.Datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         logs = employee.location_log_ids.filtered(lambda l: l.timestamp and l.timestamp >= today_start)
         points = []
@@ -107,6 +114,8 @@ class HrAEmployeeInherit(models.Model):
                 })
         return {
             "status": "success",
+            "is_checked_in": is_checked_in,
+            "attendance_state": employee.attendance_state or ("checked_in" if is_checked_in else "checked_out"),
             "track_latitude": employee.track_latitude,
             "track_longitude": employee.track_longitude,
             "track_last_updated_at": fields.Datetime.to_string(employee.track_last_updated_at) if employee.track_last_updated_at else False,

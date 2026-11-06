@@ -6,15 +6,12 @@ import { useService } from "@web/core/utils/hooks";
 import { loadCSS, loadJS } from "@web/core/assets";
 import { rpc } from "@web/core/network/rpc";
 import { Component, onMounted, onWillStart, onWillUnmount, useRef, useState, useEffect } from "@odoo/owl";
+import { processRoutePoints, snapToRoadsOSRM } from "./route_geometry_utils";
 
 const LEAFLET_LOCAL_CSS = "/face_attendance_custom/static/lib/leaflet/leaflet.css";
 const LEAFLET_LOCAL_JS = "/face_attendance_custom/static/lib/leaflet/leaflet.js";
-const ROUTING_LOCAL_CSS = "/face_attendance_custom/static/lib/leaflet-routing-machine/leaflet-routing-machine.css";
-const ROUTING_LOCAL_JS = "/face_attendance_custom/static/lib/leaflet-routing-machine/leaflet-routing-machine.min.js";
 const LEAFLET_CDN_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_CDN_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const ROUTING_CDN_CSS = "https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css";
-const ROUTING_CDN_JS = "https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js";
 
 export class EmployeeLiveTrackingMap extends Component {
     static template = "face_attendance_custom.EmployeeLiveTrackingMap";
@@ -34,12 +31,14 @@ export class EmployeeLiveTrackingMap extends Component {
         this.map = null;
         this.startMarker = null;
         this.currentMarker = null;
-        this.routePolyline = null;
-        this.routingControl = null;
+        this.routeGlowPolyline = null;
+        this.routeCorePolyline = null;
         this.pollInterval = null;
         this.resizeObserver = null;
         this.lastTimestamp = null;
         this.locationData = null;
+        this.processedData = null;
+        this.snappedCoords = null;
 
         this.state = useState({
             loading: true,
@@ -51,6 +50,9 @@ export class EmployeeLiveTrackingMap extends Component {
             googleMapsUrl: "",
             latitude: null,
             longitude: null,
+            pathMode: "smooth",
+            distanceText: "",
+            snappingRoad: false,
         });
 
         onWillStart(async () => {
@@ -81,7 +83,11 @@ export class EmployeeLiveTrackingMap extends Component {
                     });
                 }
             },
-            () => [this.props.record?.resId, this.props.record?.data?.track_employee]
+            () => [
+                this.props.record?.resId,
+                this.props.record?.data?.track_employee,
+                this.props.record?.data?.attendance_state,
+            ]
         );
     }
 
@@ -99,43 +105,6 @@ export class EmployeeLiveTrackingMap extends Component {
                 }
             }
         }
-        if (window.L && !window.L.Routing) {
-            try {
-                await loadCSS(ROUTING_LOCAL_CSS);
-                await loadJS(ROUTING_LOCAL_JS);
-            } catch (_) {
-                try {
-                    await loadCSS(ROUTING_CDN_CSS);
-                    await loadJS(ROUTING_CDN_JS);
-                } catch (rErr) {
-                    console.warn("Could not load Leaflet Routing Machine assets:", rErr);
-                }
-            }
-        }
-        if (window.L && window.L.Routing && window.L.Routing.Control) {
-            if (!window.L.Routing.Control.prototype._safePatched) {
-                window.L.Routing.Control.prototype._safePatched = true;
-                const origClearLines = window.L.Routing.Control.prototype._clearLines;
-                window.L.Routing.Control.prototype._clearLines = function () {
-                    if (!this._map) {
-                        delete this._line;
-                        this._alternatives = [];
-                        return;
-                    }
-                    return origClearLines.apply(this, arguments);
-                };
-                const origOnRemove = window.L.Routing.Control.prototype.onRemove;
-                window.L.Routing.Control.prototype.onRemove = function (map) {
-                    if (this._pendingRequest && this._pendingRequest.abort) {
-                        try {
-                            this._pendingRequest.abort();
-                        } catch (_) {}
-                        this._pendingRequest = null;
-                    }
-                    return origOnRemove.apply(this, arguments);
-                };
-            }
-        }
     }
 
     get employeeId() {
@@ -144,6 +113,19 @@ export class EmployeeLiveTrackingMap extends Component {
 
     get employeeName() {
         return this.props.record?.data?.name || "Employee";
+    }
+
+    getIsCheckedIn(source = {}) {
+        if (source && typeof source.is_checked_in === "boolean") {
+            return source.is_checked_in;
+        }
+        if (source && source.attendance_state) {
+            return source.attendance_state === "checked_in";
+        }
+        if (this.props.record?.data?.attendance_state) {
+            return this.props.record.data.attendance_state === "checked_in";
+        }
+        return false;
     }
 
     async loadLocationData() {
@@ -156,8 +138,9 @@ export class EmployeeLiveTrackingMap extends Component {
                 this.state.latitude = rLat;
                 this.state.longitude = rLng;
                 this.state.hasPoints = true;
-                this.state.isLive = true;
-                this.state.statusText = "Live Tracking Active";
+                const isCheckedIn = this.getIsCheckedIn(recData);
+                this.state.isLive = isCheckedIn;
+                this.state.statusText = isCheckedIn ? "Live Tracking Active" : "Checked out";
                 this.state.googleMapsUrl = recData.track_map_url || `https://www.google.com/maps?q=${rLat},${rLng}`;
                 if (recData.track_last_updated_at) {
                     this.state.lastUpdatedText = `Updated: ${recData.track_last_updated_at}`;
@@ -193,6 +176,7 @@ export class EmployeeLiveTrackingMap extends Component {
                 this.state.pointCount = points.length;
                 this.state.hasPoints = points.length > 0 || Boolean(data.track_latitude && data.track_longitude);
 
+                const isCheckedIn = this.getIsCheckedIn(data);
                 const latestLat = data.track_latitude || (points.length ? points[points.length - 1].latitude : null);
                 const latestLng = data.track_longitude || (points.length ? points[points.length - 1].longitude : null);
 
@@ -200,8 +184,8 @@ export class EmployeeLiveTrackingMap extends Component {
                     this.state.latitude = latestLat;
                     this.state.longitude = latestLng;
                     this.state.googleMapsUrl = data.track_map_url || `https://www.google.com/maps?q=${latestLat},${latestLng}`;
-                    this.state.isLive = true;
-                    this.state.statusText = "Live Tracking Active";
+                    this.state.isLive = isCheckedIn;
+                    this.state.statusText = isCheckedIn ? "Live Tracking Active" : "Checked out";
                     if (data.track_last_updated_at) {
                         this.state.lastUpdatedText = `Updated: ${data.track_last_updated_at}`;
                     } else if (points.length) {
@@ -212,7 +196,7 @@ export class EmployeeLiveTrackingMap extends Component {
                     }
                 } else if (!this.state.latitude) {
                     this.state.isLive = false;
-                    this.state.statusText = "No GPS locations logged today";
+                    this.state.statusText = isCheckedIn ? "No GPS locations logged today" : "Checked out";
                     this.state.lastUpdatedText = "";
                     this.state.googleMapsUrl = "";
                 }
@@ -220,7 +204,8 @@ export class EmployeeLiveTrackingMap extends Component {
         } catch (err) {
             console.warn("Failed to load today's location logs:", err);
             if (!this.state.latitude) {
-                this.state.statusText = "No GPS locations logged today";
+                const isCheckedIn = this.getIsCheckedIn(recData);
+                this.state.statusText = isCheckedIn ? "No GPS locations logged today" : "Checked out";
             }
         } finally {
             this.state.loading = false;
@@ -264,6 +249,71 @@ export class EmployeeLiveTrackingMap extends Component {
         setTimeout(() => this.map && this.map.invalidateSize(), 600);
     }
 
+    clearRouteLayers() {
+        if (this.routeGlowPolyline) {
+            this.routeGlowPolyline.remove();
+            this.routeGlowPolyline = null;
+        }
+        if (this.routeCorePolyline) {
+            this.routeCorePolyline.remove();
+            this.routeCorePolyline = null;
+        }
+    }
+
+    async setPathMode(mode) {
+        if (this.state.pathMode === mode) return;
+        this.state.pathMode = mode;
+
+        if (mode === "snap" && !this.snappedCoords && this.processedData?.cleanedCoords?.length > 1) {
+            this.state.snappingRoad = true;
+            try {
+                this.snappedCoords = await snapToRoadsOSRM(this.processedData.cleanedCoords);
+            } catch (_) {
+                this.snappedCoords = null;
+            } finally {
+                this.state.snappingRoad = false;
+            }
+        }
+        this.drawRoutePolylines();
+    }
+
+    getActiveRouteCoordinates() {
+        if (!this.processedData) return [];
+        if (this.state.pathMode === "raw") {
+            return this.processedData.rawCoords || [];
+        }
+        if (this.state.pathMode === "snap" && this.snappedCoords && this.snappedCoords.length > 1) {
+            return this.snappedCoords;
+        }
+        return this.processedData.smoothedCoords || this.processedData.rawCoords || [];
+    }
+
+    drawRoutePolylines() {
+        if (!this.map || !window.L) return;
+        this.clearRouteLayers();
+
+        const activeCoords = this.getActiveRouteCoordinates();
+        if (activeCoords.length > 1) {
+            // 1. Glowing outer halo
+            this.routeGlowPolyline = window.L.polyline(activeCoords, {
+                color: "#3b82f6",
+                weight: 7,
+                opacity: 0.28,
+                lineCap: "round",
+                lineJoin: "round",
+            }).addTo(this.map);
+
+            // 2. Crisp, vibrant core line
+            this.routeCorePolyline = window.L.polyline(activeCoords, {
+                color: "#2563eb",
+                weight: 3.5,
+                opacity: 0.95,
+                lineCap: "round",
+                lineJoin: "round",
+            }).addTo(this.map);
+        }
+    }
+
     renderRoute() {
         if (!this.map || !window.L) {
             return;
@@ -278,114 +328,47 @@ export class EmployeeLiveTrackingMap extends Component {
             this.currentMarker.remove();
             this.currentMarker = null;
         }
-        if (this.routingControl) {
-            try {
-                if (this.routingControl._pendingRequest && this.routingControl._pendingRequest.abort) {
-                    this.routingControl._pendingRequest.abort();
-                    this.routingControl._pendingRequest = null;
-                }
-                if (this.map) {
-                    this.map.removeControl(this.routingControl);
-                }
-            } catch (_) {}
-            this.routingControl = null;
-        }
-        if (this.routePolyline) {
-            this.routePolyline.remove();
-            this.routePolyline = null;
-        }
+        this.clearRouteLayers();
 
         const points = this.locationData?.points || [];
-        const latLngs = [];
+        this.processedData = processRoutePoints(points);
 
-        for (const p of points) {
-            if (p.latitude && p.longitude) {
-                latLngs.push([p.latitude, p.longitude]);
-            }
+        if (this.processedData.totalDistanceKm > 0) {
+            this.state.distanceText = `${this.processedData.totalDistanceKm.toFixed(2)} km`;
+        } else {
+            this.state.distanceText = "";
         }
+
+        const rawCoords = this.processedData.rawCoords || [];
 
         // Fallback to employee's latest lat/long if no points array
-        if (!latLngs.length && this.state.latitude && this.state.longitude) {
-            latLngs.push([this.state.latitude, this.state.longitude]);
+        if (!rawCoords.length && this.state.latitude && this.state.longitude) {
+            rawCoords.push([this.state.latitude, this.state.longitude]);
         }
 
-        if (!latLngs.length) {
+        if (!rawCoords.length) {
             this.map.setView([20, 0], 2);
             return;
         }
 
-        // 1. Draw route polyline immediately as base/fallback
-        if (latLngs.length > 1) {
-            this.routePolyline = window.L.polyline(latLngs, {
-                color: "#007bff",
-                weight: 4,
-                opacity: 0.85,
-                lineJoin: "round",
-            }).addTo(this.map);
+        // Draw dual-layer polyline
+        this.drawRoutePolylines();
 
-            // Enhance with Leaflet Routing Machine road route
-            if (window.L.Routing) {
-                try {
-                    let sampledLatLngs = latLngs;
-                    if (latLngs.length > 20) {
-                        sampledLatLngs = [latLngs[0]];
-                        const step = (latLngs.length - 2) / 18;
-                        for (let i = 0; i < 18; i++) {
-                            sampledLatLngs.push(latLngs[Math.round(1 + i * step)]);
-                        }
-                        sampledLatLngs.push(latLngs[latLngs.length - 1]);
-                    }
-
-                    const waypoints = sampledLatLngs.map((pt) => window.L.latLng(pt[0], pt[1]));
-
-                    this.routingControl = window.L.Routing.control({
-                        waypoints: waypoints,
-                        router: window.L.Routing.osrmv1({
-                            serviceUrl: "https://router.project-osrm.org/route/v1",
-                            profile: "driving",
-                        }),
-                        lineOptions: {
-                            styles: [{ color: "#007bff", weight: 5, opacity: 0.85 }],
-                            extendToWaypoints: true,
-                            missingRouteStyles: [{ color: "#007bff", weight: 4, opacity: 0.5, dashArray: "5, 10" }],
-                        },
-                        addWaypoints: false,
-                        draggableWaypoints: false,
-                        fitSelectedRoutes: false,
-                        showAlternatives: false,
-                        show: false,
-                        createMarker: () => null,
-                    }).addTo(this.map);
-
-                    this.routingControl.on("routesfound", () => {
-                        if (!this.map) return;
-                        if (this.routePolyline) {
-                            this.routePolyline.remove();
-                            this.routePolyline = null;
-                        }
-                    });
-                    this.routingControl.on("routingerror", (e) => {
-                        console.warn("Live route routing machine calculation warning:", e?.error || e);
-                    });
-                } catch (routingErr) {
-                    console.warn("Live route routing machine skipped, fallback polyline active:", routingErr);
-                }
-            }
-
-            // 2. Add Start Marker
+        // Add Start Marker
+        if (rawCoords.length > 1) {
             const startIcon = window.L.divIcon({
                 className: "o_start_pin_wrapper",
                 html: `<div class="o_start_pin_icon" title="Shift Start"><i class="fa fa-flag"></i></div>`,
                 iconSize: [24, 24],
                 iconAnchor: [12, 12],
             });
-            this.startMarker = window.L.marker(latLngs[0], { icon: startIcon })
+            this.startMarker = window.L.marker(rawCoords[0], { icon: startIcon })
                 .bindPopup(`<b>Start Location</b><br/>Time: ${points[0]?.timestamp || "Start"}`)
                 .addTo(this.map);
         }
 
-        // 3. Add Current / Latest Live Marker
-        const latestCoord = latLngs[latLngs.length - 1];
+        // Add Current / Latest Live Marker
+        const latestCoord = rawCoords[rawCoords.length - 1];
         const currentIcon = window.L.divIcon({
             className: "o_live_pin_wrapper",
             html: `<div class="o_live_pin_icon" title="Current Live Position"><i class="fa fa-user"></i></div>`,
@@ -393,13 +376,16 @@ export class EmployeeLiveTrackingMap extends Component {
             iconAnchor: [14, 14],
         });
 
+        const statusLabel = this.state.isLive ? "Live Location" : "Checked out";
         this.currentMarker = window.L.marker(latestCoord, { icon: currentIcon })
-            .bindPopup(`<b>${this.employeeName}</b><br/>Status: Live Location<br/>${this.state.lastUpdatedText}`)
+            .bindPopup(`<b>${this.employeeName}</b><br/>Status: ${statusLabel}<br/>${this.state.lastUpdatedText}`)
             .addTo(this.map);
 
         // Fit map bounds to view all route waypoints with comfortable padding
-        if (latLngs.length > 1) {
-            const bounds = window.L.latLngBounds(latLngs);
+        const activeCoords = this.getActiveRouteCoordinates();
+        const fitCoords = activeCoords.length > 1 ? activeCoords : rawCoords;
+        if (fitCoords.length > 1) {
+            const bounds = window.L.latLngBounds(fitCoords);
             this.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
         } else {
             this.map.setView(latestCoord, 16);
@@ -419,14 +405,31 @@ export class EmployeeLiveTrackingMap extends Component {
             return;
         }
 
+        const isCheckedIn = this.getIsCheckedIn(payload);
         this.state.latitude = lat;
         this.state.longitude = lng;
-        this.state.isLive = true;
+        this.state.isLive = isCheckedIn;
         this.state.hasPoints = true;
-        this.state.statusText = "Live Tracking Active";
+        this.state.statusText = isCheckedIn ? "Live Tracking Active" : "Checked out";
         this.state.lastUpdatedText = `Updated: ${payload.timestamp || "Just now"}`;
         this.state.googleMapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
         this.lastTimestamp = payload.timestamp;
+
+        // Invalidate cached snapped coords on new live data
+        this.snappedCoords = null;
+
+        if (!this.locationData) {
+            this.locationData = { points: [] };
+        }
+        if (!this.locationData.points) {
+            this.locationData.points = [];
+        }
+        this.locationData.points.push({
+            latitude: lat,
+            longitude: lng,
+            timestamp: payload.timestamp || new Date().toISOString(),
+        });
+        this.state.pointCount = this.locationData.points.length;
 
         if (!this.map && this.mapRef.el && window.L) {
             this.initMap();
@@ -436,40 +439,11 @@ export class EmployeeLiveTrackingMap extends Component {
             return;
         }
 
-        const newLatLng = [lat, lng];
-
-        // Update or create current marker
-        if (this.currentMarker) {
-            this.currentMarker.setLatLng(newLatLng);
-            this.currentMarker.setPopupContent(
-                `<b>${this.employeeName}</b><br/>Status: Live Location<br/>${this.state.lastUpdatedText}`
-            );
-        } else {
-            const currentIcon = window.L.divIcon({
-                className: "o_live_pin_wrapper",
-                html: `<div class="o_live_pin_icon" title="Current Live Position"><i class="fa fa-user"></i></div>`,
-                iconSize: [28, 28],
-                iconAnchor: [14, 14],
-            });
-            this.currentMarker = window.L.marker(newLatLng, { icon: currentIcon })
-                .bindPopup(`<b>${this.employeeName}</b><br/>Status: Live Location<br/>${this.state.lastUpdatedText}`)
-                .addTo(this.map);
-        }
-
-        // Append to route polyline
-        if (this.routePolyline) {
-            this.routePolyline.addLatLng(newLatLng);
-        } else {
-            this.routePolyline = window.L.polyline([newLatLng], {
-                color: "#007bff",
-                weight: 4,
-                opacity: 0.85,
-                lineJoin: "round",
-            }).addTo(this.map);
-        }
+        // Re-process route with latest coordinate through smoothing pipeline
+        this.renderRoute();
 
         // Smoothly pan map to new position
-        this.map.panTo(newLatLng);
+        this.map.panTo([lat, lng]);
         setTimeout(() => this.map && this.map.invalidateSize(), 50);
     }
 
@@ -519,6 +493,18 @@ export class EmployeeLiveTrackingMap extends Component {
                 const latestLng = data.track_longitude || (points.length ? points[points.length - 1].longitude : null);
                 const latestTime = data.track_last_updated_at || (points.length ? points[points.length - 1].timestamp : null);
 
+                const isCheckedIn = this.getIsCheckedIn(data);
+                this.state.isLive = isCheckedIn;
+                if (this.state.hasPoints) {
+                    this.state.statusText = isCheckedIn ? "Live Tracking Active" : "Checked out";
+                    if (this.currentMarker) {
+                        const statusLabel = isCheckedIn ? "Live Location" : "Checked out";
+                        this.currentMarker.setPopupContent(
+                            `<b>${this.employeeName}</b><br/>Status: ${statusLabel}<br/>${this.state.lastUpdatedText}`
+                        );
+                    }
+                }
+
                 // If coordinates or timestamp have changed, update map
                 if (latestLat && latestLng && (latestLat !== this.state.latitude || latestLng !== this.state.longitude || latestTime !== this.lastTimestamp)) {
                     this.locationData = data;
@@ -527,6 +513,8 @@ export class EmployeeLiveTrackingMap extends Component {
                         latitude: latestLat,
                         longitude: latestLng,
                         timestamp: latestTime,
+                        is_checked_in: isCheckedIn,
+                        attendance_state: data.attendance_state,
                     });
                 }
             }
@@ -565,22 +553,7 @@ export class EmployeeLiveTrackingMap extends Component {
             this.currentMarker.remove();
             this.currentMarker = null;
         }
-        if (this.routingControl) {
-            try {
-                if (this.routingControl._pendingRequest && this.routingControl._pendingRequest.abort) {
-                    this.routingControl._pendingRequest.abort();
-                    this.routingControl._pendingRequest = null;
-                }
-                if (this.map) {
-                    this.map.removeControl(this.routingControl);
-                }
-            } catch (_) {}
-            this.routingControl = null;
-        }
-        if (this.routePolyline) {
-            this.routePolyline.remove();
-            this.routePolyline = null;
-        }
+        this.clearRouteLayers();
         if (this.map) {
             this.map.remove();
             this.map = null;

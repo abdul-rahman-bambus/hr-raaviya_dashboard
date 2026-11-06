@@ -7,8 +7,22 @@
                     <span class="o_live_status_dot" t-att-class="{ 'o_pulse': state.isLive }"/>
                     <span class="fw-bold fs-7" t-esc="state.statusText"/>
                     <small class="text-muted ms-1" t-if="state.lastUpdatedText" t-esc="'(' + state.lastUpdatedText + ')'"/>
+                    <span t-if="state.distanceText" class="badge rounded-pill bg-light text-primary border ms-2" title="Total Route Distance">
+                        <i class="fa fa-road me-1"/> <t t-esc="state.distanceText"/>
+                    </span>
                 </div>
                 <div class="d-flex align-items-center gap-1">
+                    <div t-if="state.hasPoints and state.pointCount > 1" class="btn-group btn-group-sm me-1" role="group">
+                        <button type="button" class="btn btn-sm" t-att-class="state.pathMode === 'smooth' ? 'btn-primary' : 'btn-outline-secondary'" t-on-click="() => this.setPathMode('smooth')" title="Smooth curved path with jitter filtering">
+                            <i class="fa fa-line-chart me-1"/> Smooth
+                        </button>
+                        <button type="button" class="btn btn-sm" t-att-class="state.pathMode === 'snap' ? 'btn-primary' : 'btn-outline-secondary'" t-on-click="() => this.setPathMode('snap')" title="Snap to OpenStreetMap road centerlines" t-att-disabled="state.snappingRoad">
+                            <i class="fa fa-car me-1" t-att-class="{ 'fa-spin': state.snappingRoad }"/> Snap Road
+                        </button>
+                        <button type="button" class="btn btn-sm" t-att-class="state.pathMode === 'raw' ? 'btn-primary' : 'btn-outline-secondary'" t-on-click="() => this.setPathMode('raw')" title="Raw GPS waypoints">
+                            Raw
+                        </button>
+                    </div>
                     <a t-if="state.googleMapsUrl" t-att-href="state.googleMapsUrl" target="_blank" class="btn btn-sm btn-outline-primary" title="Open in Google Maps">
                         <i class="fa fa-map-marker me-1"/> Open in Google Maps
                     </a>

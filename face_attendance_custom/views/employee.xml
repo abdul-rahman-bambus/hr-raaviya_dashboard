@@ -16,6 +16,7 @@
                 <field name="track_map_url" string="Open in Google Maps" widget="url" text="Open in Google Maps" invisible="not has_employee_tracking or not track_employee or not track_map_url" readonly="1"/>
                 <field name="track_latitude" invisible="1"/>
                 <field name="track_longitude" invisible="1"/>
+                <field name="attendance_state" invisible="1"/>
                 <field name="track_last_updated_at" invisible="1"/>
                 <field name="tracking_route_url" invisible="1"/>
                 <div invisible="not has_employee_tracking or not track_employee" colspan="2" class="o_employee_live_map_wrapper">

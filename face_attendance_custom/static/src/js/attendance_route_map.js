@@ -4,15 +4,12 @@ import { registry } from "@web/core/registry";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 import { loadCSS, loadJS } from "@web/core/assets";
 import { Component, onMounted, onWillStart, onWillUnmount, useRef, useState, useEffect } from "@odoo/owl";
+import { processRoutePoints } from "./route_geometry_utils";
 
 const LEAFLET_LOCAL_CSS = "/face_attendance_custom/static/lib/leaflet/leaflet.css";
 const LEAFLET_LOCAL_JS = "/face_attendance_custom/static/lib/leaflet/leaflet.js";
-const ROUTING_LOCAL_CSS = "/face_attendance_custom/static/lib/leaflet-routing-machine/leaflet-routing-machine.css";
-const ROUTING_LOCAL_JS = "/face_attendance_custom/static/lib/leaflet-routing-machine/leaflet-routing-machine.min.js";
 const LEAFLET_CDN_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_CDN_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const ROUTING_CDN_CSS = "https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css";
-const ROUTING_CDN_JS = "https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js";
 
 export class AttendanceRouteMap extends Component {
     static template = "face_attendance_custom.AttendanceRouteMap";
@@ -24,13 +21,12 @@ export class AttendanceRouteMap extends Component {
         this.mapRef = useRef("mapContainer");
         this.map = null;
         this.markers = [];
-        this.routePolyline = null;
-        this.routingControl = null;
+        this.routeGlowPolyline = null;
+        this.routeCorePolyline = null;
         this.resizeObserver = null;
 
         this.state = useState({
             titleText: "Shift Attendance Route",
-            pointCountText: "",
             googleMapsUrl: "",
             hasCoordinates: false,
         });
@@ -77,43 +73,6 @@ export class AttendanceRouteMap extends Component {
                 } catch (cdnErr) {
                     console.warn("Could not load Leaflet assets:", cdnErr);
                 }
-            }
-        }
-        if (window.L && !window.L.Routing) {
-            try {
-                await loadCSS(ROUTING_LOCAL_CSS);
-                await loadJS(ROUTING_LOCAL_JS);
-            } catch (_) {
-                try {
-                    await loadCSS(ROUTING_CDN_CSS);
-                    await loadJS(ROUTING_CDN_JS);
-                } catch (rErr) {
-                    console.warn("Could not load Leaflet Routing Machine assets:", rErr);
-                }
-            }
-        }
-        if (window.L && window.L.Routing && window.L.Routing.Control) {
-            if (!window.L.Routing.Control.prototype._safePatched) {
-                window.L.Routing.Control.prototype._safePatched = true;
-                const origClearLines = window.L.Routing.Control.prototype._clearLines;
-                window.L.Routing.Control.prototype._clearLines = function () {
-                    if (!this._map) {
-                        delete this._line;
-                        this._alternatives = [];
-                        return;
-                    }
-                    return origClearLines.apply(this, arguments);
-                };
-                const origOnRemove = window.L.Routing.Control.prototype.onRemove;
-                window.L.Routing.Control.prototype.onRemove = function (map) {
-                    if (this._pendingRequest && this._pendingRequest.abort) {
-                        try {
-                            this._pendingRequest.abort();
-                        } catch (_) {}
-                        this._pendingRequest = null;
-                    }
-                    return origOnRemove.apply(this, arguments);
-                };
             }
         }
     }
@@ -205,77 +164,46 @@ export class AttendanceRouteMap extends Component {
 
         if (!coords.length) {
             this.state.titleText = "No attendance GPS coordinates recorded";
-            this.state.pointCountText = "";
             this.state.googleMapsUrl = "";
             this.state.hasCoordinates = false;
             return;
         }
 
         this.state.hasCoordinates = true;
-        this.state.pointCountText = `(${coords.length} GPS waypoint${coords.length > 1 ? "s" : ""})`;
         this.state.titleText = "Shift Attendance Route";
         this.state.googleMapsUrl = data.tracking_route_url || "";
 
-        const latLngs = coords.map((c) => [c.lat, c.lng]);
+        const rawPoints = coords.map((c) => ({
+            latitude: c.lat,
+            longitude: c.lng,
+            timestamp: c.timestamp,
+        }));
 
-        // Draw initial polyline immediately
-        if (latLngs.length > 1) {
-            this.routePolyline = window.L.polyline(latLngs, {
-                color: "#007bff",
-                weight: 4,
-                opacity: 0.85,
+        const processed = processRoutePoints(rawPoints);
+        const renderCoords = processed.smoothedCoords && processed.smoothedCoords.length > 1
+            ? processed.smoothedCoords
+            : processed.rawCoords;
+
+        // Draw dual-layer route polyline
+        if (renderCoords.length > 1) {
+            this.routeGlowPolyline = window.L.polyline(renderCoords, {
+                color: "#3b82f6",
+                weight: 7,
+                opacity: 0.28,
+                lineCap: "round",
                 lineJoin: "round",
             }).addTo(this.map);
 
-            // Enhance with Leaflet Routing Machine road-snapped line
-            if (window.L.Routing) {
-                try {
-                    let sampledLatLngs = latLngs;
-                    if (latLngs.length > 20) {
-                        sampledLatLngs = [latLngs[0]];
-                        const step = (latLngs.length - 2) / 18;
-                        for (let i = 0; i < 18; i++) {
-                            sampledLatLngs.push(latLngs[Math.round(1 + i * step)]);
-                        }
-                        sampledLatLngs.push(latLngs[latLngs.length - 1]);
-                    }
-
-                    const waypoints = sampledLatLngs.map((pt) => window.L.latLng(pt[0], pt[1]));
-
-                    this.routingControl = window.L.Routing.control({
-                        waypoints: waypoints,
-                        router: window.L.Routing.osrmv1({
-                            serviceUrl: "https://router.project-osrm.org/route/v1",
-                            profile: "driving",
-                        }),
-                        lineOptions: {
-                            styles: [{ color: "#007bff", weight: 5, opacity: 0.85 }],
-                            extendToWaypoints: true,
-                            missingRouteStyles: [{ color: "#007bff", weight: 4, opacity: 0.5, dashArray: "5, 10" }],
-                        },
-                        addWaypoints: false,
-                        draggableWaypoints: false,
-                        fitSelectedRoutes: false,
-                        showAlternatives: false,
-                        show: false,
-                        createMarker: () => null,
-                    }).addTo(this.map);
-
-                    this.routingControl.on("routesfound", () => {
-                        if (!this.map) return;
-                        if (this.routePolyline) {
-                            this.routePolyline.remove();
-                            this.routePolyline = null;
-                        }
-                    });
-                    this.routingControl.on("routingerror", (e) => {
-                        console.warn("Leaflet Routing Machine route calculation warning:", e?.error || e);
-                    });
-                } catch (routingErr) {
-                    console.warn("Leaflet Routing Machine initialization skipped, fallback polyline active:", routingErr);
-                }
-            }
+            this.routeCorePolyline = window.L.polyline(renderCoords, {
+                color: "#2563eb",
+                weight: 3.5,
+                opacity: 0.95,
+                lineCap: "round",
+                lineJoin: "round",
+            }).addTo(this.map);
         }
+
+        const rawLatLngs = processed.rawCoords;
 
         // Check-in Start Marker (Green)
         const startIcon = window.L.divIcon({
@@ -284,28 +212,29 @@ export class AttendanceRouteMap extends Component {
             iconSize: [24, 24],
             iconAnchor: [12, 12],
         });
-        const startMarker = window.L.marker(latLngs[0], { icon: startIcon })
+        const startMarker = window.L.marker(rawLatLngs[0], { icon: startIcon })
             .bindPopup(`<b>Check-in Location</b><br/>${data.checkin_address || ""}`)
             .addTo(this.map);
         this.markers.push(startMarker);
 
         // Check-out End Marker (Red) if available
-        if (latLngs.length > 1 && data.check_out) {
+        if (rawLatLngs.length > 1 && data.check_out) {
             const endIcon = window.L.divIcon({
                 className: "o_end_pin_wrapper",
                 html: `<div class="o_end_pin_icon" title="Check-out"><i class="fa fa-sign-out"></i></div>`,
                 iconSize: [24, 24],
                 iconAnchor: [12, 12],
             });
-            const endMarker = window.L.marker(latLngs[latLngs.length - 1], { icon: endIcon })
+            const endMarker = window.L.marker(rawLatLngs[rawLatLngs.length - 1], { icon: endIcon })
                 .bindPopup(`<b>Check-out Location</b><br/>${data.checkout_address || ""}`)
                 .addTo(this.map);
             this.markers.push(endMarker);
         }
 
         // Fit map bounds
-        if (latLngs.length > 1) {
-            const bounds = window.L.latLngBounds(latLngs);
+        const fitCoords = renderCoords.length > 1 ? renderCoords : rawLatLngs;
+        if (fitCoords.length > 1) {
+            const bounds = window.L.latLngBounds(fitCoords);
             this.map.fitBounds(bounds, { padding: [30, 30], maxZoom: 17 });
         } else if (this.markers.length) {
             this.map.setView(this.markers[0].getLatLng(), 16);
@@ -319,21 +248,13 @@ export class AttendanceRouteMap extends Component {
             m.remove();
         }
         this.markers = [];
-        if (this.routingControl) {
-            try {
-                if (this.routingControl._pendingRequest && this.routingControl._pendingRequest.abort) {
-                    this.routingControl._pendingRequest.abort();
-                    this.routingControl._pendingRequest = null;
-                }
-                if (this.map) {
-                    this.map.removeControl(this.routingControl);
-                }
-            } catch (_) {}
-            this.routingControl = null;
+        if (this.routeGlowPolyline) {
+            this.routeGlowPolyline.remove();
+            this.routeGlowPolyline = null;
         }
-        if (this.routePolyline) {
-            this.routePolyline.remove();
-            this.routePolyline = null;
+        if (this.routeCorePolyline) {
+            this.routeCorePolyline.remove();
+            this.routeCorePolyline = null;
         }
     }
 
@@ -341,8 +262,8 @@ export class AttendanceRouteMap extends Component {
         if (!this.map) {
             return;
         }
-        if (this.routePolyline) {
-            this.map.fitBounds(this.routePolyline.getBounds(), { padding: [30, 30] });
+        if (this.routeCorePolyline) {
+            this.map.fitBounds(this.routeCorePolyline.getBounds(), { padding: [30, 30] });
         } else if (this.markers.length > 1) {
             const group = window.L.featureGroup(this.markers);
             this.map.fitBounds(group.getBounds(), { padding: [30, 30] });

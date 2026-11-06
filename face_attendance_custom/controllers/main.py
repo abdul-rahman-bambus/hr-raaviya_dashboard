@@ -470,6 +470,7 @@ class PortalCalendar(http.Controller):
         return {
             "status": "success",
             "is_checked_in": is_checked_in,
+            "attendance_state": employee.attendance_state or ("checked_in" if is_checked_in else "checked_out"),
             "check_in": fields.Datetime.to_string(open_attendance.check_in) if is_checked_in and open_attendance.check_in else False,
             "track_latitude": employee.track_latitude,
             "track_longitude": employee.track_longitude,

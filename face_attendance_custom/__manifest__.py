@@ -1,6 +1,6 @@
 {
     "name": "Face attendance custom",
-    "version": "18.0.0.3",
+    "version": "18.0.0.2",
     "summary": "This module has face attendance customisation",
     "author": "cube48 AG",
     "sequence": 1,
@@ -29,10 +29,9 @@
         "web.assets_backend": [
             "face_attendance_custom/static/lib/leaflet/leaflet.css",
             "face_attendance_custom/static/lib/leaflet/leaflet.js",
-            "face_attendance_custom/static/lib/leaflet-routing-machine/leaflet-routing-machine.css",
-            "face_attendance_custom/static/lib/leaflet-routing-machine/leaflet-routing-machine.min.js",
             "face_attendance_custom/static/src/scss/employee_live_tracking_map.scss",
             "face_attendance_custom/static/src/xml/employee_live_tracking_map.xml",
+            "face_attendance_custom/static/src/js/route_geometry_utils.js",
             "face_attendance_custom/static/src/js/employee_live_tracking_map.js",
             "face_attendance_custom/static/src/xml/attendance_route_map.xml",
             "face_attendance_custom/static/src/js/attendance_route_map.js",
