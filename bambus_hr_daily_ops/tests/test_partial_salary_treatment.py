@@ -154,6 +154,55 @@ class TestPartialSalaryTreatment(TransactionCase):
             self.assertEqual(slip.total_fine_amount, 0)
             self.assertFalse(self.wizard(line).fine_line_ids)
 
+    def test_open_late_arrival_matches_list_dashboard_and_review_for_daily_monthly(self):
+        for basis in ('daily', 'monthly'):
+            employee, contract, line = self.person(basis, spans=[('09:57', None)])
+            punches = line._review_attendances()
+            self.assertEqual(punches.bambus_late_minutes, 7)
+            self.assertAlmostEqual(punches.bambus_fine_hours, 7 / 60)
+            self.assertEqual((punches.bambus_early_leave_minutes, punches.bambus_gap_minutes), (0, 0))
+            self.assertEqual((punches.worked_hours, punches.overtime_hours), (0, 0))
+            row = next(row for row in self.env['bambus.attendance.dashboard'].with_context(tz='UTC').get_attendance_dashboard(
+                str(self.day))['daily_attendance'] if row['id'] == employee.id)
+            self.assertEqual(row['fine_hours'], round(7 / 60, 2))
+            self.assertTrue(row['fine_review_pending'])
+            wizard = self.wizard(line)
+            self.assertEqual(wizard.fine_line_ids.mapped('kind'), ['late'])
+            self.assertAlmostEqual(wizard.fine_line_ids.hours, 7 / 60, places=6)
+            self.assertEqual(wizard.fine_line_ids.amount, punches.bambus_fine_amount)
+            self.assertEqual(line.fine_state, 'draft')
+            self.assertEqual(self.slip(employee, contract).total_fine_amount, 0)
+            self.assertEqual(self.slip(employee, contract).total_regular_pay_amount, 0)
+
+    def test_open_late_approval_survives_unchanged_checkout_and_rechecks_new_early_exit(self):
+        employee, contract, line = self.person(spans=[('09:57', None)])
+        wizard = self.wizard(line)
+        wizard.action_save()
+        saved = line.fine_amount
+        punch = line._review_attendances()
+        punch.check_out = str(self.day) + ' 18:45:00'
+        self.assertEqual(line.fine_state, 'approved')
+        self.assertEqual(line.fine_amount, saved)
+        self.assertFalse(line.fine_re_review_required)
+        punch.check_out = str(self.day) + ' 17:45:00'
+        self.assertTrue(line.fine_re_review_required)
+        self.assertEqual(line.fine_state, 'submitted')
+        wizard = self.wizard(line)
+        self.assertIn('early', wizard.fine_line_ids.mapped('kind'))
+
+    def test_open_session_arrivals_respect_grace_break_return_and_no_future_gaps(self):
+        for spans, expected in [([('09:50', None)], 0),
+                                ([('09:45', '14:00'), ('14:50', None)], 5),
+                                ([('15:00', None)], 15)]:
+            employee, contract, line = self.person(spans=spans)
+            punches = line._review_attendances()
+            self.assertEqual(sum(punches.mapped('bambus_late_minutes')), expected)
+            self.assertEqual(sum(punches.mapped('bambus_early_leave_minutes')), 0)
+            self.assertEqual(sum(punches.mapped('bambus_gap_minutes')), 0)
+        self.template.late_enabled = False
+        employee, contract, line = self.person(spans=[('10:13', None)])
+        self.assertFalse(self.wizard(line).fine_line_ids)
+
     def test_hourly_stays_actual_payable_hours(self):
         employee, contract, line = self.person('hourly')
         slip = self.slip(employee, contract)

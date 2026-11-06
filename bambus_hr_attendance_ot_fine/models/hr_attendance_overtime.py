@@ -632,9 +632,9 @@ class HrAttendanceOvertime(models.Model):
                 fine_amount = 0.0
                 reviewed_components = emp._attendance_exception_components(d)
                 if reviewed_components is not None:
-                    late_minutes = sum(value['hours'] * 60 for key, value in reviewed_components.items() if key.startswith('late_'))
-                    early_leave_minutes = sum(value['hours'] * 60 for key, value in reviewed_components.items() if key.startswith('early_'))
-                    gap_minutes = sum(value['hours'] * 60 for key, value in reviewed_components.items() if key.startswith('break_'))
+                    late_minutes = sum(value['hours'] * 60 for key, value in reviewed_components.items() if key == 'late' or key.startswith('late_'))
+                    early_leave_minutes = sum(value['hours'] * 60 for key, value in reviewed_components.items() if key == 'early' or key.startswith('early_'))
+                    gap_minutes = sum(value['hours'] * 60 for key, value in reviewed_components.items() if key == 'break' or key.startswith('break_'))
                     fine_minutes = late_minutes + early_leave_minutes + gap_minutes
                     fine_hours = fine_minutes / 60.0
                 automation_fine_enabled = bool(

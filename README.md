@@ -1,5 +1,23 @@
 # Raaviya HR attendance and payroll add-ons
 
+## Late arrivals before checkout — 6 November 2026
+
+Upgrade Daily Ops to **18.0.1.103.0** and Attendance OT/Fine to
+**18.0.3.37.0**, restart Odoo and reload the browser. In Normal Day Pay Minus
+Approved Fines mode, an open punch now exposes known session late arrival after
+its configured grace. Until checkout, do not forecast early exits, internal gaps
+or whole missing sessions. Open punches still give no completed worked hours or
+attendance-day pay. Existing minute rounding, salary conversion and enabled-rule
+settings remain authoritative.
+
+The stored attendance detector now accepts both whole-day fine keys (`late`,
+`early`, `break`) and session keys, so attendance list values, dashboard and HR
+review agree. Detection remains an unapproved proposal. An unchanged late decision
+survives an ordinary checkout; changed fine components trigger normal re-review.
+Saved approvals and finalized salaries are not repriced by opening the dashboard.
+No Face Attendance/mobile API changes are included.
+
+
 ## Faster attendance date switching — 6 November 2026
 
 Upgrade `bambus_hr_daily_ops` to **18.0.1.102.0** and

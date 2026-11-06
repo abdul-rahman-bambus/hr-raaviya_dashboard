@@ -91,10 +91,14 @@ class PartialAttendanceEmployee(models.Model):
         context = self._fine_only_attendance_context(day)
         if context is None:
             return super()._attendance_exception_components(day)
+        if any(not att.check_out for att in context['attendance']):
+            # Arrival is already known, even though worked hours and the end
+            # of an open punch are not. Never forecast missing sessions,
+            # early exits or internal gaps while the day is still open.
+            return self._open_attendance_late_components(context)
         punches = context['punches']
-        if (not context['attended'] or not punches
-                or any(not att.check_out for att in context['attendance'])):
-            return {}  # No absence fine, nor forecast of an open punch's end.
+        if not context['attended'] or not punches:
+            return {}  # No absence fine.
         template = context['template']
         totals = {'late': 0.0, 'early': 0.0, 'break': 0.0}
         for index, (start, end) in enumerate(context['sessions']):
@@ -121,3 +125,20 @@ class PartialAttendanceEmployee(models.Model):
         # artificial worked/regularized hours are introduced by this policy.
         return {kind: {'hours': minutes / 60, 'coverage': []}
                 for kind, minutes in totals.items() if minutes > 0}
+
+    def _open_attendance_late_components(self, context):
+        template = context['template']
+        if not template.late_enabled:
+            return {}
+        total = 0
+        for index, (start, end) in enumerate(context['sessions']):
+            arrivals = [max(start, att.check_in) for att in context['attendance']
+                        if att.check_in < end and
+                        (not att.check_out or (att.check_out > start and att.worked_hours > 0))]
+            if not arrivals:
+                continue
+            missing = _subtract([(start, min(arrivals))], context['leave_intervals'])
+            minutes = sum((b - a).total_seconds() for a, b in missing) / 60
+            grace = template.late_grace_minutes if index == 0 else template.post_break_grace_minutes
+            total += max(0, int(round(minutes)) - grace)
+        return {'late': {'hours': total / 60, 'coverage': []}} if total else {}
