@@ -1,5 +1,21 @@
 # Raaviya HR attendance and payroll add-ons
 
+## Salary Overview readable table — 18.0.1.105.0
+
+The Salary Overview payslip section now uses a dedicated read-only table instead
+of the embedded native list. It avoids notebook/list negative margins, sticky
+headers, filler rows and forced minimum widths. Pay-period names wrap, saved
+amounts use the employee company currency, and statuses and totals remain visible.
+Use the pay-period link to open a payslip. The standard relational pager loads
+further records; totals say **Total shown** when only part of the history is shown.
+**View All Payslips** and **Salary Revision History** remain available.
+
+Upgrade Daily Ops to **18.0.1.105.0**, restart Odoo and hard-refresh the browser
+so the new field widget, template and styles load together. This changes display
+only: saved salary lines, revision history, approval decisions and confirmed-only
+summary calculations are unchanged. No salary recomputation is required.
+
+
 ## Salary revision history and overview — 18.0.1.104.0
 
 Employee > Salary Overview now provides **Salary Revision History**, and payslips

@@ -45,20 +45,20 @@
 .o_bso_metric div { display:flex; min-width:0; flex-direction:column; }
 .o_bso_metric small { margin-bottom:3px; color:#7c8795; font-size:12px; }
 .o_bso_metric strong { overflow:hidden; color:#20252b; text-overflow:ellipsis; white-space:nowrap; font-size:17px; }
-.o_bso_list { width:100%; overflow-x:auto; overflow-y:hidden; border:1px solid #e6eaf0; border-radius:10px; background:#fff; box-shadow:0 2px 10px rgba(27,45,72,.04); }
-.o_bso_list .o_field_x2many { display:block; width:100%; min-width:760px; }
-.o_bso_list .o_list_renderer { width:100%; min-width:760px; overflow:visible; border:0; }
-/* Native notebook x2many lists use negative margins. This list has its own
-   bordered container, so those margins otherwise clip its header and left edge. */
-.o_bso_list .o_list_renderer { margin:0 !important; }
-.o_bso_list .o_list_table { width:100%; margin:0; }
-.o_bso_list .o_list_table th,.o_bso_list .o_list_table td { padding-right:12px; padding-left:12px; vertical-align:middle; }
-.o_bso_list .o_list_table thead,
-.o_bso_list .o_list_table thead th { position:static; top:auto; }
-.o_bso_list .o_list_table th,
-.o_bso_list .o_list_table td { padding-top:12px; padding-bottom:12px; height:auto; }
-.o_bso_list .o_list_table td[name="name"] { white-space:normal; min-width:12rem; }
-.o_bso_list .o_list_table tbody tr:not(.o_data_row) { display:none; }
-.o_bso_list .o_list_table th:first-child,.o_bso_list .o_list_table td:first-child { padding-left:18px; }
-.o_bso_list .o_list_table th:last-child,.o_bso_list .o_list_table td:last-child { padding-right:18px; }
+.o_bso_list { width:100%; min-width:0; }
+.o_bso_list .o_field_widget { width:100%; }
+.o_bso_payslips { width:100%; border:1px solid #e6eaf0; border-radius:10px; background:#fff; box-shadow:0 2px 10px rgba(27,45,72,.04); }
+.o_bso_pager { display:flex; justify-content:flex-end; padding:8px 12px; }
+.o_bso_payslip_table { width:100%; table-layout:fixed; border-collapse:collapse; margin:0; }
+.o_bso_payslip_table th,.o_bso_payslip_table td { position:static; padding:14px 12px; line-height:1.5; vertical-align:middle; overflow-wrap:anywhere; border-bottom:1px solid #e6eaf0; }
+.o_bso_payslip_table thead th { background:#f7f9fc; color:#334155; font-weight:600; text-align:left; }
+.o_bso_payslip_table .o_bso_amount { text-align:right; font-variant-numeric:tabular-nums; }
+.o_bso_payslip_table tfoot { background:#f7f9fc; font-weight:600; }
+.o_bso_payslip_table tfoot td,.o_bso_payslip_table tfoot th { border-bottom:0; }
+.o_bso_payslip_link { display:block; max-width:100%; padding:0; border:0; background:transparent; text-align:left; white-space:normal; overflow-wrap:anywhere; color:#2563a6; font:inherit; cursor:pointer; }
+.o_bso_payslip_link:hover { text-decoration:underline; }
+.o_bso_status { display:inline-block; padding:3px 8px; border-radius:5px; background:#edf0f4; white-space:normal; }
+.o_bso_status_draft,.o_bso_status_verify { background:#fff1ce; color:#855a00; }
+.o_bso_status_done { background:#dcf5e5; color:#176338; }
+.o_bso_status_cancel { background:#fde2e2; color:#963434; }
 @media (max-width:767px) { .o_bso_heading { align-items:flex-start; flex-direction:column; }.o_bso_metrics { grid-template-columns:1fr; } }

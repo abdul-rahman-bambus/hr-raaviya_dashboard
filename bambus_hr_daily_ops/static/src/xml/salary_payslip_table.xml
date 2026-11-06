@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="bambus_hr_daily_ops.SalaryPayslipTable">
+        <div class="o_bso_payslips">
+            <div t-if="list.count > list.limit" class="o_bso_pager"><Pager t-props="pagerProps"/></div>
+            <table class="o_bso_payslip_table" aria-label="Employee payslips">
+                <colgroup><col style="width:30%"/><col style="width:10%"/><col style="width:10%"/><col style="width:13%"/><col style="width:13%"/><col style="width:13%"/><col style="width:11%"/></colgroup>
+                <thead><tr>
+                    <th scope="col">Pay Period</th><th scope="col">Date From</th><th scope="col">Date To</th>
+                    <th scope="col" class="o_bso_amount">Basic Wage</th><th scope="col" class="o_bso_amount">Gross Wage</th><th scope="col" class="o_bso_amount">Net Wage</th><th scope="col">Status</th>
+                </tr></thead>
+                <tbody>
+                    <tr t-foreach="rows" t-as="row" t-key="row.resId" class="o_bso_payslip_row">
+                        <td><button type="button" class="o_bso_payslip_link" t-on-click="() => this.openPayslip(row)"><t t-esc="row.data.name"/></button></td>
+                        <td t-esc="date(row.data.date_from)"/><td t-esc="date(row.data.date_to)"/>
+                        <td class="o_bso_amount" t-esc="money(row.data.basic_pay)"/><td class="o_bso_amount" t-esc="money(row.data.gross_pay)"/><td class="o_bso_amount" t-esc="money(row.data.net_pay)"/>
+                        <td><span t-att-class="'o_bso_status o_bso_status_' + row.data.state" t-esc="status(row)"/></td>
+                    </tr>
+                    <tr t-if="!rows.length"><td colspan="7" class="text-center text-muted">No payslips yet.</td></tr>
+                </tbody>
+                <tfoot t-if="rows.length"><tr>
+                    <th scope="row" colspan="3"><t t-if="list.count > rows.length">Total shown</t><t t-else="">Total</t></th>
+                    <td class="o_bso_amount" t-esc="money(totals.basic_pay)"/><td class="o_bso_amount" t-esc="money(totals.gross_pay)"/><td class="o_bso_amount" t-esc="money(totals.net_pay)"/><td/>
+                </tr></tfoot>
+            </table>
+        </div>
+    </t>
+</templates>

@@ -440,3 +440,19 @@ History actions use existing employee revisions across contracts, with normal
 ACL/company rules and no sudo. Existing salary calculation, revision application,
 contracts, approval snapshots and finalized salaries remain unchanged. Upgrade
 Daily Ops and reload; customer local acceptance and deployment remain pending.
+
+## Dedicated salary overview table — 6 November 2026
+
+Daily Ops **18.0.1.105.0** passed **40 targeted Odoo tests**, zero failures/errors,
+and **23 production OWL Chromium tests**. New OWL cases exercise wrapped/escaped
+names, saved payslip navigation, negative values and page totals, pagination and
+an explicit empty state without filler rows. Installed Chromium verified native
+field loading/formatting, both history buttons and the saved 885-to-900 revision.
+It checked full header/row bounds with chatter visible at 1920px and no horizontal
+overflow at the natural form width or a constrained 700px section. The widget no
+longer renders a native o_list_renderer inside Salary Overview.
+
+The prior native-list CSS fix did not resolve the customer's local screenshot.
+This release replaces that renderer instead of relying on further margin overrides.
+Customer theme/deployment acceptance still requires upgrading and loading the new
+assets locally. No customer records or production deployment were changed.

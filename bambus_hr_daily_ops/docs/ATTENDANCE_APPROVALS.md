@@ -422,3 +422,8 @@ reason and recorded user/time. History is read-only in these views and includes
 all of that employee's contracts. The contract Salary Revision History tab remains
 available. Overview summary cards count confirmed payslips only; draft payslips
 remain visible in the table. These views do not recompute or approve payroll.
+
+Salary Overview **18.0.1.105.0** renders saved payslip amounts in a separate
+read-only table with wrapping names, status labels and pagination. Page-only totals
+are labeled Total shown. Pay-period links open existing payslips; neither table
+rendering nor history navigation recomputes or approves salary.

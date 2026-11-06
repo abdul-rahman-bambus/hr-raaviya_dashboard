@@ -96,6 +96,62 @@ class DashboardUpdates(unittest.TestCase):
     def tick(self):
         self.page.evaluate('() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
 
+    def mount_salary_table(self, empty=False):
+        self.page.add_style_tag(path=str(ROOT / 'css/employee_dashboard.css'))
+        self.page.add_script_tag(content="""
+            const _t = text => text;
+            const standardFieldProps = {name: {type: String}, record: {type: Object}, readonly: {type: Boolean, optional: true}};
+            const formatDate = value => value;
+            const formatMonetary = value => value.toFixed(2);
+            class SalaryPager extends Component { static template = 'SalaryPager'; static props = ['*']; }
+            const Pager = SalaryPager;
+            window.openedSlips = [];
+            services.action.doAction = action => openedSlips.push(action);
+            window.salaryRow = (id, amount) => ({resId:id, fields:{state:{selection:[['draft','Draft']]}},
+                data:{name:'Salary <test> ' + id,date_from:'10/01/2026',date_to:'10/31/2026',
+                    basic_pay:amount,gross_pay:amount,net_pay:amount,state:'draft'}});
+            window.salaryList = {offset:0,limit:2,count:3,records:[salaryRow(10,900),salaryRow(11,-15)],
+                load: async ({offset,limit}) => {salaryList.offset=offset;salaryList.limit=limit;
+                    salaryList.records=[salaryRow(12,500)];}};
+        """)
+        source = (ROOT / 'js/salary_payslip_table.js').read_text()
+        source = re.sub(r'^import .*;\n', '', source, flags=re.MULTILINE).replace('export class ', 'class ')
+        self.page.add_script_tag(content=source + '\nwindow.SalaryPayslipTable = SalaryPayslipTable;')
+        template = (ROOT / 'xml/salary_payslip_table.xml').read_text().split('<templates xml:space="preserve">')[1].split('</templates>')[0]
+        self.page.evaluate("""template => window.salaryTemplates = "<templates><t t-name='SalaryPager'><span>Pager</span></t>" + template + "</templates>" """, template)
+        if empty:
+            self.page.evaluate('salaryList.records=[];salaryList.count=0')
+        self.page.evaluate("""() => {
+            document.querySelector('#app').style.width='700px';
+            window.app = new owl.App(SalaryPayslipTable, {templates:salaryTemplates,env:{services},
+                props:{name:'slip_ids',readonly:true,record:{data:{slip_ids:salaryList,payslip_currency_id:[1,'USD']}}}});
+            window.mounted = app.mount(document.querySelector('#app')).then(c => window.component=c);
+        }""")
+        self.page.wait_for_function('window.component')
+        self.tick()
+
+    def test_salary_table_wraps_names_opens_saved_slips_and_paginates_totals(self):
+        self.mount_salary_table()
+        self.assertEqual(self.page.locator('.o_bso_payslip_row').count(), 2)
+        self.assertEqual(self.page.locator('tbody img').count(), 0)
+        self.assertIn('885.00', self.page.locator('tfoot').inner_text())
+        self.assertIn('Total shown', self.page.locator('tfoot').inner_text())
+        self.assertTrue(self.page.locator('.o_bso_payslips').evaluate('(el) => el.scrollWidth <= el.clientWidth'))
+        self.page.locator('.o_bso_payslip_link').first.click()
+        self.assertEqual(self.page.evaluate('openedSlips[0].res_id'), 10)
+        self.page.evaluate('component.pagerProps.onUpdate({offset:2,limit:2})')
+        self.tick()
+        self.assertEqual(self.page.locator('.o_bso_payslip_row').count(), 1)
+        self.assertIn('500.00', self.page.locator('tfoot').inner_text())
+        self.assertEqual(self.page.evaluate('salaryList.offset'), 2)
+        self.assertEqual(self.page.locator('.o_list_renderer').count(), 0)
+
+    def test_empty_salary_table_has_explicit_message_without_filler_or_totals(self):
+        self.mount_salary_table(empty=True)
+        self.assertIn('No payslips yet.', self.page.locator('tbody').inner_text())
+        self.assertEqual(self.page.locator('tbody tr').count(), 1)
+        self.assertEqual(self.page.locator('tfoot').count(), 0)
+
     def test_employee_photos_do_not_block_cards_or_load_unrendered_pages(self):
         self.page.add_style_tag(path=str(ROOT / 'css/attendance_dashboard.css'))
         # Keep thumbnail requests pending: cards and actions must remain usable.
