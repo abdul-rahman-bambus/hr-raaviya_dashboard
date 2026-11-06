@@ -1,6 +1,15 @@
 from odoo import fields, models
 
 
+class HrPayslip(models.Model):
+    _inherit = 'hr.payslip'
+
+    def action_open_salary_revision_history(self):
+        self.ensure_one()
+        self.check_access('read')
+        return self.employee_id.action_open_salary_revision_history()
+
+
 class HrSalaryRevision(models.Model):
     _inherit = "hr.salary.revision"
 

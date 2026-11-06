@@ -98,11 +98,16 @@
                         <div class="o_bso_heading">
                             <div>
                                 <h3>Salary Overview</h3>
-                                <p>Review this employee's generated payslips and payment history.</p>
+                                <p>Draft payslips appear below. Summary amounts include confirmed payslips only.</p>
                             </div>
+                            <div class="o_bso_actions">
+                            <button name="action_open_salary_revision_history" type="object"
+                                    string="Salary Revision History" class="btn btn-secondary"
+                                    groups="hr.group_hr_user" icon="fa-history"/>
                             <button name="action_open_salary_overview" type="object"
                                     string="View All Payslips" class="btn btn-primary"
                                     icon="fa-external-link"/>
+                            </div>
                         </div>
                         <div class="o_bso_metrics">
                             <div class="o_bso_metric">
@@ -111,11 +116,11 @@
                             </div>
                             <div class="o_bso_metric">
                                 <span class="o_bso_metric_icon"><i class="fa fa-money" title="Latest Net Pay"/></span>
-                                <div><small>Latest Net Pay</small><strong><field name="latest_payslip_amount" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
+                                <div><small>Latest Confirmed Net</small><strong><field name="latest_payslip_amount" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
                             </div>
                             <div class="o_bso_metric">
                                 <span class="o_bso_metric_icon"><i class="fa fa-line-chart" title="Salary Overview"/></span>
-                                <div><small>Year-to-date Pay</small><strong><field name="year_to_date_pay" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
+                                <div><small>Year-to-date Confirmed Net</small><strong><field name="year_to_date_pay" widget="monetary" options="{'currency_field': 'payslip_currency_id'}"/></strong></div>
                             </div>
                         </div>
                         <field name="payslip_currency_id" invisible="1"/>
