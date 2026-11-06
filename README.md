@@ -1,5 +1,21 @@
 # Raaviya HR attendance and payroll add-ons
 
+## Faster attendance date switching — 6 November 2026
+
+Upgrade `bambus_hr_daily_ops` to **18.0.1.102.0** and
+`bambus_hr_attendance_ot_fine` to **18.0.3.36.0**, restart Odoo and reload the
+browser. Date changes use a silent RPC with the existing inline Updating indicator;
+rows and search stay mounted, and edits remain disabled until the selected date
+has loaded. Latest-date response protection and retry behavior remain in place.
+
+Photo presence checks read binary sizes rather than full filestore images. Audit
+logs are fetched once for the roster. Detection still runs against current policy,
+but unchanged custom day metrics/base OT durations are not rewritten, and native
+OT distribution runs once for the affected punches. Approvals, correction re-review,
+manual autosave and finalized payroll retain their existing rules. No Face
+Attendance files or mobile API changes are included.
+
+
 ## Dashboard attendance logs (5 November 2026)
 
 Upgrade `bambus_hr_daily_ops` to **18.0.1.100.0** and

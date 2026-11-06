@@ -51,6 +51,10 @@ class DashboardUpdates(unittest.TestCase):
                 action: { doAction() {} },
                 notification: { add: (...args) => notifications.push(args) },
             };
+            services.orm.silent = {call: (...args) => {
+                window.silentCalls = (window.silentCalls || 0) + 1;
+                return pending(...args);
+            }};
             window.employee = id => ({id, name: `Employee ${id}`, department: 'Factory',
                 contract_type: 'Monthly', shift: 'Day', status: 'present', logs: [],
                 check_in_value: '08:00', check_out_value: '17:00', worked_hours: 8,
@@ -223,6 +227,7 @@ class DashboardUpdates(unittest.TestCase):
                 self.assertEqual(self.page.locator('input[type=date]').input_value(), '2026-10-09')
                 self.assertEqual(self.page.locator('[role=status]').count(), 1)
                 self.assertEqual(self.page.evaluate('requests[2].args[3].selected_date'), '2026-10-09')
+                self.assertEqual(self.page.evaluate('silentCalls'), 3 if name == 'AttendanceDashboard' else 6)
                 self.page.evaluate("requests[2].resolve(dailyData('2026-10-09'))")
                 self.tick()
                 self.page.evaluate("requests[1].resolve(dailyData('2026-10-08'))")

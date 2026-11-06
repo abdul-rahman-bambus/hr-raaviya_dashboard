@@ -293,6 +293,13 @@ class AttendanceDashboard(models.AbstractModel):
         for attendance in attendances:
             attendances_by_employee.setdefault(attendance.employee_id.id, []).append(attendance)
 
+        audits_by_employee = {}
+        audits = self.env["bambus.hr.attendance.time.audit"].search([
+            ("employee_id", "in", employees.ids), ("date", "=", day),
+        ], order="create_date, id")
+        for audit in audits:
+            audits_by_employee.setdefault(audit.employee_id.id, []).append(audit)
+
         def format_time(value):
             if not value:
                 return ""
@@ -313,7 +320,9 @@ class AttendanceDashboard(models.AbstractModel):
             return field.convert_to_export(value, attendance) or _("Attendance")
 
         def attendance_image_url(attendance, field_name):
-            if not optional_value(attendance, field_name):
+            # Only need existence to build a URL; reading full images loads
+            # every face photo from the filestore on each date switch.
+            if not optional_value(attendance.with_context(bin_size=True), field_name):
                 return ""
             return f"/web/image/hr.attendance/{attendance.id}/{field_name}"
 
@@ -396,11 +405,8 @@ class AttendanceDashboard(models.AbstractModel):
                         "image_url": attendance_image_url(attendance, "recognized_face_checkout"),
                         "actor": employee.name,
                     })
-            hr_updates = self.env["bambus.hr.attendance.time.audit"].search([
-                ("employee_id", "=", employee.id),
-                ("date", "=", day),
-            ], order="create_date, id")
-            logged_adjustment_types = set(hr_updates.mapped("adjustment_type"))
+            hr_updates = audits_by_employee.get(employee.id, [])
+            logged_adjustment_types = {update.adjustment_type for update in hr_updates}
             for update in hr_updates:
                 if update._is_routine_dashboard_event(employee_attendances):
                     continue

@@ -186,6 +186,19 @@ class HrAttendanceOvertime(models.Model):
         return bool(self.env["resource.calendar.leaves"].sudo().search_count(domain))
 
 
+    def _write_changed_day_metrics(self, attendances, values):
+        """Do not dirty stored fields on an unchanged detection refresh."""
+        for attendance in attendances:
+            changes = {key: value for key, value in values.items() if attendance[key] != value}
+            if changes:
+                attendance.with_context(bambus_skip_recompute=True).write(changes)
+
+    def _store_day_metrics(self, attendances, clear_values, last_values):
+        """Keep metrics on the last punch without clearing and restoring it."""
+        last = self._last_attendance(attendances)
+        self._write_changed_day_metrics(attendances - last, clear_values)
+        self._write_changed_day_metrics(last, dict(clear_values, **last_values))
+
     # ===========================
     # MAIN: recompute
     # ===========================
@@ -212,6 +225,7 @@ class HrAttendanceOvertime(models.Model):
 
         employees = self.env["hr.employee"].browse(employee_ids).exists()
         month_sched_cache = {}
+        overtime_attendances = Attendance.browse()
 
         for emp in employees:
             company = emp.company_id
@@ -301,7 +315,7 @@ class HrAttendanceOvertime(models.Model):
                         clear_vals["bambus_shortfall_hours"] = 0.0
 
                     if clear_vals:
-                        day_att.with_context(bambus_skip_recompute=True).write(clear_vals)
+                        self._write_changed_day_metrics(day_att, clear_vals)
 
                     if ot_mode == "custom" or automation:
                         # Apply the explicit template policy; legacy switches cannot override it.
@@ -354,9 +368,10 @@ class HrAttendanceOvertime(models.Model):
                                 })
                         else:
                             # Update existing record (will reset to 0 if OT is not allowed)
-                            base_ot.write({"duration": duration_to_store})
+                            if base_ot.duration != duration_to_store:
+                                base_ot.write({"duration": duration_to_store})
                             
-                        day_att._compute_overtime_hours()
+                        overtime_attendances |= day_att
 
                     continue
 
@@ -377,9 +392,6 @@ class HrAttendanceOvertime(models.Model):
                         clear_vals["bambus_scheduled_hours"] = 0.0
                     if has_short:
                         clear_vals["bambus_shortfall_hours"] = 0.0
-                    if clear_vals:
-                        day_att.with_context(bambus_skip_recompute=True).write(clear_vals)
-
                     last = self._last_attendance(day_att)
                     if last:
                         last_vals = {}
@@ -387,8 +399,7 @@ class HrAttendanceOvertime(models.Model):
                             last_vals["bambus_scheduled_hours"] = scheduled_store
                         if has_short:
                             last_vals["bambus_shortfall_hours"] = shortfall_store
-                        if last_vals:
-                            last.with_context(bambus_skip_recompute=True).write(last_vals)
+                        self._store_day_metrics(day_att, clear_vals, last_vals)
 
                     # Hourly = paid per worked hour => NO schedule-based overtime.
                     # Force the day's base overtime to 0 so the attendance stops
@@ -408,9 +419,9 @@ class HrAttendanceOvertime(models.Model):
                             "adjustment": False,
                             "duration": 0.0,
                         })
-                    else:
+                    elif base_ot.duration:
                         base_ot.write({"duration": 0.0})
-                    day_att._compute_overtime_hours()
+                    overtime_attendances |= day_att
 
                     continue
 
@@ -705,8 +716,9 @@ class HrAttendanceOvertime(models.Model):
                             "duration": 0.0,
                         })
 
-                    base_ot.write({"duration": duration_to_store})
-                    day_att._compute_overtime_hours()
+                    if base_ot.duration != duration_to_store:
+                        base_ot.write({"duration": duration_to_store})
+                    overtime_attendances |= day_att
 
                 # ---- Store day metrics only on last attendance of the day
                 clear_vals = {}
@@ -724,9 +736,6 @@ class HrAttendanceOvertime(models.Model):
                     clear_vals["bambus_early_leave_minutes"] = 0
                 if has_gap:
                     clear_vals["bambus_gap_minutes"] = 0
-
-                if clear_vals:
-                    day_att.with_context(bambus_skip_recompute=True).write(clear_vals)
 
                 last = self._last_attendance(day_att)
                 if last:
@@ -746,5 +755,10 @@ class HrAttendanceOvertime(models.Model):
                     if has_gap:
                         last_vals["bambus_gap_minutes"] = int(gap_minutes or 0)
 
-                    if last_vals:
-                        last.with_context(bambus_skip_recompute=True).write(last_vals)
+                    self._store_day_metrics(day_att, clear_vals, last_vals)
+
+        # Native Odoo distribution supports multiple employees/dates. Run once
+        # after all base durations are ready, instead of scanning history for
+        # each employee separately during a dashboard refresh.
+        if overtime_attendances:
+            overtime_attendances._compute_overtime_hours()
