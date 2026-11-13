@@ -498,3 +498,18 @@ switch defaults off. Enabling can close already-overdue qualifying punches on
 the next five-minute job. Test the desired per-punch duration or next daily local
 time in the restored local database first. Global detection still runs for full
 company summaries; paging limits card/log serialization and browser rendering.
+
+
+## Small-roster date-switch follow-up — 18.0.1.108.0
+
+The client reports a delay after deploying 107.0 with 19 employees. Scroll batching
+cannot reduce the first card batch for that population. Daily Ops 108.0 instead
+batches repeated contract reads inside the live date calculation; subsequent
+requests remain fresh and financial/re-review rules remain unchanged.
+
+All **278 Odoo tests** passed, plus installed switching for 19 populated employee
+cards and a policy change. A local 19-person profile reduced queries 374 to 214
+and measured backend time 0.324 to 0.215 seconds. No live instance was accessed or
+changed, so the entire reported live delay is not established as resolved. Apply
+Daily Ops 108.0 with a restart and check actual live request/render timings. The
+existing OT/Fine 38.0 dependency and Face Attendance/mobile files are unchanged.

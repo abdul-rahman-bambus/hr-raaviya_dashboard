@@ -12,3 +12,5 @@ from . import attendance_exceptions
 from . import half_day_leave
 
 from . import attendance_revision
+
+from . import attendance_read_scope

@@ -1,5 +1,26 @@
 # Raaviya HR attendance and payroll add-ons
 
+## Faster date switching for small rosters — 18.0.1.108.0
+
+Date changes still need current fine/OT calculations even when all employees fit
+inside one scroll batch. Repeated nested contract lookups made this unnecessarily
+expensive. Batch the date-valid contract inputs once per dashboard request and
+share them with its detector/schedule helpers. Keep contract ordering, historical
+dates, company checks and normal detection/re-review unchanged. Every subsequent
+request gets fresh inputs; no dashboard results or financial decisions are cached
+between requests. Outside this read/date/employee scope use the original helpers.
+
+An instrumented isolated 19-person roster reduced SQL queries from **374 to 214**
+and backend time from **0.324 s to 0.215 s**. These are local fixture measurements,
+not live latency or a guarantee about network/server/image loading. Installed
+Chromium verified 19 populated cards switch dates without replacing card nodes
+and reflect a changed late-grace policy on the next read.
+
+Upgrade **bambus_hr_daily_ops 18.0.1.108.0**, restart Odoo and refresh the client.
+Keep the prior **bambus_hr_attendance_ot_fine 18.0.3.38.0** dependency. This patch
+changes Daily Ops only; Face Attendance/mobile and auto-checkout rules are intact.
+
+
 ## Hourly template checkout and dashboard scroll — 13 November 2026
 
 Upgrade **bambus_hr_attendance_ot_fine 18.0.3.38.0** and

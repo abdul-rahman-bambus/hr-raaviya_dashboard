@@ -4,6 +4,8 @@ from odoo.exceptions import UserError, ValidationError
 from datetime import datetime, time, timedelta
 import pytz
 
+from .attendance_read_scope import DashboardReadScope
+
 
 class AttendanceDashboard(models.AbstractModel):
     _name = 'bambus.attendance.dashboard'
@@ -121,6 +123,14 @@ class AttendanceDashboard(models.AbstractModel):
                                  include_logs=True):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
+        scope = self.env.context.get('_bambus_dashboard_read_scope')
+        if not isinstance(scope, DashboardReadScope):
+            # All nested schedule/fine helpers share this read's contract batch.
+            # A later request gets a fresh scope, even for the same date.
+            return self.with_context(_bambus_dashboard_read_scope=DashboardReadScope(day)).get_attendance_dashboard(
+                selected_date=day, offset=offset, limit=limit, query=query,
+                status_filter=status_filter, employee_filter_id=employee_filter_id,
+                include_logs=include_logs)
         company = self.env.company
         paged = offset is not None
         if paged and (type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100):
@@ -141,6 +151,7 @@ class AttendanceDashboard(models.AbstractModel):
         employee_model = self.env["hr.employee"].with_context(active_test=False)
         all_employees = employee_model.search([('company_id', '=', company.id)])
         employees = all_employees.filtered("active")
+        scope.load(employees)
 
         def employee_department(employee):
             """Return the department linked to an already accessible employee.
