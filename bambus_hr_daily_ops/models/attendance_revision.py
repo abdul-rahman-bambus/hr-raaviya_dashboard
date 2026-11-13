@@ -195,6 +195,29 @@ class RevisionAudit(models.Model):
         ('routine', 'Routine punch event'),
     ], required=True, default='legacy', readonly=True, copy=False)
 
+    def _belongs_to_dashboard_attendance_day(self, day):
+        """Project punch audits onto check-in dates, as dashboard cards do.
+
+        Revision keys also include checkout days for financial invalidation.
+        Those immutable audit copies must not look like new punches/HR edits
+        on an otherwise empty next day. Keep both old/new check-in dates for
+        moves, and retain deletion history even when no live punch remains.
+        """
+        self.ensure_one()
+        if self.adjustment_type != 'attendance':
+            return True
+        changes = self.punch_changes or {}
+        rows = changes.get('before', []) + changes.get('after', [])
+        stamps = [row['check_in'] for row in rows
+                  if row.get('employee_id') == self.employee_id.id and row.get('check_in')]
+        if not stamps:
+            stamps = [stamp for stamp in (self.previous_check_in, self.check_in) if stamp]
+        if not stamps:
+            return True  # Preserve ambiguous legacy evidence, never guess.
+        return any(fields.Datetime.context_timestamp(
+            self, fields.Datetime.to_datetime(stamp)).date() == fields.Date.to_date(day)
+            for stamp in stamps)
+
     def _is_routine_dashboard_event(self, attendances):
         self.ensure_one()
         if self.event_source == 'routine':

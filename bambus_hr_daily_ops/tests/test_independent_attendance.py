@@ -561,3 +561,49 @@ class TestIndependentAttendance(TransactionCase):
         self.assertEqual(fresh.fine_line_ids.amount, 0)
         fresh.action_save()
         self.assertFalse(review.fine_re_review_required)
+
+    def test_overnight_audit_does_not_appear_on_empty_checkout_day(self):
+        employee, contract = self.person()
+        self.calendar.tz = 'Asia/Calcutta'
+        service = self.service.with_context(tz='Asia/Calcutta')
+        punch = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 9, 18)})
+        # Native 23:59:59 UTC becomes 05:29:59 on the next local day.
+        punch.write({'check_out': datetime(2026, 10, 22, 23, 59, 59)})
+        punch.write({'check_out': datetime(2026, 10, 22, 14, 30), 'out_mode': 'auto_check_out'})
+        audits = self.env['bambus.hr.attendance.time.audit'].search([
+            ('employee_id', '=', employee.id)])
+        self.assertTrue(audits.filtered(lambda audit: str(audit.date) == '2026-10-23'))
+        data = service.get_attendance_dashboard('2026-10-23')
+        row = next(value for value in data['daily_attendance'] if value['id'] == employee.id)
+        self.assertEqual(row['status'], 'not_marked')
+        self.assertEqual(row['logs'], [])
+        self.assertTrue(self.row(employee)['logs'])
+        self.assertEqual(self.env['bambus.hr.attendance.time.audit'].search_count([
+            ('employee_id', '=', employee.id)]), len(audits))
+
+    def test_manual_deletion_and_move_remain_logged_without_current_punch(self):
+        employee, contract = self.person()
+        punch = self.env['hr.attendance'].create({'employee_id': employee.id,
+            'check_in': datetime(2026, 10, 22, 9, 45), 'check_out': datetime(2026, 10, 22, 14)})
+        punch.write({'check_in': datetime(2026, 10, 23, 9, 45),
+                     'check_out': datetime(2026, 10, 23, 14)})
+        self.assertTrue(any(log['type'] == 'hr_update' for log in self.row(employee)['logs']))
+        punch.unlink()
+        data = self.service.get_attendance_dashboard('2026-10-23')
+        row = next(value for value in data['daily_attendance'] if value['id'] == employee.id)
+        self.assertEqual(row['status'], 'not_marked')
+        self.assertTrue(any(log['type'] == 'hr_update' for log in row['logs']))
+
+    def test_audit_day_projection_uses_request_timezone_and_keeps_financial_events(self):
+        employee, contract = self.person()
+        audit = self.env['bambus.hr.attendance.time.audit'].create({
+            'employee_id': employee.id, 'date': '2026-10-23', 'adjustment_type': 'attendance',
+            'check_in': datetime(2026, 10, 22, 20), 'check_out': datetime(2026, 10, 23, 0, 30),
+            'event_source': 'manual'})
+        self.assertTrue(audit.with_context(tz='Asia/Calcutta')._belongs_to_dashboard_attendance_day('2026-10-23'))
+        self.assertFalse(audit.with_context(tz='UTC')._belongs_to_dashboard_attendance_day('2026-10-23'))
+        decision = self.env['bambus.hr.attendance.time.audit'].create({
+            'employee_id': employee.id, 'date': '2026-10-23', 'adjustment_type': 'fine',
+            'adjusted_hours': 0, 'event_source': 'manual'})
+        self.assertTrue(decision._belongs_to_dashboard_attendance_day('2026-10-23'))

@@ -1,5 +1,21 @@
 # Bambus HR Daily Ops
 
+## Overnight audit date display — 18.0.1.109.0
+
+Attendance corrections are audited for check-in and checkout dates to preserve
+financial re-review. Dashboard punch logs now display those copies only on the
+old/new check-in dates, matching its attendance cards. This prevents yesterday's
+automatic checkout from appearing as an HR update on an empty next day. Native
+23:59:59 UTC intermediate checkout corresponds to 05:29:59 next day in India.
+
+Keep deletion logs even without a remaining punch, moved-date logs on both affected
+check-in dates, financial decisions and ambiguous legacy evidence. Use the request
+timezone for the display. All immutable audits remain unchanged; historical source
+labels are not rewritten. New automatic writes keep the existing routine tagging.
+Upgrade **Daily Ops 18.0.1.109.0**, restart and refresh. No changes to Face/mobile,
+OT/Fine 38.0 or scheduled checkout/absence rules are required.
+
+
 ## Faster date switching for small rosters — 18.0.1.108.0
 
 Date changes still need current fine/OT calculations even when all employees fit

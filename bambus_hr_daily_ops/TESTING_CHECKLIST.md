@@ -1,5 +1,16 @@
 # Attendance Automation Test Checklist
 
+## Overnight audit display — 18.0.1.109.0
+
+**281 Odoo tests** passed across Daily Ops/payroll/attendance and XLSX reporting.
+Regressions reproduce an untagged native 23:59 UTC checkout and next-local-day
+audit copy; verify an empty next day has no punch log while all audits remain.
+Manual deletion/moved-date logs, financial events and request timezone are covered.
+Installed browser fixture script: `verify_overnight_audit_day.py`, isolated test DB
+only. Reproduces historical adjustment copies for 19 employees and checks zero logs
+on the empty next day without removing the original audit rows.
+
+
 ## Small-roster date-switch evidence — 18.0.1.108.0
 
 - **278 Odoo tests** passed, zero failures/errors, across Daily Ops, custom payroll,
