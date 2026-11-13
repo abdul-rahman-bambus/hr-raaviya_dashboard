@@ -14,3 +14,4 @@ from . import test_attendance_entry_navigation
 from . import test_independent_attendance
 from . import test_hourly_auto_checkout
 from . import test_dashboard_paging
+from . import test_dashboard_read_scope

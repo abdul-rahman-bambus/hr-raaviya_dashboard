@@ -1,5 +1,16 @@
 # Attendance approvals and weekly-off pay
 
+## Date-switch contract batching — 18.0.1.108.0
+
+The dashboard's live detector now shares a request-scoped batch of date-valid
+contracts with nested schedule/fine helpers. Preserve the original selector's
+latest start/id ordering, undated starts, cancelled/end-date handling and existing
+company/wage guards. No proposal refresh is skipped and no saved approvals,
+exclusions, audits or payroll amounts are changed by this optimization. Requests
+on the same date still read current contracts, schedules, policy and punches.
+No scope object survives into later writes or later requests.
+
+
 ## Hourly auto checkout and batched reads — 13 November 2026
 
 Daily Ops **18.0.1.107.0** and OT/Fine **18.0.3.38.0** add opt-in template checkout

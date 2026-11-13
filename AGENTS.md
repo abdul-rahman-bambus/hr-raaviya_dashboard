@@ -252,3 +252,9 @@ appear in customer logs; a smaller payroll-only registry does not cover them.
   employees and exports include all matching rows. Load card/log details only for
   visible batches. Preserve stale-response guards, autosave/date locks and existing
   row identities when appending. Do not reintroduce stored dashboard history.
+
+- Date-switch contract inputs may be batched inside a single dashboard read using
+  its private typed scope. Match the existing date-specific selector and sudo
+  semantics exactly; keep out-of-date/out-of-population calls on normal helpers.
+  Never reuse this input scope across requests or source writes, cache decisions,
+  skip detection on unchanged-looking dates, or accept a JSON-supplied scope.

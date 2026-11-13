@@ -1,5 +1,21 @@
 # Attendance Automation Test Checklist
 
+## Small-roster date-switch evidence — 18.0.1.108.0
+
+- **278 Odoo tests** passed, zero failures/errors, across Daily Ops, custom payroll,
+  attendance reporting and XLSX reporting. Four new regressions cover batched
+  detector contracts, fresh policy/contract/punch inputs on the next read,
+  out-of-scope historical/employee fallback and rejection of injected scope data.
+- Installed Chromium: **19 populated cards** switch dates while retaining card
+  nodes; fine display changes from 1 to 5 minutes on the previous date and to
+  6 minutes after a policy change and the next date switch. Fixtures removed.
+- Instrumented isolated 19-person roster: **374 -> 214 queries**, **0.324 -> 0.215 s**.
+  This is local backend evidence, not a live latency measurement. Global detection
+  is retained. Actual live request/browser timings remain an acceptance check.
+- Browser check: `python bambus_hr_daily_ops/tests/browser/verify_dashboard_date_switch.py
+  --url <local-url> --db <isolated_test_db>` using the existing test login variables.
+
+
 ## Hourly checkout and scroll evidence — 13 November 2026
 
 Candidate Daily Ops **18.0.1.107.0** + OT/Fine **18.0.3.38.0**:
