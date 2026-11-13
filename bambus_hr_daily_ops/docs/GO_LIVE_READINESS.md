@@ -513,3 +513,13 @@ and measured backend time 0.324 to 0.215 seconds. No live instance was accessed 
 changed, so the entire reported live delay is not established as resolved. Apply
 Daily Ops 108.0 with a restart and check actual live request/render timings. The
 existing OT/Fine 38.0 dependency and Face Attendance/mobile files are unchanged.
+
+
+## Overnight audit display follow-up — 18.0.1.109.0
+
+Checkout-day audit copies can appear on a date with no punches. Project attendance
+change logs onto old/new check-in dates, keeping deletion/moved-date evidence and
+financial decisions. Preserve every backend audit and all scheduled action rules.
+All **281 Odoo tests** passed. The installed browser scenario reproduces historical
+copies for 19 employees and checks the empty next-day popup. Live data is unchanged;
+existing incorrectly recorded source labels are not retrospectively retagged.

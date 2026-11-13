@@ -383,7 +383,8 @@ class AttendanceDashboard(models.AbstractModel):
             ("employee_id", "in", visible_employees.ids), ("date", "=", day),
         ], order="create_date, id") if include_logs else self.env['bambus.hr.attendance.time.audit']
         for audit in audits:
-            audits_by_employee.setdefault(audit.employee_id.id, []).append(audit)
+            if audit._belongs_to_dashboard_attendance_day(day):
+                audits_by_employee.setdefault(audit.employee_id.id, []).append(audit)
 
         def format_time(value):
             if not value:

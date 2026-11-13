@@ -258,3 +258,8 @@ appear in customer logs; a smaller payroll-only registry does not cover them.
   semantics exactly; keep out-of-date/out-of-population calls on normal helpers.
   Never reuse this input scope across requests or source writes, cache decisions,
   skip detection on unchanged-looking dates, or accept a JSON-supplied scope.
+
+- Attendance time audits include checkout-date revision keys for financial guards.
+  Dashboard log projection follows old/new local check-in dates; do not display
+  checkout-only copies as new edits on empty days. Keep genuine deletion/move
+  history, financial logs and ambiguous legacy evidence; never delete raw audits.
