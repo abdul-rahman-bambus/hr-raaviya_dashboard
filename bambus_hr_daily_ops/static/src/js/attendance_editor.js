@@ -38,13 +38,14 @@ export class AttendanceEditor extends AttendanceDashboard {
         try {
             const data = await this.orm.call("bambus.attendance.dashboard", "set_dashboard_paid_day", [
                 form.employee.id, form.date, form.employee.paid_day_kind, form.action, form.reason.trim(),
-            ]);
+            ], {compact_response: this.state.serverPaging});
             const updated = data.daily_attendance.find(item => item.id === form.employee.id);
             if (updated) Object.assign(form.employee, updated);
             this.state.data.metrics = data.metrics;
             this.state.data.departments = data.departments;
             this.state.data.shifts = data.shifts;
             this.state.paidDayDecision = null;
+            if (this.state.serverPaging && this.state.statusFilter !== 'all') await this.load(form.date);
             this.notification.add(form.action === "withhold" ? "Paid-off credit withheld." : "Paid-off credit restored according to the current template.", {type: "success"});
         } catch (error) {
             this.notification.add(error.cause?.message || error.message || "Unable to update paid-off credit.", {type: "danger"});
@@ -72,6 +73,7 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     get dailyGroupPages() {
+        if (this.state.serverPaging) return [this.filteredDailyGroups];
         const employees = this.filteredDailyEmployees;
         const pages = [];
         for (let start = 0; start < employees.length; start += this.state.pageSize) {
@@ -258,11 +260,11 @@ export class AttendanceEditor extends AttendanceDashboard {
     async syncEmployee(employee, date = this.state.data.date, afterReview = false) {
         const sequence = this.loadSequence;
         try {
-            const data = await this.orm.call(
+            const data = await this.orm.silent.call(
                 "bambus.attendance.dashboard",
                 "get_attendance_dashboard",
                 [],
-                { selected_date: date }
+                {selected_date: date, ...(this.state.serverPaging ? {offset:0,limit:1,employee_filter_id:employee.id} : {})}
             );
             if (sequence !== this.loadSequence || date !== this.state.selectedDate) return;
             const updatedEmployee = data.daily_attendance.find((item) => item.id === employee.id);
@@ -273,14 +275,15 @@ export class AttendanceEditor extends AttendanceDashboard {
             this.state.data.departments = data.departments;
             this.state.data.shifts = data.shifts;
             if (afterReview && ["overtime", "fine", "overtime_review", "fine_review"].includes(this.state.statusFilter)) {
-                const pendingOT = data.daily_attendance.some(row => row.overtime_review_pending);
-                const pendingFine = data.daily_attendance.some(row => row.fine_review_pending);
+                const pendingOT = data.metrics.overtime_review_count === undefined ? data.daily_attendance.some(row => row.overtime_review_pending) : Boolean(data.metrics.overtime_review_count);
+                const pendingFine = data.metrics.fine_review_count === undefined ? data.daily_attendance.some(row => row.fine_review_pending) : Boolean(data.metrics.fine_review_count);
                 const activePending = this.state.statusFilter.startsWith("overtime") ? pendingOT : pendingFine;
                 if (!activePending) {
                     this.state.statusFilter = pendingOT ? "overtime_review" : pendingFine ? "fine_review" : "all";
                     this.state.currentPage = 1;
                 }
             }
+            if (this.state.serverPaging && (afterReview || this.state.statusFilter !== 'all')) await this.load(date);
         } catch (error) {
             this.notification.add(error.cause?.message || error.message || "Unable to refresh attendance.", {
                 type: "danger",
@@ -293,6 +296,7 @@ export class AttendanceEditor extends AttendanceDashboard {
         this.state.employeeFilterId = false;
         this.state.query = "";
         this.state.currentPage = 1;
+        this.queueFilteredLoad();
     }
 
     openLogs(employee) {
@@ -461,7 +465,8 @@ export class AttendanceEditor extends AttendanceDashboard {
             employee.line_id = result.line_id;
             employee.worked_hours = result.worked_hours;
             this.applyStatusTransition(employee, rollback.previousStatus, result.status);
-            if (["paid_weekly_off", "paid_public_holiday", "unpaid_weekly_off", "unpaid_public_holiday"].includes(rollback.previousStatus)) {
+            if (this.state.serverPaging) await this.syncEmployee(employee);
+            if (!this.state.serverPaging && ["paid_weekly_off", "paid_public_holiday", "unpaid_weekly_off", "unpaid_public_holiday"].includes(rollback.previousStatus)) {
                 await this.syncEmployee(employee);
             }
             this.notification.add(`${employee.name} attendance saved automatically.`, { type: "success" });

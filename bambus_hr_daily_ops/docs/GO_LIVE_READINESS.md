@@ -477,3 +477,24 @@ selection with the daily service; it does not run the whole-company dashboard fo
 every date. Remaining acceptance: compare the customer's actual November dates,
 particularly the original 2 November source punches. No customer timestamps,
 financial decisions or finalized salaries were changed or automatically approved.
+
+
+## Hourly checkout and scroll candidate — 13 November 2026
+
+Daily Ops **18.0.1.107.0** and OT/Fine **18.0.3.38.0** add opt-in checkout for
+unscheduled Hourly employees and 25-card server batches on scroll. Scheduled
+employees keep native Odoo checkout. All automatic writes are routine audit
+sources, including native intermediate writes; manual corrections remain visible.
+The customer's Face Attendance/mobile module is unchanged.
+
+Validation: **273 Odoo tests** passed across Daily Ops/payroll/reports; the latest
+**5 paging tests** passed separately after an additional offscreen-fine assertion.
+**31 production OWL tests** and installed template/25-50-60 scroll/search checks
+passed. Existing test coverage and financial snapshots remain intact. This is a
+local candidate, with customer deployment and mobile acceptance still outstanding.
+
+Upgrade both modules together, restart and reload client assets. The template
+switch defaults off. Enabling can close already-overdue qualifying punches on
+the next five-minute job. Test the desired per-punch duration or next daily local
+time in the restored local database first. Global detection still runs for full
+company summaries; paging limits card/log serialization and browser rendering.

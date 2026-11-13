@@ -237,3 +237,18 @@ appear in customer logs; a smaller payroll-only registry does not cover them.
   when a mode changes; do not append duplicate session/aggregate proposals.
 - Recompute existing draft/verification payslips; the new day credit must reach
   DAYSWORKED days while retaining actual hours. Preserve finalized salary/details.
+
+## Hourly template checkout and scroll
+
+- Template auto checkout is opt-in and only for Hourly contracts with no employee
+  or contract work calendar. Resolve policy at local check-in date. Hours apply
+  per punch; fixed time is the first local cutoff strictly after check-in.
+  Native checkout stays unchanged for scheduled employees. Unscheduled Hourly
+  punches must not fall through to the company-calendar native checkout.
+- Automatic writes keep real punch/detection/re-review hooks and immutable routine
+  audits. Tag every native cron write, including its intermediate checkout; never
+  infer a later manual edit's source from the punch's original mode.
+- Dashboard batches apply filters before paging; global metrics cover all company
+  employees and exports include all matching rows. Load card/log details only for
+  visible batches. Preserve stale-response guards, autosave/date locks and existing
+  row identities when appending. Do not reintroduce stored dashboard history.
