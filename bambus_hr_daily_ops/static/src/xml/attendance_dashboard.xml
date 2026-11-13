@@ -76,7 +76,14 @@
                 </tbody>
               </table>
             </div>
-            <div class="o_bad_pagination">
+            <div t-ref="scrollSentinel" class="o_bad_scroll_sentinel">
+              <t t-if="state.serverPaging"><span>Loaded <t t-esc="state.data.daily_attendance.length"/> of <t t-esc="state.totalRows"/> employees</span>
+                <span t-if="state.loadingMore" role="status"> · Loading more…</span>
+                <span t-if="state.moreError" role="alert" t-esc="state.moreError"/>
+                <button t-if="state.hasMore" class="btn btn-outline-secondary btn-sm ms-2" t-att-disabled="state.loading || state.loadingMore || dateNavigationLocked" t-on-click="loadMore"><t t-esc="state.moreError ? 'Retry loading' : 'Load more'"/></button>
+              </t>
+            </div>
+            <div t-if="!state.serverPaging" class="o_bad_pagination">
               <div class="o_bad_page_summary">
                 Showing <strong t-esc="dashboardFirstVisibleEmployee"/>–<strong t-esc="dashboardLastVisibleEmployee"/> of <strong t-esc="filteredDailyEmployees.length"/> employees
               </div>

@@ -1,5 +1,40 @@
 # Bambus HR Daily Ops
 
+## Hourly template checkout and dashboard scroll — 13 November 2026
+
+Upgrade **bambus_hr_attendance_ot_fine 18.0.3.38.0** and
+**bambus_hr_daily_ops 18.0.1.107.0** together, restart Odoo and reload assets.
+Keep the customer's Face Attendance module and mobile features intact; this
+release does not modify that module or its API.
+
+In Attendance Template > Hourly Pay, enable **Auto Checkout — Hourly Without
+Schedule** only if required. It defaults off and applies only to a date-valid
+Hourly contract where both the employee and contract have no work calendar.
+Choose elapsed **Hours After Each Check-In** (0 < hours <= 24), or **Fixed Daily
+Time** (00:00–23:59). Hours restart at each punch; fixed time uses the first
+cutoff strictly after check-in in the employee's timezone, including the next
+day. At DST changes use the later repeated time or move a nonexistent time
+forward through the gap. The effective template is resolved on the local
+check-in date, with the existing company-template fallback.
+
+The scheduled job runs every five minutes and writes the calculated cutoff to
+the actual punch. Enabling a template may close already-overdue qualifying
+punches. It does not grant pay or approve reviews. Native Odoo checkout continues
+for scheduled employees; unscheduled Hourly employees use the template switch
+independently of the company's calendar fallback. Both automatic checkout paths
+retain normal detection/re-review hooks and routine immutable audits. The native
+job's intermediate write is also tagged routine, avoiding a false HR Update log.
+Manual corrections still log as manual. Historical audits are not rewritten.
+
+The daily dashboard now fetches 25 employee cards at a time and appends the next
+batch near the bottom, with a retry button if loading fails. Search and status
+filters apply on the server before paging. Summary metrics remain company-wide;
+CSV downloads fetch every matching employee. Time autosave refreshes only the
+changed card and global totals. No full browser reload is needed. Company-wide
+source detection still runs for accurate totals; paging limits card/log work,
+not that calculation, and creates no persistent history or cache.
+
+
 ## Read-only employee attendance with daily parity — 18.0.1.106.0
 
 Employee > Attendance now presents read-only daily results for the selected

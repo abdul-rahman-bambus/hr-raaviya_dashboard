@@ -1,5 +1,29 @@
 # Attendance Automation Test Checklist
 
+## Hourly checkout and scroll evidence — 13 November 2026
+
+Candidate Daily Ops **18.0.1.107.0** + OT/Fine **18.0.3.38.0**:
+
+- Full Daily Ops/payroll/attendance-report/XLSX suite: **273 Odoo tests**, zero
+  failures/errors. After adding the offscreen-fine case, all **5 paging tests**
+  also passed. The full run includes all **6 hourly checkout tests**.
+- **31 production OWL Chromium tests** pass, including scroll append, stale date
+  and search response rejection, retry, compact autosave and complete CSV export.
+- Installed Chromium: template opt-in/conditional fixed-time fields save; a
+  populated day loads **25 / 50 / 60** cards on scroll with stable company totals;
+  server search finds the last employee. Fixture records removed after the check.
+- Backend covers elapsed and local fixed cutoffs, overnight/DST, no early close,
+  idempotence, valid-template/schedule/wage boundaries, bounds validation, manual
+  correction audit and unchanged native scheduled checkout with routine audits.
+- Server batches preserve stable order and full-company metrics, query/status/ID
+  filters, batch-only audit reads, full no-log export and offscreen fine reviews.
+
+Local acceptance: upgrade both modules, reload assets, enable checkout only on a
+suitable Hourly template, and verify the desired duration/cutoff with test staff.
+Confirm scheduled staff retain the configured native tolerance. No production
+execution, customer mobile regression test or historical audit cleanup is implied.
+
+
 This checklist records the automated coverage for attendance automation and the
 remaining acceptance checks that require a running Odoo database and browser.
 

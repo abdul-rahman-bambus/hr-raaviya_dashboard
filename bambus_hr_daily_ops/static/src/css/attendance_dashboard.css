@@ -67,3 +67,5 @@
 @media (prefers-reduced-motion:reduce) {
     .o_bae_employee_photo { transition:none; }
 }
+
+.o_bad_scroll_sentinel { min-height:2px; padding:12px 8px; color:#65717e; text-align:center; }

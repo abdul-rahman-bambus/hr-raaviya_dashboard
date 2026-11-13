@@ -264,6 +264,13 @@
                             </group>
                         </page>
                         <page string="Hourly Pay">
+                            <group string="Auto Checkout — Hourly Without Schedule">
+                                <field name="hourly_auto_checkout_enabled"/>
+                                <field name="hourly_auto_checkout_basis" invisible="not hourly_auto_checkout_enabled"/>
+                                <field name="hourly_auto_checkout_hours" invisible="not hourly_auto_checkout_enabled or hourly_auto_checkout_basis != 'hours'"/>
+                                <field name="hourly_auto_checkout_time" widget="float_time" invisible="not hourly_auto_checkout_enabled or hourly_auto_checkout_basis != 'time'"/>
+                                <div class="text-muted">Only for Hourly employees with no employee or contract work schedule; this switch controls them independently of company Automatic Check-Out. Scheduled employees keep Odoo's existing policy. Hours run from each check-in. Fixed time uses the employee timezone and the next cutoff after check-in. A scheduled job checks every five minutes; the saved checkout is the calculated cutoff. This does not approve pay.</div>
+                            </group>
                             <div class="alert alert-info" role="alert">
                                 Hourly contracts do not use overtime, late/fine, or public-holiday
                                 calculations. Enable this option to let HR review payable worked

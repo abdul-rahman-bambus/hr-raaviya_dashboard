@@ -1,5 +1,22 @@
 # Attendance approvals and weekly-off pay
 
+## Hourly auto checkout and batched reads — 13 November 2026
+
+Daily Ops **18.0.1.107.0** and OT/Fine **18.0.3.38.0** add opt-in template checkout
+for Hourly employees with no employee/contract calendar. Configure hours after
+each check-in or the next daily local cutoff under Hourly Pay. Normal scheduled
+checkout remains native. Automatic writes retain detection, financial re-review,
+payroll guards and backend audits, with routine source tags on every write,
+including the native job's temporary end-of-day checkout. No audit bypass or
+historical audit cleanup is used. Manual edits remain manual.
+
+Scroll reads only card/log details for the next 25 matching employees. Global
+metrics and review counts still cover the full company; search/status filters
+apply before slicing, and exports fetch the full matching set without logs.
+Approvals/exclusions retain their existing saved meaning and audit history.
+No Face Attendance replacement, mobile API change or automatic approval is needed.
+
+
 ## Dashboard attendance logs (5 November 2026)
 
 Upgrade `bambus_hr_daily_ops` to **18.0.1.100.0** and

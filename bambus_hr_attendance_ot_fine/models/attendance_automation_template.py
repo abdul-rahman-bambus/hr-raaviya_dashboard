@@ -183,6 +183,24 @@ class AttendanceAutomationTemplate(models.Model):
     )
     fine_rate = fields.Monetary(currency_field="currency_id")
 
+    hourly_auto_checkout_enabled = fields.Boolean(string="Enable Auto Checkout", default=False,
+        help="Only Hourly employees without an employee or contract work schedule. Enabling can close overdue open punches covered by this template.")
+    hourly_auto_checkout_basis = fields.Selection([
+        ('hours', 'Hours After Check-In'), ('time', 'Fixed Daily Time')],
+        string="Auto Checkout Basis", default='hours', required=True)
+    hourly_auto_checkout_hours = fields.Float(string="Hours After Each Check-In", default=8)
+    hourly_auto_checkout_time = fields.Float(string="Daily Checkout Time", default=20,
+        help="Employee timezone. Uses the first occurrence after check-in; a check-in at or after this time closes the next day.")
+
+    @api.constrains('hourly_auto_checkout_enabled', 'hourly_auto_checkout_basis',
+                    'hourly_auto_checkout_hours', 'hourly_auto_checkout_time')
+    def _check_hourly_auto_checkout(self):
+        for template in self.filtered('hourly_auto_checkout_enabled'):
+            if template.hourly_auto_checkout_basis == 'hours' and not 0 < template.hourly_auto_checkout_hours <= 24:
+                raise ValidationError('Auto checkout hours must be greater than zero and at most 24.')
+            if template.hourly_auto_checkout_basis == 'time' and not (0 <= template.hourly_auto_checkout_time < 24 and round(template.hourly_auto_checkout_time * 60) < 1440):
+                raise ValidationError('Daily checkout time must be between 00:00 and 23:59.')
+
     hourly_pay_enabled = fields.Boolean(
         string="Enable Hourly Pay Review",
         help="Allow HR to review payable hours for employees whose contract wage type is Hourly.",

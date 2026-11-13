@@ -29,7 +29,7 @@ class AttendanceDashboard(models.AbstractModel):
                 "withheld": decision.action == "withhold", "reason": decision.reason or ""}
 
     @api.model
-    def set_dashboard_paid_day(self, employee_id, selected_date, kind, action, reason):
+    def set_dashboard_paid_day(self, employee_id, selected_date, kind, action, reason, compact_response=False):
         """Append an audited exception; never alter punches or saved extra pay."""
         if not self.env.user.has_group("hr.group_hr_user"):
             raise UserError(_("Only HR officers can change paid-day credit."))
@@ -63,7 +63,8 @@ class AttendanceDashboard(models.AbstractModel):
             "employee_id": employee.id, "date": day, "kind": kind,
             "action": action, "reason": reason, "actor_id": self.env.uid,
         })
-        return self.get_attendance_dashboard(fields.Date.to_string(day))
+        return self.get_attendance_dashboard(fields.Date.to_string(day),
+            **({'offset': 0, 'limit': 1, 'employee_filter_id': employee.id} if compact_response else {}))
 
     @api.model
     def open_dashboard_attendance_entries(self, employee_id, selected_date):
@@ -97,8 +98,8 @@ class AttendanceDashboard(models.AbstractModel):
         if automation is None:
             automation = employee._get_attendance_automation_template(day)
         fine = sum(a.bambus_fine_hours or 0.0 for a in attendances)
-        if employee._fine_only_attendance_context(day) is not None:
-            fine = sum(item['hours'] for item in employee._attendance_exception_components(day).values())
+        # Callers refresh the detector first; its stored fine buckets already
+        # include whole-day and session components. Do not query them twice.
         result = {}
         for kind, detected, enabled in (
             ('fine', fine, bool(automation and (automation.late_enabled or automation.early_exit_enabled or automation.break_enabled))),
@@ -115,10 +116,25 @@ class AttendanceDashboard(models.AbstractModel):
         return result
 
     @api.model
-    def get_attendance_dashboard(self, selected_date=None):
+    def get_attendance_dashboard(self, selected_date=None, offset=None, limit=25,
+                                 query='', status_filter='all', employee_filter_id=False,
+                                 include_logs=True):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
         company = self.env.company
+        paged = offset is not None
+        if paged and (type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100):
+            raise ValidationError(_('Invalid attendance batch. Use an offset of zero or greater and a limit from 1 to 100.'))
+        valid_filters = {'all', 'present', 'absent', 'halfday', 'leave', 'not_marked',
+                         'overtime', 'fine', 'overtime_review', 'fine_review',
+                         'paid_weekly_off', 'unpaid_weekly_off', 'paid_public_holiday', 'unpaid_public_holiday'}
+        if status_filter not in valid_filters:
+            raise ValidationError(_('Invalid attendance filter.'))
+        query = (query or '').strip().lower()
+        try:
+            employee_filter_id = int(employee_filter_id or 0)
+        except (TypeError, ValueError):
+            raise ValidationError(_('Invalid employee filter.'))
         # Use the same employee population as the employee directory. Employee
         # record rules already limit this query to companies the HR user may
         # access; attendance punches must never determine roster membership.
@@ -316,10 +332,45 @@ class AttendanceDashboard(models.AbstractModel):
         for attendance in attendances:
             attendances_by_employee.setdefault(attendance.employee_id.id, []).append(attendance)
 
+        adjustments_by_employee = {
+            employee.id: self._employee_day_adjustments(employee, day,
+                attendances_by_employee.get(employee.id, []), review_by_employee.get(employee.id))
+            for employee in employees
+        }
+
+        def employee_matches(employee):
+            if employee_filter_id and employee.id != employee_filter_id:
+                return False
+            if status_filter == 'all' and not query:
+                return True
+            employee_id = employee.id
+            status = ('leave' if employee_id in leave_employee_ids else
+                      'halfday' if employee_id in halfday_employee_ids else
+                      'present' if employee_id in attendance_employee_ids else 'not_marked')
+            if status == 'not_marked':
+                status = paid_status_by_employee.get(employee_id, status)
+            review = review_by_employee.get(employee_id)
+            if review and review.attendance_status_manual:
+                status = review.status
+            adjustment = adjustments_by_employee[employee_id]
+            matches_status = (status_filter == 'all' or status_filter == status or
+                (status_filter in ('fine', 'overtime') and (adjustment[status_filter + '_hours'] > 0 or adjustment[status_filter + '_review_pending'])) or
+                (status_filter in ('fine_review', 'overtime_review') and adjustment[status_filter + '_pending']))
+            if not query:
+                return matches_status
+            contract = contract_by_employee.get(employee_id)
+            texts = (employee.display_name, employee_department(employee).display_name or _('No Department'),
+                     contract.resource_calendar_id.display_name if contract and contract.resource_calendar_id else _('No Work Schedule'),
+                     contract.contract_type_id.display_name if contract and contract.contract_type_id else _('No Contract Type'))
+            return matches_status and (not query or any(query in (value or '').lower() for value in texts))
+
+        matching_employees = employees.sorted(key=lambda employee: ((employee.name or '').lower(), employee.id)).filtered(employee_matches)
+        visible_employees = matching_employees[offset:offset + limit] if paged else matching_employees
+
         audits_by_employee = {}
         audits = self.env["bambus.hr.attendance.time.audit"].search([
-            ("employee_id", "in", employees.ids), ("date", "=", day),
-        ], order="create_date, id")
+            ("employee_id", "in", visible_employees.ids), ("date", "=", day),
+        ], order="create_date, id") if include_logs else self.env['bambus.hr.attendance.time.audit']
         for audit in audits:
             audits_by_employee.setdefault(audit.employee_id.id, []).append(audit)
 
@@ -350,7 +401,7 @@ class AttendanceDashboard(models.AbstractModel):
             return f"/web/image/hr.attendance/{attendance.id}/{field_name}"
 
         daily_attendance = []
-        for employee in employees.sorted(key=lambda item: (item.name or "").lower()):
+        for employee in visible_employees:
             employee_attendances = attendances_by_employee.get(employee.id, [])
             override = review_by_employee.get(employee.id)
             day_leave = (
@@ -388,133 +439,135 @@ class AttendanceDashboard(models.AbstractModel):
             contract_type = contract.contract_type_id if contract else False
             wage_type = contract.wage_type if contract and "wage_type" in contract._fields else ""
             automation = employee._get_attendance_automation_template(day)
-            adjustments = self._employee_day_adjustments(employee, day, employee_attendances, override, automation)
+            adjustments = adjustments_by_employee[employee.id]
             employee_fine_hours = adjustments['fine_hours']
             employee_overtime_hours = adjustments['overtime_hours']
             display_check_in = min(check_ins) if check_ins else False
             display_check_out = max(check_outs) if check_outs else False
             display_worked_hours = sum(a.worked_hours for a in employee_attendances)
             attendance_logs = []
-            for attendance in sorted(employee_attendances, key=lambda item: item.check_in):
-                local_in = fields.Datetime.context_timestamp(self, attendance.check_in)
-                attendance_logs.append({
-                    "id": f"{attendance.id}-in",
-                    "type": "check_in",
-                    "label": _("Punched In"),
-                    "time": local_in.strftime("%I:%M %p").lstrip("0"),
-                    "mode": attendance_mode(attendance, "in_mode"),
-                    "address": optional_value(attendance, "checkin_reverse_address"),
-                    "image_url": attendance_image_url(attendance, "recognized_face_checkin"),
-                    "actor": employee.name,
-                })
-                if attendance.check_out:
-                    local_out = fields.Datetime.context_timestamp(self, attendance.check_out)
+            if include_logs:
+                for attendance in sorted(employee_attendances, key=lambda item: item.check_in):
+                    local_in = fields.Datetime.context_timestamp(self, attendance.check_in)
                     attendance_logs.append({
-                        "id": f"{attendance.id}-out",
-                        "type": "check_out",
-                        "label": _("Punched Out"),
-                        "time": local_out.strftime("%I:%M %p").lstrip("0"),
-                        "mode": attendance_mode(attendance, "out_mode"),
-                        "address": optional_value(attendance, "checkout_reverse_address"),
-                        "image_url": attendance_image_url(attendance, "recognized_face_checkout"),
+                        "id": f"{attendance.id}-in",
+                        "type": "check_in",
+                        "label": _("Punched In"),
+                        "time": local_in.strftime("%I:%M %p").lstrip("0"),
+                        "mode": attendance_mode(attendance, "in_mode"),
+                        "address": optional_value(attendance, "checkin_reverse_address"),
+                        "image_url": attendance_image_url(attendance, "recognized_face_checkin"),
                         "actor": employee.name,
                     })
-            hr_updates = audits_by_employee.get(employee.id, [])
-            logged_adjustment_types = {update.adjustment_type for update in hr_updates}
-            for update in hr_updates:
-                if update._is_routine_dashboard_event(employee_attendances):
-                    continue
-                adjusted_times = []
-                if update.adjustment_type == "attendance":
-                    if update.previous_check_in or update.check_in:
+                    if attendance.check_out:
+                        local_out = fields.Datetime.context_timestamp(self, attendance.check_out)
+                        attendance_logs.append({
+                            "id": f"{attendance.id}-out",
+                            "type": "check_out",
+                            "label": _("Punched Out"),
+                            "time": local_out.strftime("%I:%M %p").lstrip("0"),
+                            "mode": attendance_mode(attendance, "out_mode"),
+                            "address": optional_value(attendance, "checkout_reverse_address"),
+                            "image_url": attendance_image_url(attendance, "recognized_face_checkout"),
+                            "actor": employee.name,
+                        })
+                hr_updates = audits_by_employee.get(employee.id, [])
+                logged_adjustment_types = {update.adjustment_type for update in hr_updates}
+                for update in hr_updates:
+                    if update._is_routine_dashboard_event(employee_attendances):
+                        continue
+                    adjusted_times = []
+                    if update.adjustment_type == "attendance":
+                        if update.previous_check_in or update.check_in:
+                            adjusted_times.append(_(
+                                "In %s → %s",
+                                format_time(update.previous_check_in) or _("Not set"),
+                                format_time(update.check_in) or _("Not set"),
+                            ))
+                        if update.previous_check_out or update.check_out:
+                            adjusted_times.append(_(
+                                "Out %s → %s",
+                                format_time(update.previous_check_out) or _("Not set"),
+                                format_time(update.check_out) or _("Not set"),
+                            ))
+                        label = _("Attendance time adjusted")
+                    else:
+                        hours = max(update.adjusted_hours or 0.0, 0.0)
+                        total_minutes = round(hours * 60)
+                        previous_minutes = round(max(update.previous_hours or 0.0, 0.0) * 60)
                         adjusted_times.append(_(
-                            "In %s → %s",
-                            format_time(update.previous_check_in) or _("Not set"),
-                            format_time(update.check_in) or _("Not set"),
+                            "%02d:%02d → %02d:%02d hrs",
+                            previous_minutes // 60, previous_minutes % 60,
+                            total_minutes // 60, total_minutes % 60,
                         ))
-                    if update.previous_check_out or update.check_out:
-                        adjusted_times.append(_(
-                            "Out %s → %s",
-                            format_time(update.previous_check_out) or _("Not set"),
-                            format_time(update.check_out) or _("Not set"),
-                        ))
-                    label = _("Attendance time adjusted")
-                else:
-                    hours = max(update.adjusted_hours or 0.0, 0.0)
-                    total_minutes = round(hours * 60)
-                    previous_minutes = round(max(update.previous_hours or 0.0, 0.0) * 60)
-                    adjusted_times.append(_(
-                        "%02d:%02d → %02d:%02d hrs",
-                        previous_minutes // 60, previous_minutes % 60,
-                        total_minutes // 60, total_minutes % 60,
-                    ))
-                    label = dict(
-                        update._fields["adjustment_type"]._description_selection(self.env)
-                    ).get(update.adjustment_type)
-                if update.change_details:
-                    adjusted_times.append(update.change_details)
-                attendance_logs.append({
-                    "id": f"hr-{update.id}",
-                    "type": "hr_update",
-                    "label": label,
-                    "time": fields.Datetime.context_timestamp(
-                        self, update.create_date
-                    ).strftime("%I:%M %p").lstrip("0"),
-                    "mode": _("HR Update"),
-                    "details": " · ".join(adjusted_times),
-                    "address": "",
-                    "image_url": False,
-                    "actor": update.updated_by_id.name,
-                })
-            # Lines approved before the audit model was introduced still have
-            # updater metadata. Surface their latest adjustment once so an
-            # existing HR update does not disappear from the Logs popup.
-            legacy_updates = (
-                ("overtime", _("Overtime adjusted"), "overtime_detected_hours", "overtime_hours",
-                 "overtime_updated_by_id", "overtime_updated_on"),
-                ("fine", _("Late / Fine adjusted"), "fine_detected_hours", "fine_hours",
-                 "fine_updated_by_id", "fine_updated_on"),
-                ("hourly_pay", _("Hourly pay adjusted"), "hourly_pay_detected_hours", "hourly_pay_hours",
-                 "hourly_pay_updated_by_id", "hourly_pay_updated_on"),
-            )
-            for kind, label, detected_field, hours_field, user_field, date_field in legacy_updates:
-                updated_on = override and override[date_field]
-                if not updated_on or kind in logged_adjustment_types:
-                    continue
-                total_minutes = round(max(override[hours_field] or 0.0, 0.0) * 60)
-                detected_minutes = round(max(override[detected_field] or 0.0, 0.0) * 60)
-                attendance_logs.append({
-                    "id": f"hr-line-{override.id}-{kind}",
-                    "type": "hr_update",
-                    "label": label,
-                    "time": fields.Datetime.context_timestamp(
-                        self, updated_on
-                    ).strftime("%I:%M %p").lstrip("0"),
-                    "mode": _("HR Update"),
-                    "details": _(
-                        "%02d:%02d → %02d:%02d hrs",
-                        detected_minutes // 60, detected_minutes % 60,
-                        total_minutes // 60, total_minutes % 60,
-                    ),
-                    "address": "",
-                    "image_url": False,
-                    "actor": override[user_field].name,
-                })
+                        label = dict(
+                            update._fields["adjustment_type"]._description_selection(self.env)
+                        ).get(update.adjustment_type)
+                    if update.change_details:
+                        adjusted_times.append(update.change_details)
+                    attendance_logs.append({
+                        "id": f"hr-{update.id}",
+                        "type": "hr_update",
+                        "label": label,
+                        "time": fields.Datetime.context_timestamp(
+                            self, update.create_date
+                        ).strftime("%I:%M %p").lstrip("0"),
+                        "mode": _("HR Update"),
+                        "details": " · ".join(adjusted_times),
+                        "address": "",
+                        "image_url": False,
+                        "actor": update.updated_by_id.name,
+                    })
+                # Lines approved before the audit model was introduced still have
+                # updater metadata. Surface their latest adjustment once so an
+                # existing HR update does not disappear from the Logs popup.
+                legacy_updates = (
+                    ("overtime", _("Overtime adjusted"), "overtime_detected_hours", "overtime_hours",
+                     "overtime_updated_by_id", "overtime_updated_on"),
+                    ("fine", _("Late / Fine adjusted"), "fine_detected_hours", "fine_hours",
+                     "fine_updated_by_id", "fine_updated_on"),
+                    ("hourly_pay", _("Hourly pay adjusted"), "hourly_pay_detected_hours", "hourly_pay_hours",
+                     "hourly_pay_updated_by_id", "hourly_pay_updated_on"),
+                )
+                for kind, label, detected_field, hours_field, user_field, date_field in legacy_updates:
+                    updated_on = override and override[date_field]
+                    if not updated_on or kind in logged_adjustment_types:
+                        continue
+                    total_minutes = round(max(override[hours_field] or 0.0, 0.0) * 60)
+                    detected_minutes = round(max(override[detected_field] or 0.0, 0.0) * 60)
+                    attendance_logs.append({
+                        "id": f"hr-line-{override.id}-{kind}",
+                        "type": "hr_update",
+                        "label": label,
+                        "time": fields.Datetime.context_timestamp(
+                            self, updated_on
+                        ).strftime("%I:%M %p").lstrip("0"),
+                        "mode": _("HR Update"),
+                        "details": _(
+                            "%02d:%02d → %02d:%02d hrs",
+                            detected_minutes // 60, detected_minutes % 60,
+                            total_minutes // 60, total_minutes % 60,
+                        ),
+                        "address": "",
+                        "image_url": False,
+                        "actor": override[user_field].name,
+                    })
             overtime_enabled = adjustments['overtime_enabled']
             fine_enabled = adjustments['fine_enabled']
             wage_label, wage_amount = self.env['bambus.hr.attendance.review.wizard']._contract_wage(contract)
-            decisions = self.env["bambus.attendance.paid.day.decision"].search([
-                ("employee_id", "=", employee.id), ("date", "=", day),
-            ], order="id")
-            for decision in decisions:
-                attendance_logs.append({
-                    "id": f"paid-day-{decision.id}", "type": "hr_update",
-                    "label": (_("Paid-off Credit Withheld") if decision.action == "withhold"
-                              else _("Paid-off Credit Restored")),
-                    "time": fields.Datetime.context_timestamp(self, decision.create_date).strftime("%I:%M %p").lstrip("0"),
-                    "actor": decision.actor_id.name, "mode": _("HR Decision"),
-                    "details": decision.reason, "address": "", "image_url": False,
-                })
+            if include_logs:
+                decisions = self.env["bambus.attendance.paid.day.decision"].search([
+                    ("employee_id", "=", employee.id), ("date", "=", day),
+                ], order="id")
+                for decision in decisions:
+                    attendance_logs.append({
+                        "id": f"paid-day-{decision.id}", "type": "hr_update",
+                        "label": (_("Paid-off Credit Withheld") if decision.action == "withhold"
+                                  else _("Paid-off Credit Restored")),
+                        "time": fields.Datetime.context_timestamp(self, decision.create_date).strftime("%I:%M %p").lstrip("0"),
+                        "actor": decision.actor_id.name, "mode": _("HR Decision"),
+                        "details": decision.reason, "address": "", "image_url": False,
+                    })
             paid_info = paid_info_by_employee[employee.id]
             daily_attendance.append({
                 "id": employee.id,
@@ -570,6 +623,9 @@ class AttendanceDashboard(models.AbstractModel):
             "departments": departments,
             "shifts": shifts,
             "daily_attendance": daily_attendance,
+            **({'paging': {'offset': offset, 'limit': limit, 'total': len(matching_employees),
+                          'next_offset': offset + len(visible_employees),
+                          'has_more': offset + len(visible_employees) < len(matching_employees)}} if paged else {}),
             "metrics": {
                 "total": len(employees),
                 "present": len(present_employee_ids),
@@ -580,13 +636,13 @@ class AttendanceDashboard(models.AbstractModel):
                 "punched_out": len(set(attendances.filtered("check_out").employee_id.ids)),
                 "not_marked": len(unmarked_employee_ids),
                 "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
-                "overtime": round(sum(row["overtime_hours"] for row in daily_attendance), 2),
-                "fine": round(sum(row["fine_hours"] for row in daily_attendance), 2),
+                "overtime": round(sum(round(value['overtime_hours'], 2) for value in adjustments_by_employee.values()), 2),
+                "fine": round(sum(round(value['fine_hours'], 2) for value in adjustments_by_employee.values()), 2),
                 "overtime_review_count": sum(
-                    1 for row in daily_attendance if row["overtime_review_pending"]
+                    1 for row in adjustments_by_employee.values() if row["overtime_review_pending"]
                 ),
                 "fine_review_count": sum(
-                    1 for row in daily_attendance if row["fine_review_pending"]
+                    1 for row in adjustments_by_employee.values() if row["fine_review_pending"]
                 ),
                 "fine_amount": round(fine_amount, 2),
                 "on_duty": 0,

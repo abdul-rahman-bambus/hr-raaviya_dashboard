@@ -39,7 +39,7 @@ class DashboardUpdates(unittest.TestCase):
         self.page.goto('http://dashboard.test/')
         self.page.add_script_tag(path=str(OWL))
         self.page.add_script_tag(content='''
-            const { Component, onWillStart, useState } = owl;
+            const { Component, onWillStart, onWillUnmount, useEffect, useRef, useState } = owl;
             const useService = name => owl.useEnv().services[name];
             const _t = (text, ...args) => args.reduce((value, arg) => value.replace('%s', arg), text);
             const registry = { category: () => ({ add() {} }) };
@@ -628,6 +628,114 @@ class DashboardUpdates(unittest.TestCase):
         self.tick()
         self.assertEqual(self.page.evaluate('component.state.paidDayDecision.action'), 'restore')
         self.page.get_by_role('dialog').get_by_role('button', name='Cancel').click()
+
+
+    def mount_paged_editor(self):
+        self.page.evaluate("""() => {
+            window.IntersectionObserver = class {
+                constructor(callback) { window.intersect = callback; }
+                observe() {} disconnect() {}
+            };
+            window.pagedData = (date, offset=0, total=60) => {
+                const data = dailyData(date);
+                data.daily_attendance = Array.from({length:Math.min(25,total-offset)},
+                    (_,index) => employee(offset+index+1));
+                data.metrics = {employee_count:100, fine_review_count:9};
+                data.paging = {offset,limit:25,total,next_offset:offset+data.daily_attendance.length,
+                    has_more:offset+data.daily_attendance.length<total};
+                return data;
+            };
+        }""")
+        self.mount('AttendanceEditor', "pagedData('2026-10-07')")
+
+    def test_paged_autosave_refreshes_only_target_card(self):
+        self.mount_paged_editor()
+        self.page.evaluate('window.savedRow = document.querySelector(".o_bae_employee")')
+        self.page.locator('input[title="Punch In"]').first.fill('09:00')
+        self.page.wait_for_function('requests.length === 2')
+        self.tick()
+        self.assertTrue(self.page.locator('input[type=date]').is_disabled())
+        self.page.evaluate('requests[1].resolve({line_id:1,worked_hours:7,status:"present"})')
+        self.page.wait_for_function('requests.length === 3')
+        self.assertEqual(self.page.evaluate('requests[2].args[3].employee_filter_id'), 1)
+        self.assertEqual(self.page.evaluate('requests[2].args[3].limit'), 1)
+        self.page.evaluate("""() => {
+            const data=pagedData('2026-10-07',0,1);
+            data.daily_attendance[0].check_in_value='09:00';
+            requests[2].resolve(data);
+        }""")
+        self.page.wait_for_function('!component.state.savingIds[1]')
+        self.assertTrue(self.page.evaluate('savedRow.isConnected'))
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 25)
+        self.assertEqual(self.page.locator('input[title="Punch In"]').first.input_value(), '09:00')
+        self.assertEqual(self.page.evaluate('component.state.totalRows'), 60)
+
+    def test_scroll_batch_appends_without_replacing_existing_rows(self):
+        self.mount_paged_editor()
+        self.page.evaluate("window.firstRow = component.state.data.daily_attendance[0]; intersect([{isIntersecting:true}])")
+        self.page.wait_for_function('requests.length === 2')
+        self.assertEqual(self.page.evaluate('requests[1].args[3].offset'), 25)
+        self.page.evaluate("requests[1].resolve(pagedData('2026-10-07',25))")
+        self.page.wait_for_function('component.state.data.daily_attendance.length === 50')
+        self.assertTrue(self.page.evaluate('firstRow === component.state.data.daily_attendance[0]'))
+        self.assertEqual(self.page.evaluate('component.state.data.metrics.fine_review_count'), 9)
+        self.assertEqual(self.page.locator('.o_bae_employee').count(), 50)
+        self.assertIn('50 of 60', self.page.locator('.o_bad_scroll_sentinel').inner_text())
+
+    def test_old_scroll_response_cannot_replace_new_date(self):
+        self.mount_paged_editor()
+        self.page.evaluate("() => {component.loadMore(); component.load('2026-10-08');}")
+        self.page.wait_for_function('requests.length === 3')
+        self.page.evaluate("requests[2].resolve(pagedData('2026-10-08')); requests[1].resolve(pagedData('2026-10-07',25))")
+        self.page.wait_for_function("!component.state.loading && component.state.data.date === '2026-10-08'")
+        self.assertEqual(self.page.evaluate('component.state.data.daily_attendance.length'), 25)
+        self.assertFalse(self.page.evaluate('component.state.loadingMore'))
+
+    def test_server_search_invalidates_old_batch(self):
+        self.mount_paged_editor()
+        self.page.evaluate("component.loadMore(); component.updateQuery({target:{value:'Employee 59'}})")
+        self.page.wait_for_function('requests.length === 3')
+        self.assertEqual(self.page.evaluate('requests[2].args[3].query'), 'Employee 59')
+        self.assertEqual(self.page.evaluate('requests[2].args[3].offset'), 0)
+        self.page.evaluate("""() => {
+            const data=pagedData('2026-10-07',0,1); data.daily_attendance=[employee(59)];
+            requests[2].resolve(data); requests[1].resolve(pagedData('2026-10-07',25));
+        }""")
+        self.page.wait_for_function('!component.state.loading')
+        self.assertEqual(self.page.evaluate('component.state.data.daily_attendance.map(row=>row.id)'), [59])
+
+    def test_failed_scroll_preserves_rows_and_can_retry(self):
+        self.mount_paged_editor()
+        self.page.evaluate("component.loadMore(); requests[1].reject(new Error('Batch unavailable'))")
+        self.page.wait_for_function('Boolean(component.state.moreError)')
+        self.assertEqual(self.page.evaluate('component.state.data.daily_attendance.length'), 25)
+        self.page.evaluate('() => {component.loadMore();}')
+        self.page.wait_for_function('requests.length === 3')
+        self.assertEqual(self.page.evaluate('requests[2].args[3].offset'), 25)
+        self.page.evaluate("requests[2].resolve(pagedData('2026-10-07',25))")
+        self.page.wait_for_function('component.state.data.daily_attendance.length === 50')
+        self.assertEqual(self.page.evaluate('component.state.moreError'), '')
+
+    def test_paged_csv_explicitly_fetches_all_matching_rows(self):
+        self.mount_paged_editor()
+        self.page.evaluate("""() => {
+            URL.createObjectURL = blob => {window.exportedBlob=blob;return 'blob:test';};
+            URL.revokeObjectURL = () => {};
+            HTMLAnchorElement.prototype.click = () => {};
+            component.downloadDailyAttendance();
+        }""")
+        self.page.wait_for_function('requests.length === 2')
+        self.assertFalse(self.page.evaluate('requests[1].args[3].include_logs'))
+        self.assertFalse(self.page.evaluate("'offset' in requests[1].args[3]"))
+        self.page.evaluate("""() => {
+            const data=pagedData('2026-10-07',0,60);
+            data.daily_attendance=Array.from({length:60},(_,i)=>employee(i+1));
+            delete data.paging;requests[1].resolve(data);
+        }""")
+        self.page.wait_for_function('Boolean(window.exportedBlob)')
+        csv = self.page.evaluate('exportedBlob.text()')
+        self.assertIn('Employee 60', csv)
+        self.assertEqual(len(csv.splitlines()), 61)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, onWillUnmount, useEffect, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -26,8 +26,23 @@ export class AttendanceDashboard extends Component {
             pageSize: 10,
             collapsedContractTypes: {},
             savingIds: {},
+            serverPaging: false, hasMore: false, nextOffset: 0, totalRows: 0,
+            loadingMore: false, moreError: "",
         });
         this.loadSequence = 0;
+        this.batchSize = 25;
+        this.scrollSentinel = useRef("scrollSentinel");
+        useEffect(() => {
+            if (!this.state.serverPaging || !this.state.hasMore || this.state.loading ||
+                this.state.loadingMore || this.state.moreError || this.dateNavigationLocked || !this.scrollSentinel.el) return;
+            const observer = new IntersectionObserver(entries => {
+                if (entries.some(entry => entry.isIntersecting)) this.loadMore();
+            }, {root: this.scrollSentinel.el.closest('.o_bambus_attendance_dashboard'), rootMargin: '160px'});
+            observer.observe(this.scrollSentinel.el);
+            return () => observer.disconnect();
+        }, () => [this.state.data?.date, this.state.serverPaging, this.state.hasMore,
+            this.state.loading, this.state.loadingMore, this.state.moreError, this.dateNavigationLocked]);
+        onWillUnmount(() => { clearTimeout(this.filterTimer); ++this.loadSequence; });
         onWillStart(() => this.load(this.initialDate));
     }
 
@@ -37,7 +52,10 @@ export class AttendanceDashboard extends Component {
         const dateChanged = selectedDate !== this.state.data?.date;
         // Keep edits tied to their original day until autosave/dialogs finish.
         if (dateChanged && this.dateNavigationLocked) return;
+        clearTimeout(this.filterTimer);
         const sequence = ++this.loadSequence;
+        this.state.loadingMore = false;
+        this.state.moreError = "";
         this.state.selectedDate = selectedDate;
         this.state.loading = true;
         this.state.error = "";
@@ -48,13 +66,14 @@ export class AttendanceDashboard extends Component {
                 "bambus.attendance.dashboard",
                 "get_attendance_dashboard",
                 [],
-                { selected_date: selectedDate }
+                {selected_date: selectedDate, offset: 0, limit: this.batchSize, ...this.serverFilters}
             );
             // A slower response for the previous date must never overwrite the
             // most recently selected date.
             if (sequence === this.loadSequence) {
                 if (dateChanged) this.state.logEmployee = null;
                 this.state.data = { ...data };
+                this.applyPaging(data);
                 this.state.currentPage = dateChanged ? 1 : Math.min(
                     this.state.currentPage,
                     this.refreshPageCount
@@ -69,6 +88,56 @@ export class AttendanceDashboard extends Component {
                 this.state.loading = false;
             }
         }
+    }
+
+    get serverFilters() {
+        return {query: this.state.query, status_filter: this.state.statusFilter,
+            employee_filter_id: this.state.employeeFilterId || false};
+    }
+
+    applyPaging(data) {
+        this.state.serverPaging = Boolean(data.paging);
+        this.state.hasMore = Boolean(data.paging?.has_more);
+        this.state.nextOffset = data.paging?.next_offset || 0;
+        this.state.totalRows = data.paging?.total ?? data.daily_attendance.length;
+    }
+
+    async loadMore() {
+        if (!this.state.serverPaging || !this.state.hasMore || this.state.loading || this.state.loadingMore ||
+                this.dateNavigationLocked || this.state.selectedDate !== this.state.data?.date) return;
+        const sequence = this.loadSequence;
+        const date = this.state.data.date;
+        this.state.loadingMore = true;
+        this.state.moreError = "";
+        try {
+            const data = await this.orm.silent.call("bambus.attendance.dashboard", "get_attendance_dashboard", [], {
+                selected_date: date, offset: this.state.nextOffset, limit: this.batchSize, ...this.serverFilters,
+            });
+            if (sequence !== this.loadSequence || date !== this.state.selectedDate) return;
+            const existing = new Set(this.state.data.daily_attendance.map(employee => employee.id));
+            this.state.data.daily_attendance.push(...data.daily_attendance.filter(employee => !existing.has(employee.id)));
+            this.state.data.metrics = data.metrics;
+            this.state.data.departments = data.departments;
+            this.state.data.shifts = data.shifts;
+            this.applyPaging(data);
+        } catch (error) {
+            if (sequence === this.loadSequence) this.state.moreError = error.cause?.message || error.message || "Unable to load more employees.";
+        } finally {
+            if (sequence === this.loadSequence) this.state.loadingMore = false;
+        }
+    }
+
+    queueFilteredLoad() {
+        if (!this.state.serverPaging) return;
+        clearTimeout(this.filterTimer);
+        ++this.loadSequence; // Invalidate an older batch immediately on a filter change.
+        this.state.loading = true;
+        this.state.loadingMore = false;
+        const retry = () => {
+            if (this.dateNavigationLocked) this.filterTimer = setTimeout(retry, 150);
+            else this.load();
+        };
+        this.filterTimer = setTimeout(retry, 200);
     }
 
     get refreshPageCount() {
@@ -148,6 +217,7 @@ export class AttendanceDashboard extends Component {
     }
 
     get dailyGroupPages() {
+        if (this.state.serverPaging) return [this.filteredDailyGroups];
         const pages = [];
         let page = [];
         let employeeCount = 0;
@@ -203,6 +273,7 @@ export class AttendanceDashboard extends Component {
     }
 
     get dashboardEmployees() {
+        if (this.state.serverPaging) return this.filteredDailyEmployees;
         const start = (this.state.currentPage - 1) * this.state.pageSize;
         return this.filteredDailyEmployees.slice(start, start + this.state.pageSize);
     }
@@ -224,11 +295,13 @@ export class AttendanceDashboard extends Component {
     updateQuery(ev) {
         this.state.query = ev.target.value;
         this.state.currentPage = 1;
+        this.queueFilteredLoad();
     }
 
     updateStatusFilter(ev) {
         this.state.statusFilter = ev.target.value;
         this.state.currentPage = 1;
+        this.queueFilteredLoad();
     }
 
     openMetric(metric) {
@@ -240,11 +313,13 @@ export class AttendanceDashboard extends Component {
         // can fail while the action service tries to map undefined views.
         this.state.statusFilter = metric;
         this.state.currentPage = 1;
+        this.queueFilteredLoad();
     }
 
     openReviewMetric(metric) {
         this.state.statusFilter = `${metric}_review`;
         this.state.currentPage = 1;
+        this.queueFilteredLoad();
     }
 
     updatePageSize(ev) {
@@ -300,7 +375,17 @@ export class AttendanceDashboard extends Component {
                 }]
             );
             this.notification.add(`${employee.name} attendance updated.`, { type: "success" });
-            await this.load(this.state.data.date);
+            if (this.state.serverPaging) {
+                const data = await this.orm.silent.call('bambus.attendance.dashboard', 'get_attendance_dashboard', [], {
+                    selected_date: this.state.data.date, offset:0, limit:1, employee_filter_id:employee.id,
+                });
+                const updated = data.daily_attendance.find(row => row.id === employee.id);
+                if (updated) Object.assign(employee, updated);
+                this.state.data.metrics = data.metrics;
+                this.state.data.departments = data.departments;
+                this.state.data.shifts = data.shifts;
+                if (this.state.statusFilter !== 'all') await this.load(this.state.data.date);
+            } else await this.load(this.state.data.date);
         } catch (error) {
             this.notification.add(error.cause?.message || error.message || "Unable to update attendance.", {
                 type: "danger",
@@ -314,9 +399,22 @@ export class AttendanceDashboard extends Component {
         return Boolean(this.state.savingIds[employeeId]);
     }
 
-    downloadDailyAttendance() {
+    async downloadDailyAttendance() {
+        const date = this.state.data.date;
+        let employees = this.filteredDailyEmployees;
+        if (this.state.serverPaging) {
+            try {
+                const data = await this.orm.silent.call('bambus.attendance.dashboard', 'get_attendance_dashboard', [], {
+                    selected_date: date, include_logs: false, ...this.serverFilters,
+                });
+                employees = data.daily_attendance;
+            } catch (error) {
+                this.notification.add(error.cause?.message || error.message || 'Unable to download attendance.', {type:'danger'});
+                return;
+            }
+        }
         const headers = ["Name", "Contract Type", "Department", "Work Schedule", "Attendance", "In Time", "Out Time", "Fine Hours"];
-        const rows = this.filteredDailyGroups.flatMap((group) => group.employees).map((employee) => [
+        const rows = employees.map((employee) => [
             employee.name, employee.contract_type, employee.department, employee.shift, employee.status_label,
             employee.check_in, employee.check_out, this.fineDisplay(employee.fine_hours),
         ]);
@@ -326,7 +424,7 @@ export class AttendanceDashboard extends Component {
         const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
         const link = document.createElement("a");
         link.href = url;
-        link.download = `daily-attendance-${this.state.data.date}.csv`;
+        link.download = `daily-attendance-${date}.csv`;
         link.click();
         URL.revokeObjectURL(url);
     }
