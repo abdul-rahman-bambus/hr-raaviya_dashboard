@@ -1,5 +1,16 @@
 # Attendance Automation Test Checklist
 
+## Attendance history performance — 18.0.1.111.0
+
+- On a local 120-employee fixture with about 240,000 historical punches, median
+  date loading fell from **1.76 s to 0.17 s**. Refresh after approval fell from
+  **1.64 s to 0.13 s**. The save itself took about 0.01 s in both builds.
+- Scoped overtime matched Odoo's native calculation for split and negative
+  overtime, including a punch on the previous UTC date. An independent
+  comparison matched attendance totals, approval amounts and audit entries.
+- **282 Odoo tests** and **32 Chromium component tests** passed. Installed Chromium verified the
+  date switch, rule updates and the refresh after combined approval.
+
 ## Date switching and approval refresh — 18.0.1.110.0
 
 - **281 Odoo tests** and **32 OWL Chromium tests** passed.

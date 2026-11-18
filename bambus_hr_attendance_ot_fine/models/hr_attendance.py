@@ -1,9 +1,94 @@
 import pytz
 from odoo import api, fields, models
+from odoo.tools import create_index
+
+
+_SCOPED_OVERTIME = object()
 
 
 class HrAttendance(models.Model):
     _inherit = "hr.attendance"
+
+    def init(self):
+        super().init()
+        create_index(self.env.cr, "bambus_hr_attendance_check_in_employee_idx",
+                     self._table, ["check_in", "employee_id"])
+
+    def _recompute_bambus_overtime_hours(self):
+        attendances = self.with_context(bambus_scoped_overtime=_SCOPED_OVERTIME)
+        self.env.add_to_compute(self._fields["overtime_hours"], attendances)
+        attendances._recompute_recordset(["overtime_hours"])
+        attendances.modified(["overtime_hours"])
+
+    @api.depends("worked_hours")
+    def _compute_overtime_hours(self):
+        if self.env.context.get("bambus_scoped_overtime") is not _SCOPED_OVERTIME:
+            return super()._compute_overtime_hours()
+
+        timezone_by_name = {
+            name: pytz.timezone(name)
+            for name in self.employee_id.resource_calendar_id.mapped("tz") if name
+        }
+        requested_days = {}
+        for attendance in self:
+            employee = attendance.employee_id
+            timezone = timezone_by_name.get(employee.resource_calendar_id.tz)
+            if timezone and attendance.check_in and attendance.worked_hours:
+                day = pytz.utc.localize(attendance.check_in).astimezone(timezone).date()
+                requested_days[employee.id, day] = timezone
+        if not requested_days:
+            self.overtime_hours = 0.0
+            return
+
+        self.flush_model(["worked_hours", "employee_id", "check_in"])
+        self.env["hr.attendance.overtime"].flush_model(["employee_id", "date", "duration", "adjustment"])
+        employee_ids, dates = zip(*requested_days)
+        # Odoo allocates overtime across all punches on the same employee
+        # calendar date. Keep those punches even if only one is being updated.
+        # The UTC bounds use the index. The local-date check handles DST and
+        # uses the same timezone aliases as the attendance policy.
+        self.env.cr.execute("""
+            WITH requested_days AS (
+                SELECT employee_id, day
+                  FROM unnest(%s::integer[], %s::date[]) AS dates(employee_id, day)
+            )
+            SELECT punch.id, punch.check_in, punch.worked_hours, overtime.id,
+                   overtime.duration, requested_days.employee_id, requested_days.day
+              FROM requested_days
+              JOIN hr_attendance_overtime overtime
+                ON overtime.employee_id = requested_days.employee_id
+               AND overtime.date = requested_days.day
+               AND overtime.adjustment IS FALSE
+              JOIN hr_attendance punch
+                ON punch.employee_id = requested_days.employee_id
+               AND punch.check_in >= requested_days.day::timestamp - INTERVAL '1 day'
+               AND punch.check_in < requested_days.day::timestamp + INTERVAL '2 days'
+             WHERE punch.worked_hours <> 0
+             ORDER BY punch.check_in DESC
+        """, [list(employee_ids), list(dates)])
+
+        remaining_by_day = {}
+        hours_by_punch = {}
+        for punch_id, check_in, worked, overtime_id, duration, employee_id, day in self.env.cr.fetchall():
+            timezone = requested_days[employee_id, day]
+            if pytz.utc.localize(check_in).astimezone(timezone).date() != day:
+                continue
+            remaining = remaining_by_day.setdefault(overtime_id, duration)
+            if remaining < 0:
+                hours_by_punch[punch_id] = remaining
+                remaining_by_day[overtime_id] = 0
+            elif remaining > 0:
+                if remaining > worked:
+                    hours_by_punch[punch_id] = worked
+                    remaining_by_day[overtime_id] = remaining - worked
+                else:
+                    # Keep Odoo's percentage arithmetic for split punches.
+                    regular_percentage = ((worked - remaining) / worked) * 100
+                    hours_by_punch[punch_id] = worked * ((100 - regular_percentage) / 100)
+                    remaining_by_day[overtime_id] = 0
+
+        for attendance in self:
+            attendance.overtime_hours = hours_by_punch.get(attendance.id, 0.0)
 
     # Amount based on Odoo overtime_hours (can be negative)
     bambus_overtime_amount = fields.Monetary(

@@ -1,5 +1,9 @@
 # Attendance approvals and weekly-off pay
 
+Daily Ops **18.0.1.111.0** reuses the current fine components when checking and
+saving a review. Attendance OT/Fine **18.0.3.40.0** limits the detection query to
+the employee calendar dates involved in the dashboard refresh.
+
 With **Daily Ops 18.0.1.110.0**, the dashboard confirms a successful approval
 and refreshes the current date in one request. The returned page uses the fresh
 company-wide pending counts to keep the review filter, switch to the remaining

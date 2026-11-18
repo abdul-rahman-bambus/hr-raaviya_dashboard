@@ -1,5 +1,13 @@
 # Bambus HR Daily Ops
 
+## Attendance lookups with long punch history
+
+Upgrade **Attendance OT/Fine 18.0.3.40.0** and **Daily Ops 18.0.1.111.0**.
+The upgrade adds a punch lookup index. The detector allocates overtime across
+all punches on each affected employee's local calendar date. Review open and
+save reuse the current fine components for stale-review validation and coverage.
+Restart Odoo and reload the browser before testing.
+
 ## Date switching and approval refresh
 
 Upgrade **Attendance OT/Fine 18.0.3.39.0** and **Daily Ops 18.0.1.110.0**,
