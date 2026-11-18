@@ -12,13 +12,17 @@ class AttendanceDashboard(models.AbstractModel):
     _description = 'Daily Attendance Service'
 
     @api.model
-    def _paid_day_info(self, employee, day, contract):
+    def _paid_day_info(self, employee, day, contract, holidays_by_schedule=None):
         info = {"kind": False, "eligible": False, "withheld": False, "reason": ""}
         if not contract or contract.wage_type != "monthly":
             return info
         tzname = contract.resource_calendar_id.tz or self.env.user.tz or "UTC"
-        holidays = self.env["hr.payslip"]._get_public_holiday_dates(contract, day, day, tzname)
-        if day in holidays:
+        if holidays_by_schedule is None:
+            holidays_by_schedule = {}
+        key = (contract.resource_calendar_id.id, tzname, day)
+        if key not in holidays_by_schedule:
+            holidays_by_schedule[key] = self.env["hr.payslip"]._get_public_holiday_dates(contract, day, day, tzname)
+        if day in holidays_by_schedule[key]:
             kind = "public_holiday"
             eligible = employee._is_paid_attendance_public_holiday(day, contract, ignore_withholding=True)
         elif employee._is_attendance_weekly_off(day):
@@ -278,8 +282,9 @@ class AttendanceDashboard(models.AbstractModel):
         # Derived display statuses only: never create a punch or a leave request.
         paid_status_by_employee = {}
         paid_info_by_employee = {}
+        holidays_by_schedule = {}
         for employee in employees:
-            info = self._paid_day_info(employee, day, contract_by_employee.get(employee.id))
+            info = self._paid_day_info(employee, day, contract_by_employee.get(employee.id), holidays_by_schedule)
             paid_info_by_employee[employee.id] = info
             if employee.id not in unmarked_employee_ids or not info["kind"]:
                 continue
@@ -393,6 +398,11 @@ class AttendanceDashboard(models.AbstractModel):
         for audit in audits:
             if audit._belongs_to_dashboard_attendance_day(day):
                 audits_by_employee.setdefault(audit.employee_id.id, []).append(audit)
+        paid_decisions = {}
+        if include_logs and visible_employees:
+            paid_decisions = self.env["bambus.attendance.paid.day.decision"].search([
+                ("employee_id", "in", visible_employees.ids), ("date", "=", day),
+            ], order="id").grouped(lambda decision: decision.employee_id.id)
 
         def format_time(value):
             if not value:
@@ -575,19 +585,15 @@ class AttendanceDashboard(models.AbstractModel):
             overtime_enabled = adjustments['overtime_enabled']
             fine_enabled = adjustments['fine_enabled']
             wage_label, wage_amount = self.env['bambus.hr.attendance.review.wizard']._contract_wage(contract)
-            if include_logs:
-                decisions = self.env["bambus.attendance.paid.day.decision"].search([
-                    ("employee_id", "=", employee.id), ("date", "=", day),
-                ], order="id")
-                for decision in decisions:
-                    attendance_logs.append({
-                        "id": f"paid-day-{decision.id}", "type": "hr_update",
-                        "label": (_("Paid-off Credit Withheld") if decision.action == "withhold"
-                                  else _("Paid-off Credit Restored")),
-                        "time": fields.Datetime.context_timestamp(self, decision.create_date).strftime("%I:%M %p").lstrip("0"),
-                        "actor": decision.actor_id.name, "mode": _("HR Decision"),
-                        "details": decision.reason, "address": "", "image_url": False,
-                    })
+            for decision in paid_decisions.get(employee.id, ()):
+                attendance_logs.append({
+                    "id": f"paid-day-{decision.id}", "type": "hr_update",
+                    "label": (_("Paid-off Credit Withheld") if decision.action == "withhold"
+                              else _("Paid-off Credit Restored")),
+                    "time": fields.Datetime.context_timestamp(self, decision.create_date).strftime("%I:%M %p").lstrip("0"),
+                    "actor": decision.actor_id.name, "mode": _("HR Decision"),
+                    "details": decision.reason, "address": "", "image_url": False,
+                })
             paid_info = paid_info_by_employee[employee.id]
             daily_attendance.append({
                 "id": employee.id,

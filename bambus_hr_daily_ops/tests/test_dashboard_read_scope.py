@@ -39,6 +39,36 @@ class TestDashboardReadScope(TransactionCase):
     def read(self):
         return self.service.get_attendance_dashboard(self.day, offset=0, query='Read scope')
 
+    def test_scoped_overtime_matches_native_distribution_on_partial_recordsets(self):
+        self.calendar.tz = 'Asia/Kolkata'
+        early_punch = self.env['hr.attendance'].create({
+            'employee_id': self.people[0].id,
+            'check_in': datetime(2026, 10, 21, 20),
+            'check_out': datetime(2026, 10, 21, 22),
+        })
+        overtime = self.env['hr.attendance.overtime']
+        for person, duration in zip(self.people[:2], (8, -1)):
+            domain = [('employee_id', '=', person.id), ('date', '=', self.day), ('adjustment', '=', False)]
+            entry = overtime.search(domain)
+            if entry:
+                entry.duration = duration
+            else:
+                overtime.create({'employee_id': person.id, 'date': self.day, 'duration': duration})
+
+        punches = early_punch | self.punches[:2]
+        self.env.flush_all()
+        punches._compute_overtime_hours()
+        self.assertGreater(early_punch.overtime_hours, 0)
+        self.assertEqual(self.punches[1].overtime_hours, -1)
+
+        # The last punch for the first employee consumes most of the overtime,
+        # even though only the earlier punch is in this recompute.
+        scoped = early_punch | self.punches[1]
+        expected = scoped.mapped('overtime_hours')
+        scoped.write({'overtime_hours': 0})
+        scoped._recompute_bambus_overtime_hours()
+        self.assertEqual(scoped.mapped('overtime_hours'), expected)
+
     def test_detection_uses_batch_instead_of_per_employee_contract_queries(self):
         contract_model = type(self.env['hr.contract'])
         original = contract_model.search

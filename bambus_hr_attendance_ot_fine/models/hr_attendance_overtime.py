@@ -740,9 +740,4 @@ class HrAttendanceOvertime(models.Model):
                     self._store_day_metrics(day_att, clear_vals, last_vals)
 
         if overtime_attendance_ids:
-            overtime_attendances = Attendance.browse(overtime_attendance_ids)
-            # Use the ORM recompute path so native assignments are batched
-            # without a separate attendance write per punch.
-            self.env.add_to_compute(Attendance._fields["overtime_hours"], overtime_attendances)
-            overtime_attendances._recompute_recordset(["overtime_hours"])
-            overtime_attendances.modified(["overtime_hours"])
+            Attendance.browse(overtime_attendance_ids)._recompute_bambus_overtime_hours()

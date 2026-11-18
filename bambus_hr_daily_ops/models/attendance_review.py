@@ -56,7 +56,8 @@ class AttendanceReviewWizard(models.TransientModel):
         atts = line._review_attendances()
         last = atts[-1:]
         snapshots = line.fine_review_data or {}
-        can_review_sessions = line._can_review_session_fines()
+        session_components = line.employee_id._attendance_exception_components(line.date)
+        can_review_sessions = line._can_review_session_fines(session_components)
         resplit = bool(self.env.context.get('review_session_fines') and can_review_sessions)
         if resplit:
             snapshots = {}
@@ -73,7 +74,6 @@ class AttendanceReviewWizard(models.TransientModel):
         elif not resplit and line.fine_state == 'rejected' and not snapshots:
             components = {}
         else:
-            session_components = line.employee_id._attendance_exception_components(line.date)
             components = {key: value['hours'] for key, value in session_components.items()} if session_components is not None else {
                 'late': (last.bambus_late_minutes or 0) / 60 if last else 0,
                 'break': (last.bambus_gap_minutes or 0) / 60 if last else 0,
@@ -130,7 +130,7 @@ class AttendanceReviewWizard(models.TransientModel):
         values.update({
             'fine_line_ids': rows, 'initial_fines': initial,
             'source_write_date': line.write_date,
-            'source_attendance_signature': line._review_source_signature(),
+            'source_attendance_signature': line._review_source_signature(session_components),
             'resplit_fines': resplit,
             'can_review_sessions': can_review_sessions and not resplit,
             'show_overtime': bool(not resplit and (line.contract_id.wage_type in ('daily', 'monthly') or line.overtime_re_review_required)
@@ -146,7 +146,8 @@ class AttendanceReviewWizard(models.TransientModel):
         line._check_review_access()
         if self.source_write_date and line.write_date != self.source_write_date:
             raise UserError(_('Attendance review changed. Close and reopen this review before approving.'))
-        if self.source_attendance_signature != line._review_source_signature():
+        current_components = line.employee_id._attendance_exception_components(line.date)
+        if self.source_attendance_signature != line._review_source_signature(current_components):
             raise UserError(_('Punches or schedule changed. Close and reopen this review before approving.'))
         if self.show_overtime:
             if not all(math.isfinite(value) and value >= 0 for value in (self.overtime_hours, self.rate)):
@@ -159,7 +160,7 @@ class AttendanceReviewWizard(models.TransientModel):
         data = dict(self.initial_fines or {})
         # Coverage is calculated on the server from punches, never from the
         # edited fine duration or a client-supplied initial snapshot.
-        current_components = line.employee_id._attendance_exception_components(line.date) or {}
+        current_components = current_components or {}
         saved_decisions = line.fine_review_data or {}
         for kind in data:
             data[kind] = dict(data[kind], coverage=saved_decisions.get(kind, {}).get(
@@ -240,16 +241,16 @@ class AttendanceReviewLine(models.Model):
 
     fine_review_data = fields.Json(copy=False, default=dict)
 
-    def _can_review_session_fines(self):
+    def _can_review_session_fines(self, exception_components):
         self.ensure_one()
         template = self.employee_id._get_attendance_automation_template(self.date)
         if template and template.partial_attendance_salary_treatment == 'fine_only':
             return False
         return bool((any(key in (self.fine_review_data or {}) for key in ('late', 'early', 'break', 'fine'))
                      or (not self.fine_review_data and self.fine_state in ('approved', 'rejected')))
-                    and self.employee_id._attendance_exception_components(self.date))
+                    and exception_components)
 
-    def _review_source_signature(self):
+    def _review_source_signature(self, exception_components):
         self.ensure_one()
         values = [(att.id, str(att.check_in), str(att.check_out)) for att in self._review_attendances()]
         values.append(self.employee_id._get_attendance_work_periods(self.date))
@@ -257,7 +258,7 @@ class AttendanceReviewLine(models.Model):
         if template:
             values.append((template.id, template.salary_hours_basis, template.salary_calculation_hours,
                            template._salary_calculation_day_hours(self.employee_id, self.date, self.contract_id)))
-        values.append(self.employee_id._attendance_exception_components(self.date))
+        values.append(exception_components)
         return hashlib.sha256(repr(values).encode()).hexdigest()
 
     def _check_review_access(self):
@@ -341,6 +342,7 @@ class AttendanceReviewDashboard(models.AbstractModel):
         allowed = {row.id: row for row in wizard.fine_line_ids}
         seen = set()
         commands = []
+        wizard_values = {}
         for item in items:
             key = item.get('id')
             if key in seen or key not in {*allowed, 'overtime'}:
@@ -356,9 +358,9 @@ class AttendanceReviewDashboard(models.AbstractModel):
             if key == 'overtime':
                 if not wizard.show_overtime:
                     raise UserError(_('No overtime is available for approval.'))
-                wizard.write(dict(values, overtime_hours=hours))
+                wizard_values.update(values, overtime_hours=hours)
             else:
                 commands.append((1, key, dict(values, hours=hours)))
         commands.extend((2, key) for key in allowed if key not in seen)
-        wizard.write({'fine_line_ids': commands, 'ignore_overtime': 'overtime' not in seen})
+        wizard.write(dict(wizard_values, fine_line_ids=commands, ignore_overtime='overtime' not in seen))
         return wizard.action_save()
