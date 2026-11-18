@@ -1,5 +1,10 @@
 # Attendance approvals and weekly-off pay
 
+With **Daily Ops 18.0.1.110.0**, the dashboard confirms a successful approval
+and refreshes the current date in one request. The returned page uses the fresh
+company-wide pending counts to keep the review filter, switch to the remaining
+type, or return to all attendance.
+
 ## Overnight audit date display — 18.0.1.109.0
 
 Attendance corrections are audited for check-in and checkout dates to preserve

@@ -1,5 +1,14 @@
 # Attendance Automation Test Checklist
 
+## Date switching and approval refresh — 18.0.1.110.0
+
+- **281 Odoo tests** and **32 OWL Chromium tests** passed.
+- Installed Chromium confirmed date switching after a grace rule change and one
+  dashboard refresh after saving a combined Late Fine and Overtime approval.
+- Against 18.0.3.38.0 and 18.0.1.109.0 on a 120-employee test roster, the median
+  date switch fell from **0.42 s to 0.14 s** and the post-approval refresh from
+  **0.89 s to 0.13 s**. These measurements cover local server work.
+
 ## Overnight audit display — 18.0.1.109.0
 
 **281 Odoo tests** passed across Daily Ops/payroll/attendance and XLSX reporting.

@@ -1,5 +1,12 @@
 # Bambus HR Daily Ops
 
+## Date switching and approval refresh
+
+Upgrade **Attendance OT/Fine 18.0.3.39.0** and **Daily Ops 18.0.1.110.0**,
+restart Odoo and refresh the browser. Date loads batch punch, leave and overtime
+reads. Pending review counts and the next review page are returned in one
+refresh after a save. The confirmation appears as soon as the save succeeds.
+
 ## Overnight audit date display — 18.0.1.109.0
 
 Attendance corrections are audited for check-in and checkout dates to preserve

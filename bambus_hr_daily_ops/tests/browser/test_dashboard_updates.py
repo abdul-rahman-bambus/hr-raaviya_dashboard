@@ -430,6 +430,33 @@ class DashboardUpdates(unittest.TestCase):
         self.assertTrue(self.page.evaluate('row.isConnected'))
         self.assertEqual(self.page.get_by_role('dialog').count(), 0)
 
+    def test_paged_approval_uses_one_refresh_and_server_filter(self):
+        self.mount('AttendanceEditor', """Object.assign(dailyData('2026-10-07'),
+            {paging: {total: 25, next_offset: 25, has_more: false}})""")
+        self.page.evaluate("""() => {
+            component.state.statusFilter = 'overtime_review';
+            component.state.adjustment = {wizard_id: 1, adjustment: 'review', date: '2026-10-07',
+                employee: 'Employee 1', items: [], employeeRecord: component.state.data.daily_attendance[0]};
+            component.saveAdjustment();
+        }""")
+        self.page.evaluate('requests[1].resolve({})')
+        self.page.wait_for_function('requests.length === 3')
+        options = self.page.evaluate('requests[2].args[3]')
+        self.assertTrue(options['after_review'])
+        self.assertEqual(options['status_filter'], 'overtime_review')
+        self.assertIn('Attendance adjustments saved', self.page.evaluate('notifications[0][0]'))
+        self.page.evaluate("""() => {
+            const data = dailyData('2026-10-07');
+            data.daily_attendance = [{...employee(2), fine_review_pending: true}];
+            requests[2].resolve({...data, status_filter: 'fine_review',
+                paging: {total: 1, next_offset: 1, has_more: false}});
+        }""")
+        self.tick()
+        self.assertEqual(self.page.evaluate('requests.length'), 3)
+        self.assertEqual(self.page.evaluate('component.state.statusFilter'), 'fine_review')
+        self.assertEqual(self.page.evaluate('component.state.selectedDate'), '2026-10-07')
+        self.assertIn('Employee 2', self.page.locator('.o_bae_employee').inner_text())
+
     def test_last_approval_clears_review_filter_and_preserves_date(self):
         self.mount('AttendanceEditor', "dailyData('2026-10-07')")
         self.page.evaluate("""() => {

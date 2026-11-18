@@ -1,6 +1,5 @@
 import pytz
 from datetime import datetime, timedelta, date, time
-from collections import defaultdict
 
 from odoo import api, fields, models
 
@@ -119,25 +118,16 @@ class HrAttendanceOvertime(models.Model):
             out.extend([(ps, pe) for ps, pe in parts if pe > ps])
         return out
 
-    def _get_validated_leave_intervals_local(self, employee, tzname, tz, d):
+    def _get_validated_leave_intervals_local(self, leaves, tzname, tz, d):
         """
         Returns validated hr.leave intervals overlapping local day 'd' in tz-aware local datetimes.
         """
-        Leave = self.env["hr.leave"].sudo()
-
         day_start_local = tz.localize(datetime(d.year, d.month, d.day, 0, 0, 0))
         day_end_local = day_start_local + timedelta(days=1)
 
         # Odoo stores datetimes as naive UTC; convert to naive UTC for domains
         day_start_utc = day_start_local.astimezone(pytz.UTC).replace(tzinfo=None)
         day_end_utc = day_end_local.astimezone(pytz.UTC).replace(tzinfo=None)
-
-        leaves = Leave.search([
-            ("employee_id", "=", employee.id),
-            ("state", "=", "validate"),
-            ("date_from", "<", day_end_utc),
-            ("date_to", ">", day_start_utc),
-        ])
 
         intervals = []
         for lv in leaves:
@@ -186,6 +176,18 @@ class HrAttendanceOvertime(models.Model):
         return bool(self.env["resource.calendar.leaves"].sudo().search_count(domain))
 
 
+    def _store_base_overtime(self, base_overtime, employee, day, duration, create_zero=True):
+        if base_overtime:
+            if base_overtime.duration != duration:
+                base_overtime.duration = duration
+        elif duration or create_zero:
+            self.create({
+                "employee_id": employee.id,
+                "date": day,
+                "adjustment": False,
+                "duration": duration,
+            })
+
     def _write_changed_day_metrics(self, attendances, values):
         """Do not dirty stored fields on an unchanged detection refresh."""
         for attendance in attendances:
@@ -224,39 +226,57 @@ class HrAttendanceOvertime(models.Model):
         days = self._date_list(start_date, end_date)
 
         employees = self.env["hr.employee"].browse(employee_ids).exists()
+        if not employees or not days:
+            return
+
+        attendances = Attendance.search([
+            ("employee_id", "in", employees.ids),
+            ("check_in", ">=", fields.Datetime.to_datetime(start_date) - timedelta(days=1)),
+            ("check_in", "<=", fields.Datetime.to_datetime(end_date) + timedelta(days=1)),
+        ])
+        punches_by_employee = attendances.grouped(lambda attendance: attendance.employee_id.id)
+        if not punches_by_employee:
+            return
+        # Cover every local day in the range regardless of employee timezone.
+        # The interval helper clips these candidates to the actual local day.
+        leaves_by_employee = self.env["hr.leave"].sudo().search([
+            ("employee_id", "in", list(punches_by_employee)),
+            ("state", "=", "validate"),
+            ("date_from", "<", fields.Datetime.to_datetime(end_date) + timedelta(days=2)),
+            ("date_to", ">", fields.Datetime.to_datetime(start_date) - timedelta(days=1)),
+        ]).grouped(lambda leave: leave.employee_id.id)
+        base_overtime_by_day = {
+            (overtime.employee_id.id, overtime.date): overtime
+            for overtime in Overtime.search([
+                ("employee_id", "in", list(punches_by_employee)),
+                ("date", ">=", start_date),
+                ("date", "<=", end_date),
+                ("adjustment", "=", False),
+            ])
+        }
+        overtime_attendance_ids = []
+        holiday_by_schedule_day = {}
         month_sched_cache = {}
-        overtime_attendances = Attendance.browse()
 
         for emp in employees:
+            atts = punches_by_employee.get(emp.id)
+            if not atts:
+                continue
             company = emp.company_id
             ot_mode = company.bambus_ot_mode  # 'odoo' or 'custom'
 
-            # fetch a small window (fast + safe)
-            atts = Attendance.search([
-                ("employee_id", "=", emp.id),
-                ("check_in", ">=", fields.Datetime.to_datetime(start_date) - timedelta(days=1)),
-                ("check_in", "<=", fields.Datetime.to_datetime(end_date) + timedelta(days=1)),
-            ])
-
             # group by local date using employee/calendar tz
-            by_date = defaultdict(lambda: Attendance.browse())
             contract0 = self._get_contract_on_date(emp, start_date)
             tzname0 = self._get_calendar_tz(emp, contract0)
-
-            for a in atts:
-                if not a.check_in:
-                    continue
-                d_local = self._ctx_ts(tzname0, a.check_in).date()
-                if start_date <= d_local <= end_date:
-                    by_date[d_local] |= a
+            by_date = atts.grouped(lambda attendance: self._ctx_ts(tzname0, attendance.check_in).date())
 
             for d in days:
-                automation = emp._get_attendance_automation_template(d)
-                day_att = by_date.get(d, Attendance.browse())
+                day_att = by_date.get(d)
                 if not day_att:
                     continue  # no absence fine as per your request
 
-                contract = self._get_contract_on_date(emp, d)
+                automation = emp._get_attendance_automation_template(d)
+                contract = contract0 if d == start_date else self._get_contract_on_date(emp, d)
                 tzname = self._get_calendar_tz(emp, contract)
                 tz = pytz.timezone(tzname)
 
@@ -268,9 +288,16 @@ class HrAttendanceOvertime(models.Model):
                 shifts = self._get_shift_rules_for_employee_on_date(emp, d)
                 bounds = self._shift_bounds_local(tz, d, shifts) if shifts else []
                 is_weekly_off = emp._is_attendance_weekly_off(d)
-                is_public_holiday = self._is_public_holiday(contract, tz, d)
+                holiday_key = (contract.resource_calendar_id.id, tzname, d)
+                if holiday_key not in holiday_by_schedule_day:
+                    holiday_by_schedule_day[holiday_key] = self._is_public_holiday(contract, tz, d)
+                is_public_holiday = holiday_by_schedule_day[holiday_key]
 
-                leave_intervals = self._get_validated_leave_intervals_local(emp, tzname, tz, d) if bounds else []
+                employee_leaves = leaves_by_employee.get(emp.id)
+                leave_intervals = (
+                    self._get_validated_leave_intervals_local(employee_leaves, tzname, tz, d)
+                    if bounds and employee_leaves else []
+                )
 
                 effective_bounds = []
                 per_shift_effective = []
@@ -351,27 +378,10 @@ class HrAttendanceOvertime(models.Model):
                             ):
                                 duration_to_store = 0.0
 
-                        base_ot = Overtime.search([
-                            ("employee_id", "=", emp.id),
-                            ("date", "=", d),
-                            ("adjustment", "=", False),
-                        ], limit=1)
-                        
-                        if not base_ot:
-                            # Create the OT record if they worked and it's allowed
-                            if duration_to_store > 0:
-                                base_ot = Overtime.create({
-                                    "employee_id": emp.id,
-                                    "date": d,
-                                    "adjustment": False,
-                                    "duration": duration_to_store,
-                                })
-                        else:
-                            # Update existing record (will reset to 0 if OT is not allowed)
-                            if base_ot.duration != duration_to_store:
-                                base_ot.write({"duration": duration_to_store})
-                            
-                        overtime_attendances |= day_att
+                        Overtime._store_base_overtime(
+                            base_overtime_by_day.get((emp.id, d)), emp, d, duration_to_store, create_zero=False,
+                        )
+                        overtime_attendance_ids.extend(day_att.ids)
 
                     continue
 
@@ -407,21 +417,8 @@ class HrAttendanceOvertime(models.Model):
                     # Done for BOTH ot modes: the default "odoo" mode would
                     # otherwise leave worked-minus-schedule overtime on the record,
                     # which is exactly the number that was surpassing the limit.
-                    base_ot = Overtime.search([
-                        ("employee_id", "=", emp.id),
-                        ("date", "=", d),
-                        ("adjustment", "=", False),
-                    ], limit=1)
-                    if not base_ot:
-                        base_ot = Overtime.create({
-                            "employee_id": emp.id,
-                            "date": d,
-                            "adjustment": False,
-                            "duration": 0.0,
-                        })
-                    elif base_ot.duration:
-                        base_ot.write({"duration": 0.0})
-                    overtime_attendances |= day_att
+                    Overtime._store_base_overtime(base_overtime_by_day.get((emp.id, d)), emp, d, 0.0)
+                    overtime_attendance_ids.extend(day_att.ids)
 
                     continue
 
@@ -702,23 +699,8 @@ class HrAttendanceOvertime(models.Model):
                     if automation and not automation.overtime_enabled:
                         duration_to_store = 0.0
 
-                    base_ot = Overtime.search([
-                        ("employee_id", "=", emp.id),
-                        ("date", "=", d),
-                        ("adjustment", "=", False),
-                    ], limit=1)
-
-                    if not base_ot:
-                        base_ot = Overtime.create({
-                            "employee_id": emp.id,
-                            "date": d,
-                            "adjustment": False,
-                            "duration": 0.0,
-                        })
-
-                    if base_ot.duration != duration_to_store:
-                        base_ot.write({"duration": duration_to_store})
-                    overtime_attendances |= day_att
+                    Overtime._store_base_overtime(base_overtime_by_day.get((emp.id, d)), emp, d, duration_to_store)
+                    overtime_attendance_ids.extend(day_att.ids)
 
                 # ---- Store day metrics only on last attendance of the day
                 clear_vals = {}
@@ -757,8 +739,10 @@ class HrAttendanceOvertime(models.Model):
 
                     self._store_day_metrics(day_att, clear_vals, last_vals)
 
-        # Native Odoo distribution supports multiple employees/dates. Run once
-        # after all base durations are ready, instead of scanning history for
-        # each employee separately during a dashboard refresh.
-        if overtime_attendances:
-            overtime_attendances._compute_overtime_hours()
+        if overtime_attendance_ids:
+            overtime_attendances = Attendance.browse(overtime_attendance_ids)
+            # Use the ORM recompute path so native assignments are batched
+            # without a separate attendance write per punch.
+            self.env.add_to_compute(Attendance._fields["overtime_hours"], overtime_attendances)
+            overtime_attendances._recompute_recordset(["overtime_hours"])
+            overtime_attendances.modified(["overtime_hours"])

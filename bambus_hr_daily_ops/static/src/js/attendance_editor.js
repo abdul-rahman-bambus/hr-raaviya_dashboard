@@ -258,6 +258,10 @@ export class AttendanceEditor extends AttendanceDashboard {
     }
 
     async syncEmployee(employee, date = this.state.data.date, afterReview = false) {
+        if (afterReview && this.state.serverPaging) {
+            if (date === this.state.selectedDate) await this.load(date, {afterReview: true});
+            return;
+        }
         const sequence = this.loadSequence;
         try {
             const data = await this.orm.silent.call(
@@ -283,7 +287,7 @@ export class AttendanceEditor extends AttendanceDashboard {
                     this.state.currentPage = 1;
                 }
             }
-            if (this.state.serverPaging && (afterReview || this.state.statusFilter !== 'all')) await this.load(date);
+            if (this.state.serverPaging && this.state.statusFilter !== 'all') await this.load(date);
         } catch (error) {
             this.notification.add(error.cause?.message || error.message || "Unable to refresh attendance.", {
                 type: "danger",
@@ -435,11 +439,11 @@ export class AttendanceEditor extends AttendanceDashboard {
             }
             const employee = adjustment.employeeRecord;
             this.state.adjustment = null;
-            await this.syncEmployee(employee, adjustment.date, true);
             this.notification.add(
                 `${adjustment.adjustment === "review" ? "Attendance adjustments" : adjustment.adjustment === "overtime" ? "Overtime" : (adjustment.adjustment === "hourly_pay" ? "Hourly pay" : "Late / fine")} saved for ${adjustment.employee}.`,
                 { type: "success" }
             );
+            await this.syncEmployee(employee, adjustment.date, true);
         } catch (error) {
             adjustment.saving = false;
             this.notification.add(error.cause?.message || error.message || "Unable to save attendance update.", { type: "danger" });
