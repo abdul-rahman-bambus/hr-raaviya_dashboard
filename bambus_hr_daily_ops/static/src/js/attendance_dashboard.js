@@ -46,7 +46,7 @@ export class AttendanceDashboard extends Component {
         onWillStart(() => this.load(this.initialDate));
     }
 
-    async load(date) {
+    async load(date, {afterReview = false} = {}) {
         const selectedDate = date || this.state.selectedDate;
         if (!selectedDate) return;
         const dateChanged = selectedDate !== this.state.data?.date;
@@ -66,12 +66,14 @@ export class AttendanceDashboard extends Component {
                 "bambus.attendance.dashboard",
                 "get_attendance_dashboard",
                 [],
-                {selected_date: selectedDate, offset: 0, limit: this.batchSize, ...this.serverFilters}
+                {selected_date: selectedDate, offset: 0, limit: this.batchSize, ...this.serverFilters,
+                    ...(afterReview ? {after_review: true} : {})}
             );
             // A slower response for the previous date must never overwrite the
             // most recently selected date.
             if (sequence === this.loadSequence) {
                 if (dateChanged) this.state.logEmployee = null;
+                if (afterReview && data.status_filter) this.state.statusFilter = data.status_filter;
                 this.state.data = { ...data };
                 this.applyPaging(data);
                 this.state.currentPage = dateChanged ? 1 : Math.min(

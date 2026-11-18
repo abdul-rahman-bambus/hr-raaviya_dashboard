@@ -96,3 +96,7 @@ class TestDashboardPaging(TransactionCase):
         self.assertEqual(filtered['daily_attendance'][0]['fine_hours'], round(25 / 60, 2))
         self.assertEqual(first['metrics']['fine_review_count'], filtered['metrics']['fine_review_count'])
         self.assertGreaterEqual(first['metrics']['fine_review_count'], 1)
+        after_review = self.read(offset=0, status_filter='overtime_review', after_review=True)
+        self.assertEqual(after_review['status_filter'], 'fine_review')
+        self.assertEqual(after_review['daily_attendance'], filtered['daily_attendance'])
+        self.assertEqual(after_review['metrics'], first['metrics'])

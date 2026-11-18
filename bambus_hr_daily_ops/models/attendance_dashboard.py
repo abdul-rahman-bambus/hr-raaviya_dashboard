@@ -120,7 +120,7 @@ class AttendanceDashboard(models.AbstractModel):
     @api.model
     def get_attendance_dashboard(self, selected_date=None, offset=None, limit=25,
                                  query='', status_filter='all', employee_filter_id=False,
-                                 include_logs=True):
+                                 include_logs=True, after_review=False):
         """Read one day's metrics from employees, attendances and time off."""
         day = fields.Date.to_date(selected_date) if selected_date else fields.Date.context_today(self)
         scope = self.env.context.get('_bambus_dashboard_read_scope')
@@ -130,7 +130,7 @@ class AttendanceDashboard(models.AbstractModel):
             return self.with_context(_bambus_dashboard_read_scope=DashboardReadScope(day)).get_attendance_dashboard(
                 selected_date=day, offset=offset, limit=limit, query=query,
                 status_filter=status_filter, employee_filter_id=employee_filter_id,
-                include_logs=include_logs)
+                include_logs=include_logs, after_review=after_review)
         company = self.env.company
         paged = offset is not None
         if paged and (type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100):
@@ -348,6 +348,14 @@ class AttendanceDashboard(models.AbstractModel):
                 attendances_by_employee.get(employee.id, []), review_by_employee.get(employee.id))
             for employee in employees
         }
+
+        overtime_review_count = sum(row['overtime_review_pending'] for row in adjustments_by_employee.values())
+        fine_review_count = sum(row['fine_review_pending'] for row in adjustments_by_employee.values())
+        if after_review and status_filter in ('overtime', 'fine', 'overtime_review', 'fine_review'):
+            pending = overtime_review_count if status_filter.startswith('overtime') else fine_review_count
+            if not pending:
+                status_filter = ('overtime_review' if overtime_review_count else
+                                 'fine_review' if fine_review_count else 'all')
 
         def employee_matches(employee):
             if employee_filter_id and employee.id != employee_filter_id:
@@ -635,6 +643,7 @@ class AttendanceDashboard(models.AbstractModel):
             "departments": departments,
             "shifts": shifts,
             "daily_attendance": daily_attendance,
+            **({'status_filter': status_filter} if after_review else {}),
             **({'paging': {'offset': offset, 'limit': limit, 'total': len(matching_employees),
                           'next_offset': offset + len(visible_employees),
                           'has_more': offset + len(visible_employees) < len(matching_employees)}} if paged else {}),
@@ -650,12 +659,8 @@ class AttendanceDashboard(models.AbstractModel):
                 "upcoming_leaves": len(set(upcoming_leaves.employee_id.ids)),
                 "overtime": round(sum(round(value['overtime_hours'], 2) for value in adjustments_by_employee.values()), 2),
                 "fine": round(sum(round(value['fine_hours'], 2) for value in adjustments_by_employee.values()), 2),
-                "overtime_review_count": sum(
-                    1 for row in adjustments_by_employee.values() if row["overtime_review_pending"]
-                ),
-                "fine_review_count": sum(
-                    1 for row in adjustments_by_employee.values() if row["fine_review_pending"]
-                ),
+                "overtime_review_count": overtime_review_count,
+                "fine_review_count": fine_review_count,
                 "fine_amount": round(fine_amount, 2),
                 "on_duty": 0,
                 "upcoming_on_duty": 0,
